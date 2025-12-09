@@ -6,6 +6,7 @@ import {
     Image // Needed to show the selected photo
     ,
 
+
     KeyboardAvoidingView,
     Platform,
     SafeAreaView,
@@ -119,7 +120,7 @@ export default function AgencyDetailsScreen() {
             <Text style={styles.label}>SSM License Number</Text>
             <TextInput 
               style={styles.inputField} 
-              placeholder="XXXX" 
+              placeholder="202301000001" 
               value={licenseNo} 
               onChangeText={setLicenseNo}
               keyboardType="numeric"    // <--- Added this to show number pad
@@ -136,7 +137,7 @@ export default function AgencyDetailsScreen() {
               ) : (
                 // If no image, show the Upload Icon (Arrow Up)
                 <View style={styles.uploadPlaceholder}>
-                  <Ionicons name="arrow-up-outline" size={32} color="#000" />
+                  <Ionicons name="image-outline" size={40} color="#648DDB" />
                 </View>
               )}
             </TouchableOpacity>
