@@ -1,6 +1,12 @@
+import { Ionicons } from '@expo/vector-icons'; // Added for the Eye Icon
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  Alert // Added Alert for better popups
+  ,
+
+
+
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -16,6 +22,62 @@ import { loginUser } from '../services/AuthService';
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  
+  // 1. New State for UI enhancements
+  const [isPasswordVisible, setPasswordVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    // Basic Validation
+    if (!email || !password) {
+      Alert.alert("Missing Info", "Please enter both email and password.");
+      return;
+    }
+
+    setLoading(true); // Start loading spinner/text
+
+    try {
+      // 1. Call the service
+      const result = await loginUser(email, password);
+  
+      // 2. Check Role & Navigate
+      if (result.role === 'admin') {
+        // router.replace('/admin-dashboard');
+        Alert.alert("Welcome Admin", "Login Successful!");
+      } else if (result.role === 'agency') {
+        //router.replace('/agency-home');
+        Alert.alert("Welcome Agency", "Login Successful!");
+      } else {
+        //router.replace('/home'); // Traveller
+        Alert.alert("Welcome Traveller", "Login Successful!");
+      }
+    } catch (error) {
+      
+      // 3. Friendly Error Handling
+      let errorMessage = "Something went wrong. Please try again.";
+
+      // Translate Firebase technical codes to human text
+      switch (error.code) {
+        case 'auth/user-not-found':
+        case 'auth/invalid-email':
+           errorMessage = "This email is not registered.\nPlease check your email or Sign Up.";
+           break;
+        case 'auth/wrong-password':
+        case 'auth/invalid-credential':
+           errorMessage = "Wrong password.\nPlease try again.";
+           break;
+        case 'auth/too-many-requests':
+           errorMessage = "Too many failed attempts.\nPlease try again later.";
+           break;
+        default:
+           errorMessage = error.message;
+      }
+
+      Alert.alert("Login Failed", errorMessage);
+    } finally {
+      setLoading(false); // Stop loading regardless of success/failure
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -26,12 +88,9 @@ export default function LoginScreen() {
         
         {/* 1. TOP APP BAR (Tab Switcher) */}
         <View style={styles.tabContainer}>
-          {/* Active Tab (Log In) */}
           <View style={styles.activeTabBorder}>
             <Text style={styles.activeTabText}>Log in</Text>
           </View>
-          
-          {/* Inactive Tab (Sign Up) - clickable to go to register */}
           <TouchableOpacity 
             style={styles.inactiveTab} 
             onPress={() => router.push('/register')}
@@ -40,7 +99,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* 2. HEADER SECTION (Restored Welcome Text) */}
+        {/* 2. HEADER SECTION */}
         <View style={styles.headerContainer}>
           <Text style={styles.title}>Welcome Back</Text>
           <Text style={styles.subtitle}>Sign in to continue your Dream Trip</Text>
@@ -48,52 +107,53 @@ export default function LoginScreen() {
 
         {/* 3. INPUT SECTION */}
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>User Name</Text>
+          <Text style={styles.label}>Your Email</Text>
           <TextInput
             style={styles.inputField}
             placeholder="Enter your email"
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
+            keyboardType="email-address"
           />
 
           <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.inputField}
-            placeholder="Enter your password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={true} 
-          />
           
-          <TouchableOpacity>
+          {/* ENHANCED PASSWORD FIELD WITH ICON */}
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput} // Changed style to fit inside container
+              placeholder="Enter your password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!isPasswordVisible} // Toggles true/false
+            />
+            <TouchableOpacity 
+              onPress={() => setPasswordVisible(!isPasswordVisible)}
+              style={styles.eyeIcon}
+            >
+              <Ionicons 
+                name={isPasswordVisible ? "eye-outline" : "eye-off-outline"} 
+                size={24} 
+                color="#BDBDBD" 
+              />
+            </TouchableOpacity>
+          </View>
+          
+          <TouchableOpacity onPress={() => router.push('/forgot-password')}>
             <Text style={styles.forgotPassword}>Forgot password?</Text>
           </TouchableOpacity>
         </View>
 
         {/* 4. BUTTON SECTION */}
-        <TouchableOpacity style={styles.loginButton} onPress= {async() => {  
-          try {
-            // 1. Call the service
-            const result = await loginUser(email, password);
-        
-            // 2. Check Role & Navigate
-            if (result.role === 'admin') {
-              //router.replace('/admin-dashboard');
-              alert("Login Successful!");
-            } else if (result.role === 'agency') {
-              //router.replace('/agency-home');
-              alert("Login Successful!");
-            } else if (result.role === 'traveller') {
-              //router.replace('/home'); // Traveller
-              alert("Login Successful!");
-            }
-          } catch (error) {
-            alert(error.message); // Show "Wrong password" etc.
-          }
-          
-        }}>
-          <Text style={styles.loginButtonText}>Log In</Text>
+        <TouchableOpacity 
+          style={styles.loginButton} 
+          onPress={handleLogin}
+          disabled={loading} // Prevent double clicking
+        >
+          <Text style={styles.loginButtonText}>
+            {loading ? "Checking..." : "Log In"}
+          </Text>
         </TouchableOpacity>
 
         {/* 5. FOOTER */}
@@ -104,9 +164,9 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
         
-        <TouchableOpacity style={styles.adminLink}>
+        {/* <TouchableOpacity style={styles.adminLink} onPress={() => alert("Feature coming in Sprint 5")}>
            <Text style={styles.adminText}>Sign in as Admin</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -120,7 +180,7 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     flex: 1,
-    paddingHorizontal: 27, // Matches your Figma 'left: 27px'
+    paddingHorizontal: 27,
     justifyContent: 'flex-start',
     paddingTop: 60,
   },
@@ -131,20 +191,20 @@ const styles = StyleSheet.create({
     marginBottom: 40,
     marginTop: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0', // Very light line across whole width
+    borderBottomColor: '#F0F0F0',
   },
   activeTabBorder: {
-    borderBottomWidth: 3,       // The Blue Line
-    borderBottomColor: '#648DDB', // Your Blue
+    borderBottomWidth: 3,
+    borderBottomColor: '#648DDB',
     paddingBottom: 10,
     marginRight: 30,
-    width: 80,                  // Fixed width for the line
+    width: 80,
     alignItems: 'center',
   },
   activeTabText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#648DDB',           // Blue text
+    color: '#648DDB',
   },
   inactiveTab: {
     paddingBottom: 10,
@@ -154,7 +214,7 @@ const styles = StyleSheet.create({
   inactiveTabText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#BDBDBD',           // Gray text
+    color: '#BDBDBD',
   },
 
   // === WELCOME HEADER STYLES ===
@@ -187,13 +247,37 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 56,
     borderWidth: 2,
-    borderColor: '#E1E1E1', // Figma Gray Border
-    borderRadius: 12,       // Figma Radius
+    borderColor: '#E1E1E1',
+    borderRadius: 12,
     paddingHorizontal: 16,
     backgroundColor: '#FFFFFF',
     fontSize: 16,
     marginBottom: 20,
   },
+  
+  // NEW STYLES FOR PASSWORD TOGGLE
+  passwordContainer: {
+    flexDirection: 'row', 
+    alignItems: 'center',
+    width: '100%',
+    height: 56,
+    borderWidth: 2,
+    borderColor: '#E1E1E1',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 20,
+    paddingRight: 16,
+  },
+  passwordInput: {
+    flex: 1, 
+    height: '100%',
+    paddingHorizontal: 16,
+    fontSize: 16,
+  },
+  eyeIcon: {
+    padding: 4,
+  },
+
   forgotPassword: {
     alignSelf: 'flex-end',
     color: '#648DDB', 
@@ -204,19 +288,16 @@ const styles = StyleSheet.create({
   loginButton: {
     width: '100%',
     height: 56,
-    backgroundColor: '#648DDB', // Figma Blue Button
+    backgroundColor: '#648DDB',
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
-    shadowColor: "#648DDB",    // Adds a nice glow
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowColor: "#648DDB",
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 4.65,
-    elevation: 8,              // Required for Android shadow
+    elevation: 8,
   },
   loginButtonText: {
     color: '#FFFFFF',

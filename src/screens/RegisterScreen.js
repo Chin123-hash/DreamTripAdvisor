@@ -10,6 +10,7 @@ import {
 
 
 
+
   StyleSheet,
   Text,
   TextInput,
@@ -29,6 +30,7 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [dob, setDob] = useState('');
   const [phone, setPhone] = useState('');
+  const [isPasswordVisible, setPasswordVisible] = useState(false);
 // Add these new states
 const [date, setDate] = useState(new Date()); // The actual date object
 const [showPicker, setShowPicker] = useState(false); // Controls if calendar is visible
@@ -77,7 +79,11 @@ const onChangeDate = (event, selectedDate) => {
       alert('Please fill in all required fields.');
       return;
     }
-
+    if (password.length < 6) {
+      alert("Password is too short.\nIt must be at least 6 characters.");
+      return; // <--- STOPS here. Firebase is never called.
+    }
+    
     if (!isPhoneValid) {
       alert('Please enter a valid Malaysian phone (e.g., 011xxxxxxxx or 012xxxxxxx).');
       return;
@@ -147,13 +153,27 @@ const onChangeDate = (event, selectedDate) => {
           />
 
           <Text style={styles.label}>Password</Text>
-          <TextInput 
-            style={styles.inputField} 
-            placeholder="••••••••••••" 
-            value={password} 
-            onChangeText={setPassword} 
-            secureTextEntry={true} 
-          />
+          
+          {/* ENHANCED PASSWORD FIELD WITH ICON */}
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="********"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!isPasswordVisible}
+            />
+            <TouchableOpacity 
+              onPress={() => setPasswordVisible(!isPasswordVisible)}
+              style={styles.eyeIcon}
+            >
+              <Ionicons 
+                name={isPasswordVisible ? "eye-outline" : "eye-off-outline"} 
+                size={24} 
+                color="#BDBDBD" 
+              />
+            </TouchableOpacity>
+          </View>
 
         <Text style={styles.label}>Date of Birth</Text>
         <TouchableOpacity onPress={() => setShowPicker(true)} style={styles.dateContainer}>
@@ -184,7 +204,7 @@ const onChangeDate = (event, selectedDate) => {
           <Text style={styles.label}>Phone Number</Text>
           <TextInput 
             style={styles.inputField} 
-            placeholder="019-3140197" 
+            placeholder="0193140197" 
             value={phone} 
             onChangeText={setPhone} 
             keyboardType="phone-pad"
@@ -295,6 +315,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     fontSize: 15,
     marginBottom: 16,
+  },
+  
+  // === PASSWORD TOGGLE STYLES ===
+  passwordContainer: {
+    flexDirection: 'row', 
+    alignItems: 'center',
+    width: '100%',
+    height: 50,
+    borderWidth: 1.5,
+    borderColor: '#E1E1E1',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
+    paddingRight: 16,
+  },
+  passwordInput: {
+    flex: 1, 
+    height: '100%',
+    paddingHorizontal: 16,
+    fontSize: 15,
+  },
+  eyeIcon: {
+    padding: 4,
   },
   
   // === CALENDAR SPECIFIC ===
