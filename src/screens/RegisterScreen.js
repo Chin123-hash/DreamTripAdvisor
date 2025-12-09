@@ -11,6 +11,7 @@ import {
 
 
 
+
   StyleSheet,
   Text,
   TextInput,
@@ -158,7 +159,7 @@ const onChangeDate = (event, selectedDate) => {
           <View style={styles.passwordContainer}>
             <TextInput
               style={styles.passwordInput}
-              placeholder="********"
+              placeholder="Password"
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!isPasswordVisible}
