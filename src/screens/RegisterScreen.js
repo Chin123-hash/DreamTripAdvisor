@@ -10,6 +10,8 @@ import {
     ,
 
 
+
+
     StyleSheet,
     Text,
     TextInput,
@@ -45,13 +47,16 @@ const onChangeDate = (event, selectedDate) => {
   }
 };
   // 2. Handle Button Logic
-  const handlePress = () => {
+  // Inside RegisterScreen.js
+
+const handlePress = () => {
     if (role === 'agency') {
-      alert("Navigate to Agency Details Page");
-      // Later: router.push('/agency-details');
+      // Navigate to the new Agency Page
+      router.push('/agency-details'); 
     } else {
+      // Normal Traveller Registration
       alert("Creating Customer Account...");
-      // Later: Call Firebase Register function
+      // Firebase logic will go here later
     }
   };
 
