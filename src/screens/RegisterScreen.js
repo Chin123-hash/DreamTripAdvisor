@@ -3,21 +3,23 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView // We need this because the form is long!
-    ,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView // We need this because the form is long!
+  ,
 
 
 
-
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { registerTraveller } from '../services/AuthService';
+
 export default function RegisterScreen() {
   // 1. Form State
   const [role, setRole] = useState('traveller'); // Default to Traveller
@@ -48,15 +50,59 @@ const onChangeDate = (event, selectedDate) => {
 };
   // 2. Handle Button Logic
   // Inside RegisterScreen.js
+  const phoneDigits = phone.replace(/\D/g, '');
+  // Malaysian mobile: 011 + 8 digits (11 total) or 01X + 7 digits (10 total) where X != 1
+  const malaysiaPhoneRegex = /^(011\d{8}|01[02-9]\d{7})$/;
+  const isPhoneValid = malaysiaPhoneRegex.test(phoneDigits);
 
-const handlePress = () => {
+  const isFormValid =
+    fullName.trim() &&
+    username.trim() &&
+    email.trim() &&
+    password.trim() &&
+    dob.trim() &&
+    phone.trim() &&
+    isPhoneValid;
+
+  const handlePress = async () => {
+    // Require all fields before proceeding
+    if (
+      !fullName.trim() ||
+      !username.trim() ||
+      !email.trim() ||
+      !password.trim() ||
+      !dob.trim() ||
+      !phone.trim()
+    ) {
+      alert('Please fill in all required fields.');
+      return;
+    }
+
+    if (!isPhoneValid) {
+      alert('Please enter a valid Malaysian phone (e.g., 011xxxxxxxx or 012xxxxxxx).');
+      return;
+    }
+
     if (role === 'agency') {
-      // Navigate to the new Agency Page
-      router.push('/agency-details'); 
+      // A. If Agency, pass data to Next Page (Do not save yet)
+      router.push({
+        pathname: '/agency-details',
+        params: { email: email.trim(), password: password } 
+      });
     } else {
-      // Normal Traveller Registration
-      alert("Creating Customer Account...");
-      // Firebase logic will go here later
+      // B. If Traveller, Save to Database NOW
+      try {
+        await registerTraveller(email.trim(), password, {
+          fullName: fullName.trim(),
+          username: username.trim(),
+          phone: phone.trim(),
+          dob: dob.trim()
+        });
+        alert("Account Created!");
+        router.replace('/');
+      } catch (error) {
+        alert(error.message);
+      }
     }
   };
 
@@ -166,7 +212,11 @@ const handlePress = () => {
           </View>
 
           {/* DYNAMIC BUTTON */}
-          <TouchableOpacity style={styles.mainButton} onPress={handlePress}>
+          <TouchableOpacity
+            style={[styles.mainButton, !isFormValid && styles.mainButtonDisabled]}
+            onPress={handlePress}
+            disabled={!isFormValid}
+          >
             <Text style={styles.mainButtonText}>
               {role === 'agency' ? 'Continue' : 'Sign Up'}
             </Text>
@@ -314,6 +364,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4.65,
     elevation: 8,
+  },
+  mainButtonDisabled: {
+    opacity: 0.5,
   },
   mainButtonText: {
     color: '#FFFFFF',

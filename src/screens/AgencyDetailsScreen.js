@@ -1,36 +1,47 @@
 import { Ionicons } from '@expo/vector-icons'; // For the upload arrow
 import * as ImagePicker from 'expo-image-picker'; // The library we just installed
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Image // Needed to show the selected photo
-    ,
+  Image // Needed to show the selected photo
+  ,
 
 
 
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+
+
+
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
-
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { registerAgency } from '../services/AuthService';
 export default function AgencyDetailsScreen() {
+  const { email, password } = useLocalSearchParams();
   const [agencyName, setAgencyName] = useState('');
   const [companyUrl, setCompanyUrl] = useState(''); // Changed from address to URL
   const [licenseNo, setLicenseNo] = useState('');
   const [logo, setLogo] = useState(null); // Stores the uploaded image URI
+
+  const isFormValid =
+    agencyName.trim() &&
+    companyUrl.trim() &&
+    licenseNo.trim() &&
+    logo;
 
   // --- FUNCTION: Pick Image from Gallery ---
   // --- FUNCTION: Pick Image (JPG/PNG Only) ---
   const pickImage = async () => {
     // 1. Request Permission & Open Gallery
     let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images, // Still allows all images initially
+      // Use MediaTypeOptions for current Expo version; MediaType not available here
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 1,
@@ -55,9 +66,9 @@ export default function AgencyDetailsScreen() {
     }
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     // --- STEP 1: Basic Empty Check ---
-    if (!agencyName || !companyUrl || !licenseNo || !logo) {
+    if (!agencyName.trim() || !companyUrl.trim() || !licenseNo.trim() || !logo) {
       alert("Please fill in all fields and upload a logo.");
       return; // Stop the function here
     }
@@ -82,6 +93,18 @@ export default function AgencyDetailsScreen() {
     console.log("Validation Passed!", { agencyName, companyUrl, licenseNo });
     // TODO: Here is where you call the Firebase Function later
     alert("Registration Successful!");
+    try {
+      await registerAgency(
+        email, 
+        password, 
+        { agencyName, licenseNo, companyUrl }, 
+        logo // The image URI
+      );
+      alert("Agency Registration Complete!");
+      router.replace('/');
+    } catch (error) {
+      alert(error.message);
+    }
   };
 
   return (
@@ -146,7 +169,11 @@ export default function AgencyDetailsScreen() {
           </View>
 
           {/* SIGN UP BUTTON */}
-          <TouchableOpacity style={styles.mainButton} onPress={handleRegister}>
+          <TouchableOpacity
+            style={[styles.mainButton, !isFormValid && styles.mainButtonDisabled]}
+            onPress={handleRegister}
+            disabled={!isFormValid}
+          >
             <Text style={styles.mainButtonText}>Sign Up</Text>
           </TouchableOpacity>
 
@@ -252,6 +279,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4.65,
     elevation: 8,
+  },
+  mainButtonDisabled: {
+    opacity: 0.5,
   },
   mainButtonText: {
     color: '#FFFFFF',

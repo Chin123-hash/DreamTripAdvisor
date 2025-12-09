@@ -1,15 +1,17 @@
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { loginUser } from '../services/AuthService';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -70,7 +72,27 @@ export default function LoginScreen() {
         </View>
 
         {/* 4. BUTTON SECTION */}
-        <TouchableOpacity style={styles.loginButton} onPress={() => alert('Login Pressed')}>
+        <TouchableOpacity style={styles.loginButton} onPress= {async() => {  
+          try {
+            // 1. Call the service
+            const result = await loginUser(email, password);
+        
+            // 2. Check Role & Navigate
+            if (result.role === 'admin') {
+              //router.replace('/admin-dashboard');
+              alert("Login Successful!");
+            } else if (result.role === 'agency') {
+              //router.replace('/agency-home');
+              alert("Login Successful!");
+            } else if (result.role === 'traveller') {
+              //router.replace('/home'); // Traveller
+              alert("Login Successful!");
+            }
+          } catch (error) {
+            alert(error.message); // Show "Wrong password" etc.
+          }
+          
+        }}>
           <Text style={styles.loginButtonText}>Log In</Text>
         </TouchableOpacity>
 
