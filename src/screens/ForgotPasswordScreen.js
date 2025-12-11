@@ -2,14 +2,14 @@ import { router } from 'expo-router';
 import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
 import React, { useEffect, useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { app } from '../../firebaseConfig';
 
@@ -96,7 +96,7 @@ export default function ForgotPasswordScreen() {
             disabled={!isValid || loading}
           >
             <Text style={styles.resetButtonText}>
-              {loading ? "Sending..." : "Reset Password"}
+              {/* {loading ? "Sending..." : "Reset Password"} */}
             </Text>
           </TouchableOpacity>
 
