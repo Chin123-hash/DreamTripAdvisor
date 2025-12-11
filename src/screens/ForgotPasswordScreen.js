@@ -96,7 +96,7 @@ export default function ForgotPasswordScreen() {
             disabled={!isValid || loading}
           >
             <Text style={styles.resetButtonText}>
-              {/* {loading ? "Sending..." : "Reset Password"} */}
+              {loading ? "Sending..." : "Reset Password"}
             </Text>
           </TouchableOpacity>
 
