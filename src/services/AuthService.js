@@ -110,7 +110,7 @@ export const resetPassword = async (email) => {
         throw error;
     }
 };
-
+//
 export const addEntertainment = async (data, imageUri) => {
     try {
       let imageUrl = null;
