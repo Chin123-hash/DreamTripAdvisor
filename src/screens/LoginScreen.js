@@ -48,8 +48,8 @@ export default function LoginScreen() {
         //router.replace('/agency-home');
         Alert.alert("Welcome Agency", "Login Successful!");
       } else {
-        //router.replace('/home'); // Traveller
-        Alert.alert("Welcome Traveller", "Login Successful!");
+        router.replace('/customer-main'); // Traveller
+        //Alert.alert("Welcome Traveller", "Login Successful!");
       }
     } catch (error) {
       
