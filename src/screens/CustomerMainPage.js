@@ -180,7 +180,7 @@ export default function CustomerMainPage() {
             </ScrollView>
 
             {/* --- NEW FEATURE: FLOATING ACTION BUTTON --- */}
-            <TouchableOpacity style={styles.fabButton} onPress={() => alert("Go to Cart")}>
+            <TouchableOpacity style={styles.fabButton} onPress={() => router.push("/cart")}>
                 <Ionicons name="cart" size={24} color="#FFF" style={{marginRight: 5}} />
                 <Text style={styles.fabText}>View Cart</Text>
             </TouchableOpacity>
