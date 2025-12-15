@@ -2,14 +2,18 @@
 import {
     createUserWithEmailAndPassword,
     sendPasswordResetEmail,
-    signInWithEmailAndPassword
+    signInWithEmailAndPassword,
+    signOut
 } from 'firebase/auth';
 import {
     addDoc, arrayUnion, collection, doc, getDoc, getDocs, orderBy, // Changed from onSnapshot for simpler one-time fetch
-    query, setDoc, updateDoc
+    query, setDoc,
+
+    updateDoc
 } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { auth, db, storage } from '../../firebaseConfig';
+
 // --- HELPER: Upload Image to Firebase Storage ---
 const uploadLogo = async (uri, uid) => {
     if (!uri) return null;
@@ -237,5 +241,59 @@ export const addItemToPlan = async (planId, itemData) => {
     } catch (error) {
         console.error("Error adding to plan:", error);
         throw error;
+    }
+};
+
+export const getFoodList = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "foods"));
+      const list = [];
+      querySnapshot.forEach((doc) => {
+        list.push({ id: doc.id, ...doc.data(), type: 'food' });
+      });
+      return list;
+    } catch (error) {
+      console.error("Error fetching food:", error);
+      return [];
+    }
+};
+
+export const getFoodById = async (id) => {
+    try {
+        const docRef = doc(db, "foods", id);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            return { id: docSnap.id, ...docSnap.data() };
+        } else {
+            return null;
+        }
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const logoutUser = async () => {
+    try {
+        await signOut(auth);
+        return true;
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const getCurrentUserData = async () => {
+    const user = auth.currentUser;
+    if (!user) return null; // Not logged in
+
+    try {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+            return { uid: user.uid, ...userDoc.data() };
+        }
+        return null;
+    } catch (error) {
+        console.error("Error fetching user data:", error);
+        return null;
     }
 };
