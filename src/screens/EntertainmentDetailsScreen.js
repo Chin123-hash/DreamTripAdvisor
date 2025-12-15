@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 // IMPORT THE NEW FUNCTIONS
 import { addItemToPlan, createNewPlan, getEntertainmentById, getUserPlans } from '../services/AuthService';
+//
 
 const { width, height } = Dimensions.get('window');
 

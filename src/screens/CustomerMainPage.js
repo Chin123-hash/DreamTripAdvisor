@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  FlatList,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 // --- IMPORTS: NEW FEATURES ---
@@ -73,7 +73,7 @@ export default function CustomerMainPage() {
         };
         fetchData();
     }, []);
-
+//
     // --- RENDER CARD ---
     const renderHorizontalCard = ({ item, isFood }) => (
         <TouchableOpacity 
