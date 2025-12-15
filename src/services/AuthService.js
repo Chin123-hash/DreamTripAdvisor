@@ -4,7 +4,7 @@ import {
     sendPasswordResetEmail,
     signInWithEmailAndPassword
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, setDoc } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { auth, db, storage } from '../../firebaseConfig';
 
@@ -104,3 +104,39 @@ export const resetPassword = async (email) => {
         throw error;
     }
 };
+
+export const addEntertainment = async (data, imageUri) => {
+    try {
+      let imageUrl = null;
+  
+      // 1. Upload Image (Reusing similar logic to uploadLogo, but generic folder)
+      if (imageUri) {
+          // We can reuse the uploadLogo helper if modified, or just write a quick fetch here
+          // Since uploadLogo is scoped locally in your file, let's copy the logic pattern:
+          const response = await fetch(imageUri);
+          const blob = await response.blob();
+          const filename = `entertainments/${new Date().getTime()}.jpg`; // New folder for organization
+          const storageRef = ref(storage, filename);
+          await uploadBytes(storageRef, blob);
+          imageUrl = await getDownloadURL(storageRef);
+      }
+  
+      // 2. Save Data to Firestore (Auto-ID)
+      // We use addDoc because we don't have a specific User ID to link to, we want a random ID.
+      await addDoc(collection(db, "entertainments"), {
+        title: data.title,
+        description: data.description,
+        suggestedTransport: data.suggestedTransport,
+        transportCost: parseFloat(data.transportCost) || 0,
+        estimatedTotalExpenses: parseFloat(data.estimatedTotalExpenses) || 0,
+        rating: parseFloat(data.rating) || 0,
+        imageUrl: imageUrl,
+        type: 'entertainments',
+        createdAt: new Date().toISOString()
+      });
+  
+      return true;
+    } catch (error) {
+      throw error;
+    }
+  };
