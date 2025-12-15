@@ -24,30 +24,30 @@ import { getCurrentUserData, getEntertainmentList, logoutUser } from '../service
 
 const { width } = Dimensions.get('window');
 
-// --- DUMMY DATA ---
+// --- DUMMY DATA (Only for Food & Plans, since Entertainment is fetched) ---
 const DUMMY_FOOD = [
-  { id: '1', title: 'Laksalicious', image: 'https://via.placeholder.com/150' },
-  { id: '2', title: 'Tiger Char Kuey Teow', image: 'https://via.placeholder.com/150' },
-  { id: '3', title: 'Nasi Kandar', image: 'https://via.placeholder.com/150' },
+    { id: '1', title: 'Laksalicious', image: 'https://via.placeholder.com/150' },
+    { id: '2', title: 'Tiger Char Kuey Teow', image: 'https://via.placeholder.com/150' },
+    { id: '3', title: 'Nasi Kandar', image: 'https://via.placeholder.com/150' },
 ];
 
 const DUMMY_PLANS = [
-  { 
-    id: '1', 
-    title: 'Penang 3D2N Fun Trip', 
-    desc: 'Experience the heritage and food of Penang.', 
-    rating: 4, 
-    price: '450',
-    image: 'https://via.placeholder.com/300'
-  },
-  { 
-    id: '2', 
-    title: 'KL City Escape', 
-    desc: 'Shopping and sightseeing in the heart of KL.', 
-    rating: 5, 
-    price: '300',
-    image: 'https://via.placeholder.com/300'
-  }
+    { 
+        id: '1', 
+        title: 'Penang 3D2N Fun Trip', 
+        desc: 'Experience the heritage and food of Penang.', 
+        rating: 4, 
+        price: '450',
+        image: 'https://via.placeholder.com/300'
+    },
+    { 
+        id: '2', 
+        title: 'KL City Escape', 
+        desc: 'Shopping and sightseeing in the heart of KL.', 
+        rating: 5, 
+        price: '300',
+        image: 'https://via.placeholder.com/300'
+    }
 ];
 
 export default function CustomerMainPage() {
@@ -118,20 +118,24 @@ export default function CustomerMainPage() {
       }
   };
 
-  // --- RENDER CARD ---
-  const renderHorizontalCard = ({ item, isFood }) => (
-    <TouchableOpacity 
-      style={styles.cardContainer}
-      onPress={() => {
-        if (!isFood) {
-          router.push({ pathname: '/entertainment-details', params: { id: item.id } });
-        }
-      }}
-    >
-      <Image source={{ uri: item.image }} style={styles.cardImage} />
-      <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-    </TouchableOpacity>
-  );
+    // --- RENDER CARD ---
+    const renderHorizontalCard = ({ item, isFood }) => (
+        <TouchableOpacity 
+            style={styles.cardContainer}
+            onPress={() => {
+                if (!isFood) {
+                    // Navigate to Entertainment Details (New Feature)
+                    router.push({ pathname: '/entertainment-details', params: { id: item.id } });
+                } else {
+                    // Placeholder for Food (Future Feature)
+                    alert(`Navigating to Food: ${item.title}`);
+                }
+            }}
+        >
+            <Image source={{ uri: item.image }} style={styles.cardImage} />
+            <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
+        </TouchableOpacity>
+    );
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -165,53 +169,53 @@ export default function CustomerMainPage() {
           </TouchableOpacity>
         </View>
 
-        {/* SECTION 1: ENTERTAINMENT */}
-        <Text style={styles.sectionTitle}>Recommended Entertainment</Text>
-        {loading ? (
-          <ActivityIndicator size="small" color="#648DDB" style={{marginLeft: 20, alignSelf:'flex-start'}} />
-        ) : (
-          <FlatList
-            data={entertainmentList}
-            renderItem={(item) => renderHorizontalCard({ ...item, isFood: false })}
-            keyExtractor={item => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-            ListEmptyComponent={<Text style={styles.emptyText}>No entertainment found.</Text>}
-          />
-        )}
+                {/* SECTION 1: ENTERTAINMENT (Real Fetched Data) */}
+                <Text style={styles.sectionTitle}>Recommended Entertainment</Text>
+                {loading ? (
+                    <ActivityIndicator size="small" color="#648DDB" style={{marginLeft: 20, alignSelf:'flex-start'}} />
+                ) : (
+                    <FlatList
+                        data={entertainmentList}
+                        renderItem={(item) => renderHorizontalCard({ ...item, isFood: false })}
+                        keyExtractor={item => item.id}
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.horizontalList}
+                        ListEmptyComponent={<Text style={styles.emptyText}>No entertainment found.</Text>}
+                    />
+                )}
 
-        {/* SECTION 2: FOOD */}
-        <Text style={styles.sectionTitle}>Food you should try</Text>
-        <FlatList
-          data={DUMMY_FOOD}
-          renderItem={(item) => renderHorizontalCard({ ...item, isFood: true })}
-          keyExtractor={item => item.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-        />
+                {/* SECTION 2: FOOD (Dummy Data) */}
+                <Text style={styles.sectionTitle}>Food you should try</Text>
+                <FlatList
+                    data={DUMMY_FOOD}
+                    renderItem={(item) => renderHorizontalCard({ ...item, isFood: true })}
+                    keyExtractor={item => item.id}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.horizontalList}
+                />
 
-        {/* SECTION 3: PLANS (Vertical) */}
-        <View style={styles.divider} />
-        <Text style={styles.sectionTitle}>Recommended Plan</Text>
-        
-        {DUMMY_PLANS.map((plan) => (
-          <View key={plan.id} style={styles.planCard}>
-            <View style={styles.planRow}>
-              <Image source={{ uri: plan.image }} style={styles.planImage} />
-              <View style={styles.planInfo}>
-                <Text style={styles.planTitle}>{plan.title}</Text>
-                <Text style={styles.planDesc} numberOfLines={2}>{plan.desc}</Text>
+                {/* SECTION 3: PLANS (Vertical) */}
+                <View style={styles.divider} />
+                <Text style={styles.sectionTitle}>Recommended Plan</Text>
                 
-                <View style={styles.ratingRow}>
-                  <Text style={styles.ratingLabel}>Peer Rating</Text>
-                  <View style={{flexDirection:'row'}}>
-                    {[...Array(plan.rating)].map((_, i) => (
-                       <Ionicons key={i} name="star" size={14} color="#FFD700" />
-                    ))}
-                  </View>
-                </View>
+                {DUMMY_PLANS.map((plan) => (
+                    <View key={plan.id} style={styles.planCard}>
+                        <View style={styles.planRow}>
+                            <Image source={{ uri: plan.image }} style={styles.planImage} />
+                            <View style={styles.planInfo}>
+                                <Text style={styles.planTitle}>{plan.title}</Text>
+                                <Text style={styles.planDesc} numberOfLines={2}>{plan.desc}</Text>
+                                
+                                <View style={styles.ratingRow}>
+                                    <Text style={styles.ratingLabel}>Peer Rating</Text>
+                                    <View style={{flexDirection:'row'}}>
+                                        {[...Array(plan.rating)].map((_, i) => (
+                                            <Ionicons key={i} name="star" size={14} color="#FFD700" />
+                                        ))}
+                                    </View>
+                                </View>
 
                 <Text style={styles.priceText}>Estimated: RM {plan.price}</Text>
               </View>
@@ -219,8 +223,8 @@ export default function CustomerMainPage() {
           </View>
         ))}
 
-        <View style={{height: 80}} /> 
-      </ScrollView>
+                <View style={{height: 80}} /> 
+            </ScrollView>
 
       {/* FAB BUTTON */}
       <TouchableOpacity style={styles.fabButton} onPress={() => alert("Go to Cart")}>
