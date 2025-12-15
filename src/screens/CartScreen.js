@@ -10,7 +10,6 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-
 import { createNewPlan, getUserPlans } from '../services/AuthService';
 
 export default function CartScreen() {
@@ -82,7 +81,27 @@ export default function CartScreen() {
                 </View>
             )}
 
-            {/* CREATE PLAN MODAL */}
+            {!isEmpty && (
+                <View style={{ padding: 20 }}>
+                    {plans.map((plan) => (
+                        <TouchableOpacity key={plan.id} style={styles.planCard}>
+                            <View style={styles.planIcon}>
+                                <Ionicons name="map" size={22} color="#FFFFFF" />
+                            </View>
+
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.planTitle}>{plan.planName}</Text>
+                                <Text style={styles.planSubtitle}>
+                                    {plan.items?.length || 0} items
+                                </Text>
+                            </View>
+
+                            <Ionicons name="chevron-forward" size={22} color="#9DB7E8" />
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
+
             <Modal
                 animationType="slide"
                 transparent
@@ -213,5 +232,36 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+
+    planCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#EAF2FF', // soft blue
+        padding: 16,
+        borderRadius: 16,
+        marginBottom: 14,
+    },
+
+    planIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: '#8FB3FF', // stronger blue
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 14,
+    },
+
+    planTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#1F3A5F', // deep blue
+    },
+
+    planSubtitle: {
+        fontSize: 13,
+        color: '#5F7FA3', // blue-gray
+        marginTop: 2,
     },
 });
