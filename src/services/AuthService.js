@@ -4,10 +4,12 @@ import {
     sendPasswordResetEmail,
     signInWithEmailAndPassword
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import {
+    addDoc, arrayUnion, collection, doc, getDoc, getDocs, orderBy, // Changed from onSnapshot for simpler one-time fetch
+    query, setDoc, updateDoc
+} from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { auth, db, storage } from '../../firebaseConfig';
-
 // --- HELPER: Upload Image to Firebase Storage ---
 const uploadLogo = async (uri, uid) => {
     if (!uri) return null;
@@ -101,6 +103,139 @@ export const resetPassword = async (email) => {
         await sendPasswordResetEmail(auth, email);
         return true;
     } catch (error) {
+        throw error;
+    }
+};
+
+export const addEntertainment = async (data, imageUri) => {
+    try {
+      let imageUrl = null;
+  
+      // 1. Upload Image (Reusing similar logic to uploadLogo, but generic folder)
+      if (imageUri) {
+          // We can reuse the uploadLogo helper if modified, or just write a quick fetch here
+          // Since uploadLogo is scoped locally in your file, let's copy the logic pattern:
+          const response = await fetch(imageUri);
+          const blob = await response.blob();
+          const filename = `entertainments/${new Date().getTime()}.jpg`; // New folder for organization
+          const storageRef = ref(storage, filename);
+          await uploadBytes(storageRef, blob);
+          imageUrl = await getDownloadURL(storageRef);
+      }
+  
+      // 2. Save Data to Firestore (Auto-ID)
+      // We use addDoc because we don't have a specific User ID to link to, we want a random ID.
+      await addDoc(collection(db, "entertainments"), {
+        title: data.title,
+        description: data.description,
+        suggestedTransport: data.suggestedTransport,
+        transportCost: parseFloat(data.transportCost) || 0,
+        estimatedTotalExpenses: parseFloat(data.estimatedTotalExpenses) || 0,
+        rating: parseFloat(data.rating) || 0,
+        imageUrl: imageUrl,
+        type: 'entertainments',
+        createdAt: new Date().toISOString()
+      });
+  
+      return true;
+    } catch (error) {
+      throw error;
+    }
+  };
+  export const getEntertainmentList = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "entertainments"));
+      
+      const list = [];
+      querySnapshot.forEach((doc) => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      return list;
+    } catch (error) {
+      console.error("Error fetching entertainments:", error);
+      return [];
+    }
+  };
+
+  export const getEntertainmentById = async (id) => {
+    try {
+        const docRef = doc(db, "entertainments", id);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            return { id: docSnap.id, ...docSnap.data() };
+        } else {
+            console.log("No such document!");
+            return null;
+        }
+    } catch (error) {
+        console.error("Error fetching details:", error);
+        throw error;
+    }
+};
+
+export const getUserPlans = async () => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+        const q = query(
+            collection(db, "users", user.uid, "plans"),
+            orderBy("createdAt", "desc")
+        );
+        
+        const querySnapshot = await getDocs(q);
+        const plans = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+        return plans;
+    } catch (error) {
+        console.error("Error fetching plans:", error);
+        throw error;
+    }
+};
+
+// 2. Create a New Plan
+export const createNewPlan = async (planName) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+        // We return the reference so we can use the ID immediately
+        const docRef = await addDoc(collection(db, "users", user.uid, "plans"), {
+            planName: planName,
+            status: 'planning', 
+            items: [], 
+            createdAt: new Date().toISOString() // Using String for easier display
+        });
+        return docRef.id; // Return ID to auto-select it
+    } catch (error) {
+        throw error;
+    }
+};
+
+// 3. Add Item to a Specific Plan
+export const addItemToPlan = async (planId, itemData) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+        const planRef = doc(db, "users", user.uid, "plans", planId);
+
+        await updateDoc(planRef, {
+            items: arrayUnion({
+                itemId: itemData.id, // Ensure we use 'id'
+                title: itemData.title,
+                price: parseFloat(itemData.price), // Store as number
+                image: itemData.imageUrl,
+                type: 'entertainment',
+                addedAt: new Date().toISOString()
+            })
+        });
+        return true;
+    } catch (error) {
+        console.error("Error adding to plan:", error);
         throw error;
     }
 };
