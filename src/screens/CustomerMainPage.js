@@ -21,16 +21,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Service
-import { getCurrentUserData, getEntertainmentList, logoutUser } from '../services/AuthService';
+import { getCurrentUserData, getEntertainmentList, getFoodList, logoutUser } from '../services/AuthService';
 
 const { width } = Dimensions.get('window');
 
-// --- DUMMY DATA ---
-const DUMMY_FOOD = [
-    { id: '1', title: 'Laksalicious', image: 'https://via.placeholder.com/150' },
-    { id: '2', title: 'Tiger Char Kuey Teow', image: 'https://via.placeholder.com/150' },
-    { id: '3', title: 'Nasi Kandar', image: 'https://via.placeholder.com/150' },
-];
 
 const DUMMY_PLANS = [
     { 
@@ -56,6 +50,7 @@ export default function CustomerMainPage() {
   
   // --- STATE ---
   const [entertainmentList, setEntertainmentList] = useState([]);
+    const [foodList, setFoodList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
 
@@ -74,6 +69,12 @@ export default function CustomerMainPage() {
           image: item.imageUrl 
         }));
         setEntertainmentList(formattedData);
+
+          const fData = await getFoodList();
+          const formattedFood = fData
+              .filter(item => item.title && item.imageUrl)
+              .map(item => ({ ...item, image: item.imageUrl }));
+          setFoodList(formattedFood);
 
         const user = await getCurrentUserData();
         setUserData(user);
@@ -120,14 +121,11 @@ export default function CustomerMainPage() {
     <TouchableOpacity 
       style={styles.cardContainer}
       onPress={() => {
-        if (!isFood) {
-          router.push({ pathname: '/entertainment-details', params: { id: item.id } });
-        } else {
-          alert(`Navigating to Food: ${item.title}`);
-        }
+          const route = isFood ? '/food-details' : '/entertainment-details';
+          router.push({ pathname: route, params: { id: item.id } });
       }}
     >
-      <Image source={{ uri: item.image }} style={styles.cardImage} />
+          <Image source={{ uri: isFood ? item.image : item.imageUrl }} style={styles.cardImage} />
       <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
     </TouchableOpacity>
   );
@@ -201,14 +199,19 @@ export default function CustomerMainPage() {
 
         {/* FOOD LIST */}
         <Text style={styles.sectionTitle}>Food you should try</Text>
-        <FlatList
-          data={DUMMY_FOOD}
-          renderItem={(item) => renderHorizontalCard({ ...item, isFood: true })}
-          keyExtractor={item => item.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-        />
+              {loading ? (
+                  <ActivityIndicator size="small" color="#648DDB" style={{ marginLeft: 20, alignSelf: 'flex-start' }} />
+              ) : (
+                      <FlatList
+                          data={foodList}
+                          renderItem={({ item }) => renderHorizontalCard({ item, isFood: true })} // FIXED: Added curly braces for destructuring
+                          keyExtractor={item => item.id}
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.horizontalList}
+                          ListEmptyComponent={<Text style={styles.emptyText}>No food spots found.</Text>}
+                      />
+              )}
 
         {/* PLAN LIST */}
         <View style={styles.divider} />
