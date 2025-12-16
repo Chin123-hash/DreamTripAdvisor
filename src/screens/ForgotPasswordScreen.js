@@ -16,7 +16,6 @@ import { app } from '../../firebaseConfig';
 export default function ForgotPasswordScreen() {
   // State to toggle between "Enter Email" and "Check Email" screens
   const [isEmailSent, setIsEmailSent] = useState(false);
-  
   const [email, setEmail] = useState('');
   const [isValid, setIsValid] = useState(false);
   const [loading, setLoading] = useState(false);
