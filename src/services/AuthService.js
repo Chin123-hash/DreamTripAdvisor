@@ -251,11 +251,11 @@ export const getFoodList = async () => {
         const querySnapshot = await getDocs(collection(db, "foods"));
         const list = [];
         querySnapshot.forEach((doc) => {
-            list.push({ id: doc.id, ...doc.data(), type: 'food' });
+            list.push({ id: doc.id, ...doc.data() });
         });
         return list;
     } catch (error) {
-        console.error("Error fetching food:", error);
+        console.error("Error fetching food list:", error);
         return [];
     }
 };
@@ -380,6 +380,78 @@ export const deleteItemFromPlan = async (planId, itemId) => {
         return true;
     } catch (error) {
         console.error("Error deleting item from plan:", error);
+        throw error;
+    }
+};
+
+// --- ADD FOOD (For Agencies) ---
+export const addFood = async (data, imageUri) => {
+    try {
+        let imageUrl = null;
+
+        // 1. Upload Image to Storage
+        if (imageUri) {
+            const response = await fetch(imageUri);
+            const blob = await response.blob();
+            const filename = `foods/${new Date().getTime()}.jpg`;
+            const storageRef = ref(storage, filename);
+            await uploadBytes(storageRef, blob);
+            imageUrl = await getDownloadURL(storageRef);
+        }
+
+        // 2. Save Data to Firestore (foods collection)
+        await addDoc(collection(db, "foods"), {
+            title: data.title,
+            description: data.description,
+            priceRange: data.priceRange, // e.g., "RM 10 - RM 30"
+            suggestedTransport: data.suggestedTransport,
+            transportCost: parseFloat(data.transportCost) || 0,
+            estimatedTotalExpenses: parseFloat(data.estimatedTotalExpenses) || 0,
+            rating: parseFloat(data.rating) || 0,
+            imageUrl: imageUrl,
+            type: 'food',
+            createdAt: new Date().toISOString()
+        });
+
+        return true;
+    } catch (error) {
+        console.error("Error adding food:", error);
+        throw error;
+    }
+};
+
+
+// --- DELETE FOOD (For Agencies) ---
+export const deleteFood = async (foodId) => {
+    try {
+        const foodRef = doc(db, "foods", foodId);
+        await deleteDoc(foodRef);
+        return true;
+    } catch (error) {
+        console.error("Error deleting food:", error);
+        throw error;
+    }
+};
+
+// --- UPDATE FOOD (For Agencies) ---
+export const updateFood = async (foodId, updatedData, newImageUri) => {
+    try {
+        let finalData = { ...updatedData };
+
+        if (newImageUri) {
+            const response = await fetch(newImageUri);
+            const blob = await response.blob();
+            const filename = `foods/${new Date().getTime()}.jpg`;
+            const storageRef = ref(storage, filename);
+            await uploadBytes(storageRef, blob);
+            finalData.imageUrl = await getDownloadURL(storageRef);
+        }
+
+        const foodRef = doc(db, "foods", foodId);
+        await updateDoc(foodRef, finalData);
+        return true;
+    } catch (error) {
+        console.error("Error updating food:", error);
         throw error;
     }
 };
