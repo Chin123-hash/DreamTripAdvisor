@@ -6,7 +6,7 @@ import {
     signOut
 } from 'firebase/auth';
 import {
-    addDoc, arrayUnion, collection,
+    addDoc, arrayRemove, arrayUnion, collection,
     deleteDoc,
     doc, getDoc, getDocs, orderBy, // Changed from onSnapshot for simpler one-time fetch
     query, setDoc,
@@ -115,55 +115,55 @@ export const resetPassword = async (email) => {
 //
 export const addEntertainment = async (data, imageUri) => {
     try {
-      let imageUrl = null;
-  
-      // 1. Upload Image (Reusing similar logic to uploadLogo, but generic folder)
-      if (imageUri) {
-          // We can reuse the uploadLogo helper if modified, or just write a quick fetch here
-          // Since uploadLogo is scoped locally in your file, let's copy the logic pattern:
-          const response = await fetch(imageUri);
-          const blob = await response.blob();
-          const filename = `entertainments/${new Date().getTime()}.jpg`; // New folder for organization
-          const storageRef = ref(storage, filename);
-          await uploadBytes(storageRef, blob);
-          imageUrl = await getDownloadURL(storageRef);
-      }
-  
-      // 2. Save Data to Firestore (Auto-ID)
-      // We use addDoc because we don't have a specific User ID to link to, we want a random ID.
-      await addDoc(collection(db, "entertainments"), {
-        title: data.title,
-        description: data.description,
-        suggestedTransport: data.suggestedTransport,
-        transportCost: parseFloat(data.transportCost) || 0,
-        estimatedTotalExpenses: parseFloat(data.estimatedTotalExpenses) || 0,
-        rating: parseFloat(data.rating) || 0,
-        imageUrl: imageUrl,
-        type: 'entertainments',
-        createdAt: new Date().toISOString()
-      });
-  
-      return true;
-    } catch (error) {
-      throw error;
-    }
-  };
-  export const getEntertainmentList = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, "entertainments"));
-      
-      const list = [];
-      querySnapshot.forEach((doc) => {
-        list.push({ id: doc.id, ...doc.data() });
-      });
-      return list;
-    } catch (error) {
-      console.error("Error fetching entertainments:", error);
-      return [];
-    }
-  };
+        let imageUrl = null;
 
-  export const getEntertainmentById = async (id) => {
+        // 1. Upload Image (Reusing similar logic to uploadLogo, but generic folder)
+        if (imageUri) {
+            // We can reuse the uploadLogo helper if modified, or just write a quick fetch here
+            // Since uploadLogo is scoped locally in your file, let's copy the logic pattern:
+            const response = await fetch(imageUri);
+            const blob = await response.blob();
+            const filename = `entertainments/${new Date().getTime()}.jpg`; // New folder for organization
+            const storageRef = ref(storage, filename);
+            await uploadBytes(storageRef, blob);
+            imageUrl = await getDownloadURL(storageRef);
+        }
+
+        // 2. Save Data to Firestore (Auto-ID)
+        // We use addDoc because we don't have a specific User ID to link to, we want a random ID.
+        await addDoc(collection(db, "entertainments"), {
+            title: data.title,
+            description: data.description,
+            suggestedTransport: data.suggestedTransport,
+            transportCost: parseFloat(data.transportCost) || 0,
+            estimatedTotalExpenses: parseFloat(data.estimatedTotalExpenses) || 0,
+            rating: parseFloat(data.rating) || 0,
+            imageUrl: imageUrl,
+            type: 'entertainments',
+            createdAt: new Date().toISOString()
+        });
+
+        return true;
+    } catch (error) {
+        throw error;
+    }
+};
+export const getEntertainmentList = async () => {
+    try {
+        const querySnapshot = await getDocs(collection(db, "entertainments"));
+
+        const list = [];
+        querySnapshot.forEach((doc) => {
+            list.push({ id: doc.id, ...doc.data() });
+        });
+        return list;
+    } catch (error) {
+        console.error("Error fetching entertainments:", error);
+        return [];
+    }
+};
+
+export const getEntertainmentById = async (id) => {
     try {
         const docRef = doc(db, "entertainments", id);
         const docSnap = await getDoc(docRef);
@@ -189,7 +189,7 @@ export const getUserPlans = async () => {
             collection(db, "users", user.uid, "plans"),
             orderBy("createdAt", "desc")
         );
-        
+
         const querySnapshot = await getDocs(q);
         const plans = querySnapshot.docs.map(doc => ({
             id: doc.id,
@@ -211,8 +211,8 @@ export const createNewPlan = async (planName) => {
         // We return the reference so we can use the ID immediately
         const docRef = await addDoc(collection(db, "users", user.uid, "plans"), {
             planName: planName,
-            status: 'planning', 
-            items: [], 
+            status: 'planning',
+            items: [],
             createdAt: new Date().toISOString() // Using String for easier display
         });
         return docRef.id; // Return ID to auto-select it
@@ -248,15 +248,15 @@ export const addItemToPlan = async (planId, itemData) => {
 
 export const getFoodList = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, "foods"));
-      const list = [];
-      querySnapshot.forEach((doc) => {
-        list.push({ id: doc.id, ...doc.data(), type: 'food' });
-      });
-      return list;
+        const querySnapshot = await getDocs(collection(db, "foods"));
+        const list = [];
+        querySnapshot.forEach((doc) => {
+            list.push({ id: doc.id, ...doc.data(), type: 'food' });
+        });
+        return list;
     } catch (error) {
-      console.error("Error fetching food:", error);
-      return [];
+        console.error("Error fetching food:", error);
+        return [];
     }
 };
 
@@ -322,7 +322,7 @@ export const updateUserProfile = async (uid, userData, imageUri) => {
         if (imageUri) {
             const response = await fetch(imageUri);
             const blob = await response.blob();
-            
+
             // Save as: profile_images/USER_ID.jpg
             // We overwrite the existing one to save space
             const filename = `profile_images/${uid}.jpg`;
@@ -330,7 +330,7 @@ export const updateUserProfile = async (uid, userData, imageUri) => {
 
             await uploadBytes(storageRef, blob);
             const downloadUrl = await getDownloadURL(storageRef);
-            
+
             // Add the new URL to the fields to update
             updatedFields.profileImage = downloadUrl;
         }
@@ -342,6 +342,44 @@ export const updateUserProfile = async (uid, userData, imageUri) => {
         return true;
     } catch (error) {
         console.error("Error updating profile:", error);
+        throw error;
+    }
+};
+
+
+export const getPlanById = async (planId) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+        // Reference: users -> UID -> plans -> PLAN_ID
+        const planRef = doc(db, "users", user.uid, "plans", planId);
+        const planSnap = await getDoc(planRef);
+
+        if (planSnap.exists()) {
+            return { id: planSnap.id, ...planSnap.data() };
+        } else {
+            console.log("No such plan found!");
+            return null;
+        }
+    } catch (error) {
+        console.error("Error fetching plan details:", error);
+        throw error;
+    }
+};
+
+export const deleteItemFromPlan = async (planId, itemId) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+        const planRef = doc(db, "users", user.uid, "plans", planId);
+        await updateDoc(planRef, {
+            items: arrayRemove({ itemId: itemId })
+        });
+        return true;
+    } catch (error) {
+        console.error("Error deleting item from plan:", error);
         throw error;
     }
 };
