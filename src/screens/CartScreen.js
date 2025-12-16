@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Modal,
     SafeAreaView,
     StyleSheet,
@@ -10,7 +11,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { createNewPlan, getUserPlans } from '../services/AuthService';
+import { createNewPlan, deletePlan, getUserPlans } from '../services/AuthService';
 
 export default function CartScreen() {
     const [plans, setPlans] = useState([]);
@@ -61,6 +62,28 @@ export default function CartScreen() {
 
     const isEmpty = plans.length === 0;
 
+    const handleDeletePlan = (planId) => {
+        Alert.alert(
+            "Delete Plan",
+            "Are you sure you want to delete this plan?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await deletePlan(planId);
+                            fetchPlans(); // refresh UI
+                        } catch (error) {
+                            alert("Failed to delete plan.");
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
     return (
         <SafeAreaView style={styles.container}>
             {/* EMPTY CART */}
@@ -97,6 +120,10 @@ export default function CartScreen() {
                             </View>
 
                             <Ionicons name="chevron-forward" size={22} color="#9DB7E8" />
+
+                            <TouchableOpacity onPress={() => handleDeletePlan(plan.id)}>
+                                <Ionicons name="trash-outline" size={22} color="#9DB7E8" />
+                            </TouchableOpacity>
                         </TouchableOpacity>
                     ))}
                 </View>

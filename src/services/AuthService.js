@@ -6,7 +6,9 @@ import {
     signOut
 } from 'firebase/auth';
 import {
-    addDoc, arrayUnion, collection, doc, getDoc, getDocs, orderBy, // Changed from onSnapshot for simpler one-time fetch
+    addDoc, arrayUnion, collection,
+    deleteDoc,
+    doc, getDoc, getDocs, orderBy, // Changed from onSnapshot for simpler one-time fetch
     query, setDoc,
 
     updateDoc
@@ -295,5 +297,19 @@ export const getCurrentUserData = async () => {
     } catch (error) {
         console.error("Error fetching user data:", error);
         return null;
+    }
+};
+
+export const deletePlan = async (planId) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+        const planRef = doc(db, "users", user.uid, "plans", planId);
+        await deleteDoc(planRef);
+        return true;
+    } catch (error) {
+        console.error("Error deleting plan:", error);
+        throw error;
     }
 };
