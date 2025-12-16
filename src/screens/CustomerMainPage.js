@@ -142,23 +142,45 @@ export default function CustomerMainPage() {
              <Ionicons name="menu" size={30} color="#333" />
           </TouchableOpacity>
           <Text style={styles.appTitle}>Dream Trip Advisor</Text>
+          {/* Empty view for spacing balance */}
           <View style={{width: 30}} />
         </View>
 
-        {/* PROFILE SECTION */}
+        {/* PROFILE & ACTIONS SECTION */}
         <View style={styles.profileSection}>
+          {/* Left: User Info */}
           <View style={styles.profileRow}>
             <Image 
               source={{ uri: userData?.profileImage || 'https://via.placeholder.com/50' }} 
               style={styles.profilePic} 
             />
-            <Text style={styles.welcomeText}>
-                Hi, {userData?.fullName ? userData.fullName.split(' ')[0] : 'Traveller'}!
-            </Text>
+            <View>
+                <Text style={styles.welcomeLabel}>Hi,</Text>
+                <Text style={styles.welcomeText}>
+                    {userData?.fullName ? userData.fullName.split(' ')[0] : 'Traveller'}
+                </Text>
+            </View>
           </View>
-          <TouchableOpacity onPress={() => router.push('/explore')}>
-            <Ionicons name="search" size={28} color="#333" />
-          </TouchableOpacity>
+
+          {/* Right: Action Icons (Search + Cart) */}
+          <View style={styles.actionIcons}>
+              <TouchableOpacity 
+                  onPress={() => router.push('/explore')} 
+                  style={styles.iconButton}
+              >
+                <Ionicons name="search" size={28} color="#333" />
+              </TouchableOpacity>
+              
+              {/* NEW CART ICON */}
+              <TouchableOpacity 
+                  onPress={() => router.push('/cart')} // Make sure you have a cart page or change this route
+                  style={styles.iconButton}
+              >
+                <Ionicons name="cart-outline" size={28} color="#333" />
+                {/* Optional: Red Dot Badge for items */}
+                {/* <View style={styles.badgeDot} /> */}
+              </TouchableOpacity>
+          </View>
         </View>
 
         {/* ENTERTAINMENT LIST */}
@@ -211,10 +233,12 @@ export default function CustomerMainPage() {
             </View>
           </View>
         ))}
-        <View style={{height: 80}} /> 
+        
+        {/* Extra space at bottom since FAB is gone */}
+        <View style={{height: 40}} /> 
       </ScrollView>
 
-      {/* SIDEBAR MODAL */}
+      {/* SIDEBAR MODAL (Unchanged) */}
       <Modal
           visible={isSidebarVisible}
           transparent={true}
@@ -258,32 +282,26 @@ export default function CustomerMainPage() {
                           <Text style={styles.menuText}>My Profile</Text>
                       </TouchableOpacity>
                       
-                      <TouchableOpacity 
-                        style={styles.menuItem} 
-                        onPress={() => { 
-                            closeSidebar(); 
-                            router.push('/history'); // <--- Navigate to History
-                        }}
-                        >
-                        <Ionicons name="time-outline" size={24} color="#333" /> 
-                        <Text style={styles.menuText}>History</Text>
-                    </TouchableOpacity>
+                      <TouchableOpacity style={styles.menuItem} onPress={() => {
+                          closeSidebar();
+                          router.push('/history');
+                      }}>
+                          <Ionicons name="time-outline" size={24} color="#333" />
+                          <Text style={styles.menuText}>History</Text>
+                      </TouchableOpacity>
 
                       <TouchableOpacity style={styles.menuItem} onPress={() => closeSidebar()}>
                           <Ionicons name="heart-outline" size={24} color="#333" />
                           <Text style={styles.menuText}>Favourites</Text>
                       </TouchableOpacity>
 
-                      <TouchableOpacity 
-                        style={styles.menuItem} 
-                        onPress={() => { 
-                            closeSidebar(); 
-                            router.push('/settings'); // <--- Navigate to Settings
-                        }}
-                        >
-                        <Ionicons name="settings-outline" size={24} color="#333" />
-                        <Text style={styles.menuText}>Settings</Text>
-                    </TouchableOpacity>
+                      <TouchableOpacity style={styles.menuItem} onPress={() => {
+                          closeSidebar();
+                          router.push('/settings');
+                      }}>
+                          <Ionicons name="settings-outline" size={24} color="#333" />
+                          <Text style={styles.menuText}>Settings</Text>
+                      </TouchableOpacity>
                       
                       <View style={styles.menuDivider} />
                       
@@ -311,10 +329,19 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: 20 },
   headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginTop: 10, marginBottom: 20 },
   appTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+  
+  // UPDATED PROFILE SECTION
   profileSection: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 20 },
   profileRow: { flexDirection: 'row', alignItems: 'center' },
-  profilePic: { width: 50, height: 45, borderRadius: 25, marginRight: 15, backgroundColor: '#eee' },
-  welcomeText: { fontSize: 22, fontWeight: 'bold', color: '#333' },
+  profilePic: { width: 50, height: 50, borderRadius: 25, marginRight: 12, backgroundColor: '#eee' },
+  welcomeLabel: { fontSize: 12, color: '#888' },
+  welcomeText: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+  
+  // NEW ACTION ICONS STYLE
+  actionIcons: { flexDirection: 'row', alignItems: 'center' },
+  iconButton: { marginLeft: 15, padding: 4 }, // Add spacing between icons
+  badgeDot: { position: 'absolute', top: 2, right: 2, width: 8, height: 8, borderRadius: 4, backgroundColor: 'red' },
+
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginLeft: 20, marginBottom: 10, marginTop: 10, color: '#333' },
   horizontalList: { paddingLeft: 20, paddingRight: 10, paddingBottom: 20 },
   cardContainer: { marginRight: 15, width: 120, alignItems: 'center' },
@@ -331,8 +358,6 @@ const styles = StyleSheet.create({
   ratingRow: { flexDirection: 'column', marginBottom: 4 },
   ratingLabel: { fontSize: 10, color: '#888' },
   priceText: { fontSize: 12, fontWeight: 'bold', marginTop: 4, textAlign: 'right', color: '#333' },
-  fabButton: { position: 'absolute', bottom: 30, right: 20, backgroundColor: '#648DDB', flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 30, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4.65, elevation: 8 },
-  fabText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
 
   // === SIDEBAR STYLES ===
   modalOverlay: { flex: 1, flexDirection: 'row' },
