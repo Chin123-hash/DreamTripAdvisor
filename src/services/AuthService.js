@@ -313,3 +313,35 @@ export const deletePlan = async (planId) => {
         throw error;
     }
 };
+
+export const updateUserProfile = async (uid, userData, imageUri) => {
+    try {
+        let updatedFields = { ...userData };
+
+        // 1. If a new image is provided, upload it first
+        if (imageUri) {
+            const response = await fetch(imageUri);
+            const blob = await response.blob();
+            
+            // Save as: profile_images/USER_ID.jpg
+            // We overwrite the existing one to save space
+            const filename = `profile_images/${uid}.jpg`;
+            const storageRef = ref(storage, filename);
+
+            await uploadBytes(storageRef, blob);
+            const downloadUrl = await getDownloadURL(storageRef);
+            
+            // Add the new URL to the fields to update
+            updatedFields.profileImage = downloadUrl;
+        }
+
+        // 2. Update Firestore Document
+        const userRef = doc(db, "users", uid);
+        await updateDoc(userRef, updatedFields);
+
+        return true;
+    } catch (error) {
+        console.error("Error updating profile:", error);
+        throw error;
+    }
+};

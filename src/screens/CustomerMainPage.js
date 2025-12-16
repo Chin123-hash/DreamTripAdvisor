@@ -247,12 +247,19 @@ export default function CustomerMainPage() {
 
               <Animated.View style={[styles.sidebarContainer, { transform: [{ translateX: slideAnim }] }]}>
                   
-                  {/* 1. Profile Header (UPDATED) */}
+                  {/* 1. Profile Header - Only Picture is Clickable */}
                   <View style={styles.sidebarHeader}>
-                      <Image 
-                          source={{ uri: userData?.profileImage || 'https://via.placeholder.com/80' }} 
-                          style={styles.sidebarProfilePic} 
-                      />
+                      <TouchableOpacity 
+                          onPress={() => { 
+                              router.push('/profile'); 
+                          }}
+                      >
+                          <Image 
+                              source={{ uri: userData?.profileImage || 'https://via.placeholder.com/80' }} 
+                              style={styles.sidebarProfilePic} 
+                          />
+                      </TouchableOpacity>
+
                       <Text style={styles.sidebarName}>
                           {userData?.fullName || "Traveller"}
                       </Text>
@@ -263,7 +270,7 @@ export default function CustomerMainPage() {
 
                   {/* 2. Menu Items */}
                   <View style={styles.menuContainer}>
-                      <TouchableOpacity style={styles.menuItem} onPress={() => { closeSidebar(); }}>
+                      <TouchableOpacity style={styles.menuItem} onPress={() => { router.push("/profile"); }}>
                           <Ionicons name="person-outline" size={24} color="#333" />
                           <Text style={styles.menuText}>My Profile</Text>
                       </TouchableOpacity>
