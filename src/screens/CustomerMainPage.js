@@ -232,7 +232,7 @@ export default function CustomerMainPage() {
                 style={styles.planCard}
                 onPress={() =>
                   router.push({
-                    pathname: '/planDetails',
+                    pathname: '/recommended-plan-details',
                     params: { planId: item.id },
                   })
                 }
