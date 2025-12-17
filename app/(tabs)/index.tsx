@@ -1,6 +1,6 @@
 import React from 'react';
-import PlanInputScreen from '../../src/screens/PlanInputScreen';
+import LoginScreen from '../../src/screens/LoginScreen';
 
 export default function Page() {
-  return <PlanInputScreen />;
+  return <LoginScreen />;
 }
