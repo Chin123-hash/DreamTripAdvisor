@@ -116,7 +116,7 @@ export default function CartScreen() {
                         <TouchableOpacity
                             style={styles.planCard}
                             onPress={() => router.push({
-                                pathname: '/planDetails',
+                                pathname: '/cart-details',
                                 params: { planId: item.id }
                             })}
                         >

@@ -523,3 +523,23 @@ export const addPlan = async (planData, imageUri) => {
         throw error;
     }
 };
+export const getCartPlanDetails = async (planId) => {
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("User not authenticated");
+
+        // Assuming structure is: users/{uid}/plans/{planId}
+        const planRef = doc(db, "users", user.uid, "plans", planId); 
+        const planSnap = await getDoc(planRef);
+
+        if (planSnap.exists()) {
+            return { id: planSnap.id, ...planSnap.data() };
+        } else {
+            console.error("No such plan!");
+            return null;
+        }
+    } catch (error) {
+        console.error("Error fetching plan details:", error);
+        throw error;
+    }
+};
