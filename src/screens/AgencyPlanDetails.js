@@ -1,4 +1,4 @@
-// src/screens/PlanDetailsScreen.js
+// src/screens/AgencyPlanDetailsScreen.js
 
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -8,7 +8,6 @@ import {
     ActivityIndicator,
     Alert,
     Dimensions,
-    Modal,
     Platform,
     ScrollView,
     StyleSheet,
@@ -21,10 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Service imports
 import {
-    addPlanToCart, // <--- Ensure this is imported
-    getAgencies,
-    getCurrentUserData,
-    getPlanDetails
+    getPlanDetails // <--- UPDATED: Using the requested function
 } from '../services/AuthService';
 
 const { width } = Dimensions.get('window');
@@ -36,7 +32,7 @@ const parsePrice = (priceVal) => {
     return parseFloat(cleanString) || 0;
 };
 
-export default function PlanDetailsScreen() {
+export default function AgencyPlanDetailsScreen() {
     const router = useRouter();
     const params = useLocalSearchParams(); 
     
@@ -45,37 +41,29 @@ export default function PlanDetailsScreen() {
     
     // --- STATE ---
     const [loading, setLoading] = useState(true);
-    const [userData, setUserData] = useState(null);
 
     const [planName, setPlanName] = useState('');
     const [rawItems, setRawItems] = useState([]); 
     const [schedule, setSchedule] = useState([]); 
     
-    const [agencyList, setAgencyList] = useState([]);
-    const [selectedAgency, setSelectedAgency] = useState(null); 
-    const [showAgencyModal, setShowAgencyModal] = useState(false);
-
+    // Form State (For calculation visualization only)
     const [pax, setPax] = useState('2');
     const [fromDate, setFromDate] = useState(new Date()); 
     const [toDate, setToDate] = useState(new Date());     
     const [totalExpense, setTotalExpense] = useState(0);
 
+    // Date Picker State
     const [showPicker, setShowPicker] = useState(false);
     const [pickerMode, setPickerMode] = useState('from'); 
 
     // --- 1. FETCH DATA ---
     useEffect(() => {
         const init = async () => {
-            const user = await getCurrentUserData();
-            setUserData(user);
-            
             if (planId) {
                 await loadPlanData(planId);
             } else {
                 Alert.alert("Error", "No plan selected.");
             }
-
-            await fetchAgencies();
             setLoading(false);
         };
         init();
@@ -86,20 +74,10 @@ export default function PlanDetailsScreen() {
         if (rawItems.length > 0) calculateTotal(rawItems);
     }, [pax, rawItems]);
 
-    const fetchAgencies = async () => {
-        try {
-            const agencies = await getAgencies();
-            setAgencyList(agencies);
-            if (agencies.length > 0) setSelectedAgency(agencies[0]);
-        } catch (err) {
-            console.log("Error fetching agencies:", err);
-        }
-    };
-
-    // --- LOAD DATA (FIXED FOR PIE CHART) ---
+    // --- LOAD DATA ---
     const loadPlanData = async (id) => {
         try {
-            const planData = await getPlanDetails(id);
+            const planData = await getPlanDetails(id); // <--- Using getPlanDetails
             
             if (planData) {
                 setPlanName(planData.title || planData.planName || "Trip Plan");
@@ -119,14 +97,9 @@ export default function PlanDetailsScreen() {
                     const transport = parsePrice(planData.transportFee);
                     const basePrice = parsePrice(planData.price);
 
-                    if (ticket > 0) {
-                        itemsToUse.push({ title: 'Ticket / Entry Fee', type: 'Entertainment', price: ticket });
-                    }
-                    if (transport > 0) {
-                        itemsToUse.push({ title: 'Transport Fee', type: 'Transport', price: transport });
-                    }
+                    if (ticket > 0) itemsToUse.push({ title: 'Ticket / Entry Fee', type: 'Entertainment', price: ticket });
+                    if (transport > 0) itemsToUse.push({ title: 'Transport Fee', type: 'Transport', price: transport });
                     
-                    // If neither ticket nor transport found, but there is a base price, use that
                     if (itemsToUse.length === 0 && basePrice > 0) {
                         itemsToUse.push({ title: 'Package Fee', type: 'Entertainment', price: basePrice });
                     }
@@ -155,7 +128,6 @@ export default function PlanDetailsScreen() {
 
     // --- SCHEDULE LOGIC ---
     const generateSchedule = (items) => {
-        // Create copies to avoid mutation
         let entertainment = items.filter(i => i.type && i.type.toLowerCase() === 'entertainment').map(i => ({...i}));
         let food = items.filter(i => i.type && i.type.toLowerCase() === 'food').map(i => ({...i}));
         
@@ -193,51 +165,9 @@ export default function PlanDetailsScreen() {
         setSchedule(generated);
     };
 
-    // --- ADD TO CART LOGIC ---
-    const handleAddToCart = async () => {
-        if (!userData || !userData.uid) {
-            Alert.alert("Error", "You must be logged in to add items to cart.");
-            return;
-        }
-
-        if (!selectedAgency) {
-            Alert.alert("Required", "Please select a Travel Agency.");
-            return;
-        }
-
-        setLoading(true);
-        try {
-            // Prepare the data packet
-            const finalPlanData = {
-                originalPlanId: planId,
-                planName: planName,
-                pax: parseInt(pax) || 1,
-                startDate: fromDate, // Firestore stores dates well
-                endDate: toDate,
-                agencyId: selectedAgency.id,
-                agencyName: selectedAgency.name,
-                totalPrice: totalExpense,
-                items: rawItems, // Clean items (only ticket/transport)
-                schedule: schedule
-            };
-
-            await addPlanToCart(userData.uid, finalPlanData);
-            
-            Alert.alert("Success", "Plan added to your cart!", [
-                { text: "OK", onPress: () => router.back() } 
-            ]);
-        } catch (error) {
-            console.error("Add to cart failed:", error);
-            Alert.alert("Error", "Failed to add plan to cart.");
-        } finally {
-            setLoading(false);
-        }
-    };
-
     // --- CHART LOGIC ---
     const renderPieChart = () => {
         const paxNum = parseInt(pax) || 1;
-        // Helper to sum by type
         const getSum = (type) => rawItems
             .filter(i => i.type?.toLowerCase() === type)
             .reduce((a, b) => a + (b.price || 0), 0) * paxNum;
@@ -310,7 +240,7 @@ export default function PlanDetailsScreen() {
                     {/* <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                         <Ionicons name="arrow-back" size={24} color="#333" />
                     </TouchableOpacity> */}
-                    <Text style={styles.headerTitle}>{planName || "Trip Details"}</Text>
+                    <Text style={styles.headerTitle}>{planName || "Plan Details"}</Text>
                     <View style={{width: 24}} /> 
                 </View>
 
@@ -333,11 +263,11 @@ export default function PlanDetailsScreen() {
                     {schedule.length === 0 && <Text style={{fontStyle:'italic', color:'#999'}}>No schedule available.</Text>}
                 </View>
 
-                {/* CONFIGURATION FORM */}
+                {/* INFO SECTION */}
                 <View style={styles.formSection}>
                     <View style={styles.bellHeader}>
-                        <Ionicons name="settings-outline" size={24} color="#555" />
-                        <Text style={{marginLeft: 10, color: '#555', fontWeight:'bold'}}>Customize your Trip</Text>
+                        <Ionicons name="information-circle-outline" size={24} color="#555" />
+                        <Text style={{marginLeft: 10, color: '#555', fontWeight:'bold'}}>Plan Estimation</Text>
                     </View>
 
                     <View style={styles.formRow}>
@@ -364,62 +294,17 @@ export default function PlanDetailsScreen() {
                         />
                     </View>
 
-                    <Text style={[styles.label, {marginTop: 10, width:'100%'}]}>Travel Agency:</Text>
-                    <TouchableOpacity 
-                        style={styles.dropdown}
-                        onPress={() => setShowAgencyModal(true)}
-                    >
-                        <Text style={styles.dropdownText}>
-                            {selectedAgency ? selectedAgency.name : "Select Agency..."}
-                        </Text>
-                        <Ionicons name="chevron-down" size={20} color="#333" />
-                    </TouchableOpacity>
-
                     <View style={styles.totalRow}>
                         <Text style={styles.totalLabel}>Total Expenses</Text>
                         <Text style={styles.totalValue}>RM {totalExpense.toFixed(2)}</Text>
                     </View>
                 </View>
 
-                <Text style={styles.handwrittenTitle}>Estimated Expenses</Text>
+                <Text style={styles.handwrittenTitle}>Estimated Expenses Breakdown</Text>
                 {renderPieChart()}
-
-                {/* ADD TO CART BUTTON */}
-                <TouchableOpacity style={styles.addToCartBtn} onPress={handleAddToCart}>
-                    <Ionicons name="cart" size={24} color="#FFF" style={{marginRight: 10}} />
-                    <Text style={styles.addToCartText}>Add to Cart</Text>
-                </TouchableOpacity>
 
                 <View style={{height: 40}} />
             </ScrollView>
-
-            {/* AGENCY MODAL */}
-            <Modal visible={showAgencyModal} transparent={true} animationType="slide">
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContainer}>
-                        <Text style={styles.modalTitle}>Select Agency</Text>
-                        <ScrollView>
-                            {agencyList.map((agency) => (
-                                <TouchableOpacity 
-                                    key={agency.id} 
-                                    style={styles.modalItem}
-                                    onPress={() => {
-                                        setSelectedAgency(agency);
-                                        setShowAgencyModal(false);
-                                    }}
-                                >
-                                    <Text style={styles.modalItemText}>{agency.name}</Text>
-                                    {selectedAgency?.id === agency.id && <Ionicons name="checkmark" size={20} color="green" />}
-                                </TouchableOpacity>
-                            ))}
-                            {agencyList.length === 0 && <Text style={{padding:20, textAlign:'center'}}>No agencies found.</Text>}
-                        </ScrollView>
-                        <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowAgencyModal(false)}>
-                            <Text style={{color:'#FFF'}}>Close</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
 
             {/* DATE PICKER */}
             {showPicker && (
@@ -459,8 +344,6 @@ const styles = StyleSheet.create({
     dateInput: { backgroundColor: '#F9F9F9', borderRadius: 8, padding: 12, flex: 1, borderWidth: 1, borderColor: '#E0E0E0', justifyContent: 'center' },
     paxInput: { backgroundColor: '#F9F9F9', borderRadius: 8, padding: 10, width: 100, borderWidth: 1, borderColor: '#E0E0E0', textAlign: 'center', fontWeight: 'bold' },
     
-    dropdown: { backgroundColor: '#F9F9F9', borderRadius: 8, padding: 12, borderWidth: 1, borderColor: '#E0E0E0', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 5, marginBottom: 15 },
-    dropdownText: { color: '#333' },
     totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, paddingTop: 15, borderTopWidth: 1, borderTopColor: '#EEE' },
     totalLabel: { fontSize: 18, fontWeight: 'bold', color: '#333' },
     totalValue: { fontSize: 18, fontWeight: 'bold', color: '#648DDB' },
@@ -478,16 +361,4 @@ const styles = StyleSheet.create({
     legendItem: { flexDirection: 'row', alignItems: 'center' },
     legendDot: { width: 12, height: 12, borderRadius: 6, marginRight: 5 },
     legendText: { fontSize: 12, color: '#555' },
-
-    // Add to Cart Button
-    addToCartBtn: { flexDirection: 'row', backgroundColor: '#648DDB', paddingVertical: 16, borderRadius: 30, alignItems: 'center', justifyContent: 'center', marginHorizontal: 20, shadowColor: "#648DDB", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4.65, elevation: 8 },
-    addToCartText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-
-    // Modal Styles
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-    modalContainer: { width: '85%', backgroundColor: '#FFF', borderRadius: 16, padding: 20, maxHeight: '60%' },
-    modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center' },
-    modalItem: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#EEE', flexDirection: 'row', justifyContent: 'space-between' },
-    modalItemText: { fontSize: 16, color: '#333' },
-    modalCloseBtn: { marginTop: 15, backgroundColor: '#648DDB', padding: 12, borderRadius: 8, alignItems: 'center' }
 });

@@ -27,8 +27,8 @@ const FoodDetailsScreen = () => {
     const { id } = useLocalSearchParams();
 
     // Data State
+    // FIXED: Removed 'food' state, we only need 'data'
     const [data, setData] = useState(null);
-    const [food, setFood] = useState(null);
     const [loading, setLoading] = useState(true);
 
     // Modal State
@@ -40,18 +40,19 @@ const FoodDetailsScreen = () => {
     const [isCreatingPlan, setIsCreatingPlan] = useState(false);
     const [newPlanName, setNewPlanName] = useState('');
 
+    // --- 1. FETCH DATA (FIXED) ---
     useEffect(() => {
         const fetchDetails = async () => {
             try {
-                const data = await getFoodById(id);
-                setFood(data);
+                const result = await getFoodById(id); // Renamed variable to avoid conflict
+                setData(result); // Set the correct state variable
             } catch (error) {
-                console.error(error);
+                console.error("Error fetching food details:", error);
             } finally {
                 setLoading(false);
             }
         };
-        fetchDetails();
+        if (id) fetchDetails();
     }, [id]);
 
     // --- ACTION: Open Modal & Fetch Plans ---
@@ -76,6 +77,7 @@ const FoodDetailsScreen = () => {
         }
         try {
             const newPlanId = await createNewPlan(newPlanName);
+            // Pass the new plan directly to the selection handler
             await handleSelectItem({ id: newPlanId, planName: newPlanName });
         } catch (error) {
             Alert.alert("Error", "Failed to create plan.");
@@ -88,9 +90,10 @@ const FoodDetailsScreen = () => {
             const itemToSave = {
                 id: data.id,
                 title: data.title,
-                price: parseFloat(data.estimatedTotalExpenses) || 0, // Using the estimate for the timeline
+                // Ensure price is a number
+                price: parseFloat(data.estimatedTotalExpenses) || parseFloat(data.price) || 0, 
                 imageUrl: data.imageUrl,
-                type: 'food' // Explicitly set type for the timeline icon logic
+                type: 'food' 
             };
 
             await addItemToPlan(plan.id, itemToSave);
@@ -115,8 +118,9 @@ const FoodDetailsScreen = () => {
 
     if (!data) return <View style={styles.loadingContainer}><Text>Food Not Found</Text></View>;
 
+    // Safe extraction of variables
     const bgImage = data.imageUrl || 'https://via.placeholder.com/400';
-    const priceRange = data.priceRange || "RM 10 - RM 30"; // Fallback text
+    const priceRange = data.priceRange || "RM 10 - RM 30"; 
     const transportPrice = parseFloat(data.transportCost) || 0;
     const estimatedExp = parseFloat(data.estimatedTotalExpenses) || 0;
     const rating = data.rating || 4.5;
@@ -172,7 +176,7 @@ const FoodDetailsScreen = () => {
                 </TouchableOpacity>
             </View>
 
-            {/* MODAL: ADD TO PLAN (Same as Entertainment) */}
+            {/* MODAL: ADD TO PLAN */}
             <Modal
                 animationType="slide"
                 transparent={true}

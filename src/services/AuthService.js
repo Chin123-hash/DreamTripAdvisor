@@ -9,7 +9,9 @@ import {
     addDoc, arrayRemove, arrayUnion, collection,
     deleteDoc,
     doc, getDoc, getDocs, orderBy, // Changed from onSnapshot for simpler one-time fetch
-    query, setDoc,
+    query,
+    serverTimestamp,
+    setDoc,
     updateDoc,
     where
 } from 'firebase/firestore';
@@ -565,3 +567,49 @@ export const getAgencies = async () => {
       return [];
     }
   };
+
+  export const getPlanList = async () => {
+    try {
+        const querySnapshot = await getDocs(collection(db, "plans"));
+        const plans = [];
+        querySnapshot.forEach((doc) => {
+            plans.push({ id: doc.id, ...doc.data() });
+        });
+        return plans;
+    } catch (error) {
+        console.error("Error fetching plans: ", error);
+        throw error;
+    }
+};
+
+export const addPlanToCart = async (userId, planData) => {
+    try {
+        const cartRef = collection(db, "users", userId, "plans");
+        await addDoc(cartRef, {
+            ...planData,
+            status: 'cart', // You can use this to filter items later
+            createdAt: serverTimestamp()
+        });
+        return true;
+    } catch (error) {
+        console.error("Error adding to cart: ", error);
+        throw error;
+    }
+};
+
+export const getPlanDetails = async (planId) => {
+    try {
+        const docRef = doc(db, "plans", planId); // Fetch from "plans", not "cart"
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            return { id: docSnap.id, ...docSnap.data() };
+        } else {
+            console.log("No such plan!");
+            return null;
+        }
+    } catch (error) {
+        console.error("Error fetching plan details:", error);
+        throw error;
+    }
+};

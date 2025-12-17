@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import React, { ComponentType } from 'react';
-import PlanDetailsScreen from '../src/screens/PlanDetails';
+import PlanDetailsScreen from '../src/screens/AgencyPlanDetails';
 
 const TypedPlanDetailsScreen = PlanDetailsScreen as ComponentType;
 

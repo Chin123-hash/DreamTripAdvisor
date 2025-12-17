@@ -4,53 +4,36 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Dimensions,
-    FlatList,
-    Image,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  FlatList,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Service
-import { getCurrentUserData, getEntertainmentList, getFoodList, logoutUser } from '../services/AuthService';
+// ADDED: getPlanList to the imports
+import { getCurrentUserData, getEntertainmentList, getFoodList, getPlanList, logoutUser } from '../services/AuthService';
 
 const { width } = Dimensions.get('window');
-
-
-const DUMMY_PLANS = [
-    { 
-        id: '1', 
-        title: 'Penang 3D2N Fun Trip', 
-        desc: 'Experience the heritage and food of Penang.', 
-        rating: 4, 
-        price: '450',
-        image: 'https://via.placeholder.com/300'
-    },
-    { 
-        id: '2', 
-        title: 'KL City Escape', 
-        desc: 'Shopping and sightseeing in the heart of KL.', 
-        rating: 5, 
-        price: '300',
-        image: 'https://via.placeholder.com/300'
-    }
-];
 
 export default function CustomerMainPage() {
   const router = useRouter();
   
   // --- STATE ---
   const [entertainmentList, setEntertainmentList] = useState([]);
-    const [foodList, setFoodList] = useState([]);
+  const [foodList, setFoodList] = useState([]);
+  // ADDED: State for plans
+  const [planList, setPlanList] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
 
@@ -62,20 +45,36 @@ export default function CustomerMainPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const data = await getEntertainmentList();
-        const validData = data.filter(item => item.title && item.imageUrl);
-        const formattedData = validData.map(item => ({
-          ...item,
-          image: item.imageUrl 
+        // 1. Fetch Entertainment
+        const entData = await getEntertainmentList();
+        const validEnt = entData.filter(item => item.title && item.imageUrl);
+        setEntertainmentList(validEnt.map(item => ({ ...item, image: item.imageUrl })));
+
+        // 2. Fetch Food
+        const foodData = await getFoodList();
+        const validFood = foodData
+            .filter(item => item.title && item.imageUrl)
+            .map(item => ({ ...item, image: item.imageUrl }));
+        setFoodList(validFood);
+
+        // 3. Fetch Plans (NEW CODE)
+        const pData = await getPlanList();
+        // We map the database fields to the names your UI expects
+        const formattedPlans = pData.map(item => ({
+            id: item.id,
+            title: item.title || 'Untitled Plan',
+            // Check if DB uses 'description' or 'desc', fallback to empty string
+            desc: item.description || item.desc || 'No description available.',
+            // Check if DB uses 'price', ensure it's a string or number
+            price: item.price || 'N/A',
+            // Default rating to 5 if missing
+            rating: item.rating || 5, 
+            // Use imageUrl from DB, or a placeholder if missing
+            image: item.imageUrl || 'https://via.placeholder.com/300' 
         }));
-        setEntertainmentList(formattedData);
+        setPlanList(formattedPlans);
 
-          const fData = await getFoodList();
-          const formattedFood = fData
-              .filter(item => item.title && item.imageUrl)
-              .map(item => ({ ...item, image: item.imageUrl }));
-          setFoodList(formattedFood);
-
+        // 4. Fetch User
         const user = await getCurrentUserData();
         setUserData(user);
 
@@ -116,7 +115,7 @@ export default function CustomerMainPage() {
       }
   };
 
-  // --- RENDER CARD ---
+  // --- RENDER CARD (Horizontal) ---
   const renderHorizontalCard = ({ item, isFood }) => (
     <TouchableOpacity 
       style={styles.cardContainer}
@@ -125,7 +124,7 @@ export default function CustomerMainPage() {
           router.push({ pathname: route, params: { id: item.id } });
       }}
     >
-          <Image source={{ uri: isFood ? item.image : item.imageUrl }} style={styles.cardImage} />
+      <Image source={{ uri: isFood ? item.image : item.imageUrl }} style={styles.cardImage} />
       <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
     </TouchableOpacity>
   );
@@ -140,13 +139,11 @@ export default function CustomerMainPage() {
              <Ionicons name="menu" size={30} color="#333" />
           </TouchableOpacity>
           <Text style={styles.appTitle}>Dream Trip Advisor</Text>
-          {/* Empty view for spacing balance */}
           <View style={{width: 30}} />
         </View>
 
         {/* PROFILE & ACTIONS SECTION */}
         <View style={styles.profileSection}>
-          {/* Left: User Info */}
           <View style={styles.profileRow}>
             <Image 
               source={{ uri: userData?.profileImage || 'https://via.placeholder.com/50' }} 
@@ -160,23 +157,12 @@ export default function CustomerMainPage() {
             </View>
           </View>
 
-          {/* Right: Action Icons (Search + Cart) */}
           <View style={styles.actionIcons}>
-              <TouchableOpacity 
-                  onPress={() => router.push('/explore')} 
-                  style={styles.iconButton}
-              >
+              <TouchableOpacity onPress={() => router.push('/explore')} style={styles.iconButton}>
                 <Ionicons name="search" size={28} color="#333" />
               </TouchableOpacity>
-              
-              {/* NEW CART ICON */}
-              <TouchableOpacity 
-                  onPress={() => router.push('/cart')} // Make sure you have a cart page or change this route
-                  style={styles.iconButton}
-              >
+              <TouchableOpacity onPress={() => router.push('/cart')} style={styles.iconButton}>
                 <Ionicons name="cart-outline" size={28} color="#333" />
-                {/* Optional: Red Dot Badge for items */}
-                {/* <View style={styles.badgeDot} /> */}
               </TouchableOpacity>
           </View>
         </View>
@@ -204,7 +190,7 @@ export default function CustomerMainPage() {
               ) : (
                       <FlatList
                           data={foodList}
-                          renderItem={({ item }) => renderHorizontalCard({ item, isFood: true })} // FIXED: Added curly braces for destructuring
+                          renderItem={({ item }) => renderHorizontalCard({ item, isFood: true })} 
                           keyExtractor={item => item.id}
                           horizontal
                           showsHorizontalScrollIndicator={false}
@@ -213,35 +199,48 @@ export default function CustomerMainPage() {
                       />
               )}
 
-        {/* PLAN LIST */}
+        {/* PLAN LIST (UPDATED) */}
         <View style={styles.divider} />
         <Text style={styles.sectionTitle}>Recommended Plan</Text>
-        {DUMMY_PLANS.map((plan) => (
-          <View key={plan.id} style={styles.planCard}>
-            <View style={styles.planRow}>
-              <Image source={{ uri: plan.image }} style={styles.planImage} />
-              <View style={styles.planInfo}>
-                <Text style={styles.planTitle}>{plan.title}</Text>
-                <Text style={styles.planDesc} numberOfLines={2}>{plan.desc}</Text>
-                <View style={styles.ratingRow}>
-                  <Text style={styles.ratingLabel}>Peer Rating</Text>
-                  <View style={{flexDirection:'row'}}>
-                    {[...Array(plan.rating)].map((_, i) => (
-                       <Ionicons key={i} name="star" size={14} color="#FFD700" />
-                    ))}
-                  </View>
-                </View>
-                <Text style={styles.priceText}>Estimated: RM {plan.price}</Text>
-              </View>
-            </View>
-          </View>
-        ))}
         
-        {/* Extra space at bottom since FAB is gone */}
+        {loading ? (
+             <ActivityIndicator size="small" color="#648DDB" style={{ marginLeft: 20, alignSelf: 'flex-start' }} />
+        ) : planList.length === 0 ? (
+             <Text style={styles.emptyText}>No plans available at the moment.</Text>
+        ) : (
+            planList.map((plan) => (
+            <TouchableOpacity 
+                key={plan.id} 
+                style={styles.planCard}
+                onPress={() => {
+                    // Navigate to Plan Details (ensure this route exists later)
+                    router.push({ pathname: '/planDetails', params: { id: plan.id } });
+                }}
+            >
+                <View style={styles.planRow}>
+                <Image source={{ uri: plan.image }} style={styles.planImage} />
+                <View style={styles.planInfo}>
+                    <Text style={styles.planTitle}>{plan.title}</Text>
+                    <Text style={styles.planDesc} numberOfLines={2}>{plan.desc}</Text>
+                    <View style={styles.ratingRow}>
+                    <Text style={styles.ratingLabel}>Rating</Text>
+                    <View style={{flexDirection:'row', marginLeft: 5}}>
+                        {[...Array(plan.rating > 5 ? 5 : plan.rating)].map((_, i) => (
+                           <Ionicons key={i} name="star" size={14} color="#FFD700" />
+                        ))}
+                    </View>
+                    </View>
+                    <Text style={styles.priceText}>Estimated: {plan.price}</Text>
+                </View>
+                </View>
+            </TouchableOpacity>
+            ))
+        )}
+        
         <View style={{height: 40}} /> 
       </ScrollView>
 
-      {/* SIDEBAR MODAL (Unchanged) */}
+      {/* SIDEBAR MODAL */}
       <Modal
           visible={isSidebarVisible}
           transparent={true}
@@ -256,39 +255,24 @@ export default function CustomerMainPage() {
               <Animated.View style={[styles.sidebarContainer, { transform: [{ translateX: slideAnim }] }]}>
                   {/* SIDEBAR HEADER */}
                   <View style={styles.sidebarHeader}>
-                      <TouchableOpacity 
-                          onPress={() => { 
-                              closeSidebar(); 
-                              router.push('/profile'); 
-                          }}
-                      >
+                      <TouchableOpacity onPress={() => { closeSidebar(); router.push('/profile'); }}>
                           <Image 
                               source={{ uri: userData?.profileImage || 'https://via.placeholder.com/80' }} 
                               style={styles.sidebarProfilePic} 
                           />
                       </TouchableOpacity>
-                      <Text style={styles.sidebarName}>
-                          {userData?.fullName || "Traveller"}
-                      </Text>
-                      <Text style={styles.sidebarEmail}>
-                          {userData?.email || "No Email"}
-                      </Text>
+                      <Text style={styles.sidebarName}>{userData?.fullName || "Traveller"}</Text>
+                      <Text style={styles.sidebarEmail}>{userData?.email || "No Email"}</Text>
                   </View>
 
                   {/* MENU ITEMS */}
                   <View style={styles.menuContainer}>
-                      <TouchableOpacity style={styles.menuItem} onPress={() => { 
-                          closeSidebar(); 
-                          router.push('/profile'); 
-                      }}>
+                      <TouchableOpacity style={styles.menuItem} onPress={() => { closeSidebar(); router.push('/profile'); }}>
                           <Ionicons name="person-outline" size={24} color="#333" />
                           <Text style={styles.menuText}>My Profile</Text>
                       </TouchableOpacity>
                       
-                      <TouchableOpacity style={styles.menuItem} onPress={() => {
-                          closeSidebar();
-                          router.push('/history');
-                      }}>
+                      <TouchableOpacity style={styles.menuItem} onPress={() => { closeSidebar(); router.push('/history'); }}>
                           <Ionicons name="time-outline" size={24} color="#333" />
                           <Text style={styles.menuText}>History</Text>
                       </TouchableOpacity>
@@ -298,10 +282,7 @@ export default function CustomerMainPage() {
                           <Text style={styles.menuText}>Favourites</Text>
                       </TouchableOpacity>
 
-                      <TouchableOpacity style={styles.menuItem} onPress={() => {
-                          closeSidebar();
-                          router.push('/settings');
-                      }}>
+                      <TouchableOpacity style={styles.menuItem} onPress={() => { closeSidebar(); router.push('/settings'); }}>
                           <Ionicons name="settings-outline" size={24} color="#333" />
                           <Text style={styles.menuText}>Settings</Text>
                       </TouchableOpacity>
@@ -333,16 +314,14 @@ const styles = StyleSheet.create({
   headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginTop: 10, marginBottom: 20 },
   appTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
   
-  // UPDATED PROFILE SECTION
   profileSection: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 20 },
   profileRow: { flexDirection: 'row', alignItems: 'center' },
   profilePic: { width: 50, height: 50, borderRadius: 25, marginRight: 12, backgroundColor: '#eee' },
   welcomeLabel: { fontSize: 12, color: '#888' },
   welcomeText: { fontSize: 18, fontWeight: 'bold', color: '#333' },
   
-  // NEW ACTION ICONS STYLE
   actionIcons: { flexDirection: 'row', alignItems: 'center' },
-  iconButton: { marginLeft: 15, padding: 4 }, // Add spacing between icons
+  iconButton: { marginLeft: 15, padding: 4 }, 
   badgeDot: { position: 'absolute', top: 2, right: 2, width: 8, height: 8, borderRadius: 4, backgroundColor: 'red' },
 
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginLeft: 20, marginBottom: 10, marginTop: 10, color: '#333' },
@@ -350,19 +329,21 @@ const styles = StyleSheet.create({
   cardContainer: { marginRight: 15, width: 120, alignItems: 'center' },
   cardImage: { width: 100, height: 100, borderRadius: 15, marginBottom: 8, backgroundColor: '#f0f0f0' },
   cardTitle: { fontSize: 12, fontWeight: '500', textAlign: 'center', color: '#333' },
-  emptyText: { marginLeft: 20, color: '#999', fontStyle: 'italic' },
+  emptyText: { marginLeft: 20, color: '#999', fontStyle: 'italic', marginBottom: 10 },
   divider: { height: 1, backgroundColor: '#E0E0E0', marginHorizontal: 20, marginVertical: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: '#ccc' },
+  
+  // Plan Card Styles
   planCard: { backgroundColor: '#F5F9F6', marginHorizontal: 20, marginBottom: 15, borderRadius: 15, padding: 15, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3.84, elevation: 3 },
   planRow: { flexDirection: 'row', marginBottom: 10 },
   planImage: { width: 80, height: 80, borderRadius: 12, backgroundColor: '#ddd' },
   planInfo: { flex: 1, marginLeft: 15, justifyContent: 'center' },
   planTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 4, color: '#333' },
   planDesc: { fontSize: 12, color: '#666', marginBottom: 6 },
-  ratingRow: { flexDirection: 'column', marginBottom: 4 },
-  ratingLabel: { fontSize: 10, color: '#888' },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  ratingLabel: { fontSize: 10, color: '#888', marginRight: 5 },
   priceText: { fontSize: 12, fontWeight: 'bold', marginTop: 4, textAlign: 'right', color: '#333' },
 
-  // === SIDEBAR STYLES ===
+  // Sidebar Styles
   modalOverlay: { flex: 1, flexDirection: 'row' },
   modalTransparentArea: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   sidebarContainer: { position: 'absolute', left: 0, top: 0, bottom: 0, width: width * 0.75, backgroundColor: '#FFF', shadowColor: "#000", shadowOffset: { width: 2, height: 0 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5, paddingTop: 50, paddingHorizontal: 20, justifyContent: 'space-between' },

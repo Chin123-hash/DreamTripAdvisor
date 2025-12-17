@@ -1,3 +1,5 @@
+// src/screens/AgencyMainPageScreen.js
+
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -16,12 +18,12 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-// Service
+// Service Imports
 import {
     getCurrentUserData,
     getEntertainmentList,
     getFoodList,
+    getPlanList, // <--- UPDATED: Using getPlanList as requested
     logoutUser
 } from '../services/AuthService';
 
@@ -33,6 +35,7 @@ export default function AgencyMainPageScreen() {
   // --- STATE ---
   const [entertainments, setEntertainments] = useState([]);
   const [foods, setFoods] = useState([]);
+  const [allPlans, setAllPlans] = useState([]); 
   const [agencyData, setAgencyData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -46,24 +49,23 @@ export default function AgencyMainPageScreen() {
       try {
         setLoading(true);
         
-        // 1. Fetch all data in parallel
-        const [userData, entList, foodList] = await Promise.all([
+        // Fetch all data
+        const [userData, entList, foodList, plans] = await Promise.all([
           getCurrentUserData(),
           getEntertainmentList(),
-          getFoodList()
+          getFoodList(),
+          getPlanList() // <--- UPDATED: Calling getPlanList
         ]);
         
-        // Debugging: Check your terminal to see if data is actually arriving
-        console.log("Agency Data Fetched:", userData); 
-
-        // 2. Format lists to ensure images work
+        // Process Lists
         const formattedEnt = entList.map(item => ({ ...item, image: item.imageUrl || item.image }));
         const formattedFood = foodList.map(item => ({ ...item, image: item.imageUrl || item.image }));
 
-        // 3. Set State
+        // Set State
         setAgencyData(userData);
         setEntertainments(formattedEnt);
         setFoods(formattedFood);
+        setAllPlans(plans); 
 
       } catch (error) {
         console.error("Failed to load data:", error);
@@ -74,35 +76,18 @@ export default function AgencyMainPageScreen() {
     fetchData();
   }, []);
 
-  // --- SIDEBAR ANIMATION ---
+  // --- ANIMATIONS & LOGOUT ---
   const openSidebar = () => {
     setSidebarVisible(true);
-    Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-    }).start();
+    Animated.timing(slideAnim, { toValue: 0, duration: 300, useNativeDriver: true, }).start();
   };
-
   const closeSidebar = () => {
-    Animated.timing(slideAnim, {
-        toValue: -width,
-        duration: 300,
-        useNativeDriver: true,
-    }).start(() => setSidebarVisible(false));
+    Animated.timing(slideAnim, { toValue: -width, duration: 300, useNativeDriver: true, }).start(() => setSidebarVisible(false));
   };
-
   const handleLogout = async () => {
-      try {
-          await logoutUser();
-          closeSidebar();
-          router.replace('/'); 
-      } catch (error) {
-          console.error("Failed to log out");
-      }
+      try { await logoutUser(); closeSidebar(); router.replace('/'); } catch (error) { console.error("Failed to log out"); }
   };
 
-  // --- RENDER CARD ---
   const renderHorizontalCard = ({ item, isFood }) => (
     <TouchableOpacity 
       style={styles.cardContainer}
@@ -111,22 +96,18 @@ export default function AgencyMainPageScreen() {
           router.push({ pathname: route, params: { id: item.id } });
       }}
     >
-          <Image source={{ uri: isFood ? item.image : item.imageUrl }} style={styles.cardImage} />
+      <Image source={{ uri: isFood ? item.image : item.imageUrl }} style={styles.cardImage} />
       <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
     </TouchableOpacity>
   );
 
-  // --- HELPER TO GET DISPLAY NAME ---
-  // Checks for agencyName first, then fullName, then fallback
   const getDisplayName = () => {
       if (!agencyData) return 'Loading...';
       return agencyData.agencyName || agencyData.fullName || 'Agency Partner';
   };
-
-  // --- HELPER TO GET DISPLAY IMAGE ---
   const getDisplayImage = () => {
       const uri = agencyData?.logoUrl || agencyData?.profileImage;
-      return uri ? { uri } : { uri: 'https://via.placeholder.com/80' }; // Default placeholder
+      return uri ? { uri } : { uri: 'https://via.placeholder.com/80' }; 
   };
 
   return (
@@ -145,24 +126,15 @@ export default function AgencyMainPageScreen() {
         {/* PROFILE SECTION */}
         <View style={styles.profileSection}>
           <View style={styles.profileRow}>
-            <Image 
-              source={getDisplayImage()} 
-              style={styles.profilePic} 
-            />
+            <Image source={getDisplayImage()} style={styles.profilePic} />
             <View>
                 <Text style={styles.welcomeLabel}>Welcome back,</Text>
-                <Text style={styles.welcomeText}>
-                    {loading ? '...' : getDisplayName()}
-                </Text>
+                <Text style={styles.welcomeText}>{loading ? '...' : getDisplayName()}</Text>
             </View>
           </View>
-          
-          <TouchableOpacity 
-                  onPress={() => router.push('/explore')} 
-                  style={styles.iconButton}
-              >
-                <Ionicons name="search" size={28} color="#333" />
-              </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/explore')} style={styles.iconButton}>
+            <Ionicons name="search" size={28} color="#333" />
+          </TouchableOpacity>
         </View>
 
         {/* AGENCY ACTION BUTTONS */}
@@ -187,9 +159,7 @@ export default function AgencyMainPageScreen() {
 
         {/* ENTERTAINMENT LIST */}
         <Text style={styles.sectionTitle}>Popular Entertainment</Text>
-        {loading ? (
-          <ActivityIndicator size="small" color="#648DDB" style={{marginLeft: 20, alignSelf:'flex-start'}} />
-        ) : (
+        {loading ? <ActivityIndicator size="small" color="#648DDB" /> : (
           <FlatList
             data={entertainments}
             renderItem={(item) => renderHorizontalCard({ ...item, isFood: false })}
@@ -203,9 +173,7 @@ export default function AgencyMainPageScreen() {
 
         {/* FOOD LIST */}
         <Text style={styles.sectionTitle}>Popular Food</Text>
-        {loading ? (
-            <ActivityIndicator size="small" color="#648DDB" style={{ marginLeft: 20, alignSelf: 'flex-start' }} />
-        ) : (
+        {loading ? <ActivityIndicator size="small" color="#648DDB" /> : (
             <FlatList
                 data={foods}
                 renderItem={({ item }) => renderHorizontalCard({ item, isFood: true })}
@@ -217,90 +185,66 @@ export default function AgencyMainPageScreen() {
             />
         )}
 
-        {/* YOUR PLANS LIST */}
+        {/* --- DYNAMIC ALL PLANS LIST --- */}
         <View style={styles.divider} />
-        <Text style={styles.sectionTitle}>Your Managed Plans</Text>
+        <Text style={styles.sectionTitle}>All Market Plans</Text>
         
-        <View style={styles.planCard}>
-            <View style={styles.planRow}>
-                <Image source={{ uri: 'https://picsum.photos/200/200' }} style={styles.planImage} />
-                <View style={styles.planInfo}>
-                <Text style={styles.planTitle}>A Trip to Melaka</Text>
-                <Text style={styles.planDesc}>Managed Trip</Text>
-                <View style={styles.ratingRow}>
-                    <Ionicons name="star" size={14} color="#FFD700" />
-                    <Ionicons name="star" size={14} color="#FFD700" />
-                    <Ionicons name="star" size={14} color="#FFD700" />
-                    <Ionicons name="star" size={14} color="#FFD700" />
+        {allPlans.length === 0 ? (
+            <Text style={styles.emptyText}>No plans available.</Text>
+        ) : (
+            allPlans.map((plan) => (
+            <TouchableOpacity 
+                key={plan.id}
+                style={styles.planCard}
+                onPress={() => router.push({ pathname: '/agencyplanDetails', params: { id: plan.id } })} 
+            >
+                <View style={styles.planRow}>
+                    <Image source={{ uri: plan.imageUrl || 'https://via.placeholder.com/200' }} style={styles.planImage} />
+                    <View style={styles.planInfo}>
+                        <Text style={styles.planTitle}>{plan.title || plan.planName || "Untitled"}</Text>
+                        <Text style={styles.planDesc} numberOfLines={1}>{plan.description || "No description"}</Text>
+                        <View style={styles.ratingRow}>
+                            <Ionicons name="star" size={14} color="#FFD700" />
+                            <Text style={{fontSize:12, marginLeft:5, color:'#666'}}>{plan.rating || 5}.0</Text>
+                            {/* Optional: Highlight if it's YOUR plan */}
+                            {plan.userId === agencyData?.uid && (
+                                <Text style={{fontSize:12, marginLeft:10, color:'#648DDB', fontWeight:'bold'}}>(Yours)</Text>
+                            )}
+                        </View>
+                        <Text style={styles.priceText}> {plan.price || '0'}</Text>
+                    </View>
                 </View>
-                <Text style={styles.priceText}>Status: Active</Text>
-                </View>
-            </View>
-        </View>
-
-        <View style={styles.planCard}>
-            <View style={styles.planRow}>
-                <Image source={{ uri: 'https://picsum.photos/201/201' }} style={styles.planImage} />
-                <View style={styles.planInfo}>
-                <Text style={styles.planTitle}>A Trip to Penang</Text>
-                <Text style={styles.planDesc}>Managed Trip</Text>
-                <View style={styles.ratingRow}>
-                    <Ionicons name="star" size={14} color="#FFD700" />
-                    <Ionicons name="star" size={14} color="#FFD700" />
-                    <Ionicons name="star" size={14} color="#FFD700" />
-                </View>
-                <Text style={styles.priceText}>Status: Pending</Text>
-                </View>
-            </View>
-        </View>
+            </TouchableOpacity>
+            ))
+        )}
         
         <View style={{height: 40}} /> 
       </ScrollView>
 
       {/* SIDEBAR MODAL */}
-      <Modal
-          visible={isSidebarVisible}
-          transparent={true}
-          animationType="none"
-          onRequestClose={closeSidebar}
-      >
+      <Modal visible={isSidebarVisible} transparent={true} animationType="none" onRequestClose={closeSidebar}>
           <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback onPress={closeSidebar}>
-                  <View style={styles.modalTransparentArea} />
-              </TouchableWithoutFeedback>
-
+              <TouchableWithoutFeedback onPress={closeSidebar}><View style={styles.modalTransparentArea} /></TouchableWithoutFeedback>
               <Animated.View style={[styles.sidebarContainer, { transform: [{ translateX: slideAnim }] }]}>
-                  {/* SIDEBAR HEADER */}
                   <View style={styles.sidebarHeader}>
-                      <Image 
-                          source={getDisplayImage()} 
-                          style={styles.sidebarProfilePic} 
-                      />
-                      <Text style={styles.sidebarName}>
-                          {getDisplayName()}
-                      </Text>
-                      <Text style={styles.sidebarEmail}>
-                          {agencyData?.email || "No Email Found"}
-                      </Text>
+                      <Image source={getDisplayImage()} style={styles.sidebarProfilePic} />
+                      <Text style={styles.sidebarName}>{getDisplayName()}</Text>
+                      <Text style={styles.sidebarEmail}>{agencyData?.email || "No Email Found"}</Text>
                   </View>
-
                   <View style={styles.menuContainer}>
                       <TouchableOpacity style={styles.menuItem} onPress={() => router.push("/profile") }>
                           <Ionicons name="person-outline" size={24} color="#333" />
                           <Text style={styles.menuText}>Agency Profile</Text>
                       </TouchableOpacity>
-                      
                       <TouchableOpacity style={styles.menuItem} onPress={() => closeSidebar()}>
                           <Ionicons name="briefcase-outline" size={24} color="#333" />
                           <Text style={styles.menuText}>Manage Services</Text>
                       </TouchableOpacity>
-
                       <TouchableOpacity style={styles.menuItem} onPress={() => router.push("/settings")}>
                           <Ionicons name="settings-outline" size={24} color="#333" />
                           <Text style={styles.menuText}>Settings</Text>
                       </TouchableOpacity>
                   </View>
-
                   <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
                       <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
                       <Text style={styles.logoutText}>Log Out</Text>
@@ -318,16 +262,12 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: 20 },
   headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginTop: 10, marginBottom: 20 },
   appTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-  
   profileSection: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 20 },
   profileRow: { flexDirection: 'row', alignItems: 'center' },
   profilePic: { width: 50, height: 50, borderRadius: 25, marginRight: 12, backgroundColor: '#eee' },
   welcomeLabel: { fontSize: 12, color: '#888' },
   welcomeText: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  
-  actionIcons: { flexDirection: 'row', alignItems: 'center' },
   iconButton: { marginLeft: 15, padding: 4 }, 
-
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginLeft: 20, marginBottom: 10, marginTop: 10, color: '#333' },
   horizontalList: { paddingLeft: 20, paddingRight: 10, paddingBottom: 20 },
   cardContainer: { marginRight: 15, width: 120, alignItems: 'center' },
@@ -335,14 +275,13 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 12, fontWeight: '500', textAlign: 'center', color: '#333' },
   emptyText: { marginLeft: 20, color: '#999', fontStyle: 'italic' },
   divider: { height: 1, backgroundColor: '#E0E0E0', marginHorizontal: 20, marginVertical: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: '#ccc' },
-  
   planCard: { backgroundColor: '#F5F9F6', marginHorizontal: 20, marginBottom: 15, borderRadius: 15, padding: 15, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3.84, elevation: 3 },
   planRow: { flexDirection: 'row', marginBottom: 10 },
   planImage: { width: 80, height: 80, borderRadius: 12, backgroundColor: '#ddd' },
   planInfo: { flex: 1, marginLeft: 15, justifyContent: 'center' },
   planTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 4, color: '#333' },
   planDesc: { fontSize: 12, color: '#666', marginBottom: 6 },
-  ratingRow: { flexDirection: 'row', marginBottom: 4 },
+  ratingRow: { flexDirection: 'row', marginBottom: 4, alignItems:'center' },
   priceText: { fontSize: 12, fontWeight: 'bold', marginTop: 4, textAlign: 'right', color: '#333' },
 
   modalOverlay: { flex: 1, flexDirection: 'row' },
@@ -357,33 +296,7 @@ const styles = StyleSheet.create({
   menuText: { fontSize: 16, marginLeft: 15, color: '#333', fontWeight: '500' },
   logoutButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20, borderTopWidth: 1, borderTopColor: '#F0F0F0', marginBottom: 20 },
   logoutText: { fontSize: 16, marginLeft: 15, color: '#FF3B30', fontWeight: 'bold' },
-
-  gridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginBottom: 10,
-  },
-  gridButton: {
-    width: '48%', 
-    backgroundColor: '#F8F9FA', 
-    borderRadius: 12,
-    paddingVertical: 15,
-    alignItems: 'center',
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    shadowColor: "#000", 
-    shadowOffset: { width: 0, height: 1 }, 
-    shadowOpacity: 0.05, 
-    shadowRadius: 2, 
-    elevation: 2 
-  },
-  gridText: {
-    marginTop: 8,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333'
-  }
+  gridContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 10 },
+  gridButton: { width: '48%', backgroundColor: '#F8F9FA', borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginBottom: 15, borderWidth: 1, borderColor: '#E0E0E0', shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 },
+  gridText: { marginTop: 8, fontSize: 14, fontWeight: '600', color: '#333' }
 });
