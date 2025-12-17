@@ -58,11 +58,22 @@ export default function CustomerMainPage() {
           setFoodList(formattedFood);
 
         const pData = await getPlanList();
-
         // Use planName instead of title
-        const formattedPlan = pData.filter(item => item.planName && item.imageUrl);
+        const fetchPlans = async () => {
+          try {
+            const response = await getMasterPlans();
 
-        setPlanList(formattedPlan);
+            console.log('Plans response:', response.data);
+
+            setPlanList(response.data); // ✅ directly use response
+          } catch (error) {
+            console.error('Failed to load data:', error);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        setPlanList(pData);
 
         const user = await getCurrentUserData();
         setUserData(user);
@@ -212,21 +223,49 @@ export default function CustomerMainPage() {
         {loading ? (
           <ActivityIndicator size="small" color="#648DDB" />
         ) : (
-          planList.map((plan) => (
-            <TouchableOpacity
-              key={plan.id}
-              style={styles.planCard}
-              onPress={() => router.push({ pathname: '/PlanDetailsScreen', params: { planId: plan.id } })}
-            >
-              <Image source={{ uri: plan.imageUrl }} style={styles.planImage} />
-              <View style={styles.planInfo}>
-                <Text style={styles.planTitle}>{plan.planName}</Text>
-                <Text style={styles.priceText}>RM {plan.estimatedCost}</Text>
-              </View>
-            </TouchableOpacity>
-          ))
+          <FlatList
+            data={planList}
+            keyExtractor={(item) => item.id}
+            scrollEnabled={false} // IMPORTANT inside ScrollView
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.planCard}
+                onPress={() =>
+                  router.push({
+                    pathname: '/planDetails',
+                    params: { planId: item.id },
+                  })
+                }
+              >
+                <Image
+                  source={{ uri: item.imageUrl || 'https://via.placeholder.com/80' }}
+                  style={styles.planImage}
+                />
+
+                <View style={styles.planContent}>
+                  <View style={styles.planHeader}>
+                    {/* CHANGE: item.title -> item.planName */}
+                    <Text style={styles.planTitle}>
+                      {item.title || "Plan Title"}
+                    </Text>
+
+                    {/* CHANGE: item.estimatedTotalExpenses -> item.estimatedCost */}
+                    <Text style={styles.planPrice}>
+                      RM {item.price|| 0}
+                    </Text>
+                  </View>
+
+                  <Text style={styles.ratingText}>Peer Rating</Text>
+                  {/* You can hardcode stars or use item.rating if you add that field to Firestore */}
+                  <Text style={styles.ratingStars}>★★★★★</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>No plans available yet.</Text>
+            }
+          />
         )}
-        {planList.length === 0 && !loading && <Text style={styles.emptyText}>No plans available yet.</Text>}
         
         {/* Extra space at bottom since FAB is gone */}
         <View style={{height: 40}} /> 
@@ -319,68 +358,283 @@ export default function CustomerMainPage() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
-  scrollContent: { paddingBottom: 20 },
-  headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginTop: 10, marginBottom: 20 },
-  appTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-  
-  // UPDATED PROFILE SECTION
-  profileSection: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 20 },
-  profileRow: { flexDirection: 'row', alignItems: 'center' },
-  profilePic: { width: 50, height: 50, borderRadius: 25, marginRight: 12, backgroundColor: '#eee' },
-  welcomeLabel: { fontSize: 12, color: '#888' },
-  welcomeText: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  
-  // NEW ACTION ICONS STYLE
-  actionIcons: { flexDirection: 'row', alignItems: 'center' },
-  iconButton: { marginLeft: 15, padding: 4 }, // Add spacing between icons
-  badgeDot: { position: 'absolute', top: 2, right: 2, width: 8, height: 8, borderRadius: 4, backgroundColor: 'red' },
-
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginLeft: 20, marginBottom: 10, marginTop: 10, color: '#333' },
-  horizontalList: { paddingLeft: 20, paddingRight: 10, paddingBottom: 20 },
-  cardContainer: { marginRight: 15, width: 120, alignItems: 'center' },
-  cardImage: { width: 100, height: 100, borderRadius: 15, marginBottom: 8, backgroundColor: '#f0f0f0' },
-  cardTitle: { fontSize: 12, fontWeight: '500', textAlign: 'center', color: '#333' },
-  emptyText: { marginLeft: 20, color: '#999', fontStyle: 'italic' },
-  divider: { height: 1, backgroundColor: '#E0E0E0', marginHorizontal: 20, marginVertical: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: '#ccc' },
-  planCard: { backgroundColor: '#F5F9F6', marginHorizontal: 20, marginBottom: 15, borderRadius: 15, padding: 15, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3.84, elevation: 3 },
-  planRow: { flexDirection: 'row', marginBottom: 10 },
-  planImage: { width: 80, height: 80, borderRadius: 12, backgroundColor: '#ddd' },
-  planInfo: { flex: 1, marginLeft: 15, justifyContent: 'center' },
-  planTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 4, color: '#333' },
-  planDesc: { fontSize: 12, color: '#666', marginBottom: 6 },
-  ratingRow: { flexDirection: 'column', marginBottom: 4 },
-  ratingLabel: { fontSize: 10, color: '#888' },
-  priceText: { fontSize: 12, fontWeight: 'bold', marginTop: 4, textAlign: 'right', color: '#333' },
-
-  // === SIDEBAR STYLES ===
-  modalOverlay: { flex: 1, flexDirection: 'row' },
-  modalTransparentArea: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  sidebarContainer: { position: 'absolute', left: 0, top: 0, bottom: 0, width: width * 0.75, backgroundColor: '#FFF', shadowColor: "#000", shadowOffset: { width: 2, height: 0 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5, paddingTop: 50, paddingHorizontal: 20, justifyContent: 'space-between' },
-  sidebarHeader: { alignItems: 'center', marginBottom: 40, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', paddingBottom: 20 },
-  sidebarProfilePic: { width: 80, height: 80, borderRadius: 40, marginBottom: 10, backgroundColor: '#EEE' },
-  sidebarName: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  sidebarEmail: { fontSize: 14, color: '#888', marginTop: 2 },
-  menuContainer: { flex: 1 },
-  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15 },
-  menuText: { fontSize: 16, marginLeft: 15, color: '#333', fontWeight: '500' },
-  menuDivider: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 15 },
-  logoutButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20, borderTopWidth: 1, borderTopColor: '#F0F0F0', marginBottom: 20 },
-  logoutText: { fontSize: 16, marginLeft: 15, color: '#FF3B30', fontWeight: 'bold' },
-  // Add these to your Stylesheet
-  tagRow: { flexDirection: 'row', marginTop: 5 },
-  tag: {
-    backgroundColor: '#F0F0F0',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginRight: 8
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
   },
-  tagText: { fontSize: 10, fontWeight: '600', color: '#555' },
-  priceText: {
+
+  scrollContent: {
+    paddingBottom: 20,
+  },
+
+  /* ================= HEADER ================= */
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginTop: 10,
+    marginBottom: 20,
+  },
+
+  appTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+
+  /* ================= PROFILE ================= */
+  profileSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  profilePic: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
+    backgroundColor: '#eee',
+  },
+
+  welcomeLabel: {
+    fontSize: 12,
+    color: '#888',
+  },
+
+  welcomeText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+
+  actionIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  iconButton: {
+    marginLeft: 15,
+    padding: 4,
+  },
+
+  /* ================= SECTIONS ================= */
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 20,
+    marginBottom: 10,
+    marginTop: 10,
+    color: '#333',
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: '#E0E0E0',
+    marginHorizontal: 20,
+    marginVertical: 10,
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+
+  emptyText: {
+    marginLeft: 20,
+    color: '#999',
+    fontStyle: 'italic',
+  },
+
+  /* ================= HORIZONTAL CARDS ================= */
+  horizontalList: {
+    paddingLeft: 20,
+    paddingRight: 10,
+    paddingBottom: 20,
+  },
+
+  cardContainer: {
+    marginRight: 15,
+    width: 120,
+    alignItems: 'center',
+  },
+
+  cardImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 15,
+    marginBottom: 8,
+    backgroundColor: '#f0f0f0',
+  },
+
+  cardTitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+    color: '#333',
+  },
+
+  /* ================= PLAN CARD (FINAL VERSION) ================= */
+  planCard: {
+    flexDirection: 'row',
+    backgroundColor: '#EAF6EA',
+    borderRadius: 16,
+    padding: 12,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    alignItems: 'center',
+    elevation: 3,
+  },
+
+  planImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    marginRight: 12,
+    backgroundColor: '#ddd',
+  },
+
+  planContent: {
+    flex: 1,
+  },
+
+  planHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  planTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    flex: 1,
+    marginRight: 8,
+    color: '#333',
+  },
+
+  planPrice: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#2E7D32', // Greenish for cost
-    marginTop: 8
+    color: '#2E7D32',
+  },
+
+  planDescription: {
+    fontSize: 13,
+    color: '#555',
+    marginVertical: 4,
+  },
+
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+
+  ratingText: {
+    fontSize: 12,
+    color: '#555',
+    marginRight: 6,
+  },
+
+  ratingStars: {
+    fontSize: 14,
+    color: '#FBC02D',
+  },
+
+  /* ================= SIDEBAR ================= */
+  modalOverlay: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+
+  modalTransparentArea: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+
+  sidebarContainer: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: width * 0.75,
+    backgroundColor: '#FFF',
+    elevation: 5,
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    justifyContent: 'space-between',
+  },
+
+  sidebarHeader: {
+    alignItems: 'center',
+    marginBottom: 40,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    paddingBottom: 20,
+  },
+
+  sidebarProfilePic: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 10,
+    backgroundColor: '#EEE',
+  },
+
+  sidebarName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+
+  sidebarEmail: {
+    fontSize: 14,
+    color: '#888',
+    marginTop: 2,
+  },
+
+  menuContainer: {
+    flex: 1,
+  },
+
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
+  },
+
+  menuText: {
+    fontSize: 16,
+    marginLeft: 15,
+    color: '#333',
+    fontWeight: '500',
+  },
+
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#F0F0F0',
+    marginVertical: 15,
+  },
+
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+    marginBottom: 20,
+  },
+
+  logoutText: {
+    fontSize: 16,
+    marginLeft: 15,
+    color: '#FF3B30',
+    fontWeight: 'bold',
   },
 });
