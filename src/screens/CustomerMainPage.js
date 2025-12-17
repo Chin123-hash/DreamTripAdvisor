@@ -4,46 +4,26 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Dimensions,
-    FlatList,
-    Image,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  FlatList,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Service
-import { getCurrentUserData, getEntertainmentList, getFoodList, logoutUser } from '../services/AuthService';
+import { getCurrentUserData, getEntertainmentList, getFoodList, getPlanList, logoutUser } from '../services/AuthService';
 
 const { width } = Dimensions.get('window');
-
-
-const DUMMY_PLANS = [
-    { 
-        id: '1', 
-        title: 'Penang 3D2N Fun Trip', 
-        desc: 'Experience the heritage and food of Penang.', 
-        rating: 4, 
-        price: '450',
-        image: 'https://via.placeholder.com/300'
-    },
-    { 
-        id: '2', 
-        title: 'KL City Escape', 
-        desc: 'Shopping and sightseeing in the heart of KL.', 
-        rating: 5, 
-        price: '300',
-        image: 'https://via.placeholder.com/300'
-    }
-];
 
 export default function CustomerMainPage() {
   const router = useRouter();
@@ -51,6 +31,7 @@ export default function CustomerMainPage() {
   // --- STATE ---
   const [entertainmentList, setEntertainmentList] = useState([]);
     const [foodList, setFoodList] = useState([]);
+    const [planList, setPlanList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
 
@@ -75,6 +56,13 @@ export default function CustomerMainPage() {
               .filter(item => item.title && item.imageUrl)
               .map(item => ({ ...item, image: item.imageUrl }));
           setFoodList(formattedFood);
+
+        const pData = await getPlanList();
+
+        // Use planName instead of title
+        const formattedPlan = pData.filter(item => item.planName && item.imageUrl);
+
+        setPlanList(formattedPlan);
 
         const user = await getCurrentUserData();
         setUserData(user);
@@ -117,15 +105,19 @@ export default function CustomerMainPage() {
   };
 
   // --- RENDER CARD ---
-  const renderHorizontalCard = ({ item, isFood }) => (
-    <TouchableOpacity 
+  const renderHorizontalCard = ({ item }, isFood) => (
+    <TouchableOpacity
       style={styles.cardContainer}
       onPress={() => {
-          const route = isFood ? '/food-details' : '/entertainment-details';
-          router.push({ pathname: route, params: { id: item.id } });
+        const route = isFood ? '/food-details' : '/entertainment-details';
+        router.push({ pathname: route, params: { id: item.id } });
       }}
     >
-          <Image source={{ uri: isFood ? item.image : item.imageUrl }} style={styles.cardImage} />
+      {/* 3. FIXED: Consistently use item.imageUrl to match your Firestore structure */}
+      <Image
+        source={{ uri: item.imageUrl || 'https://via.placeholder.com/100' }}
+        style={styles.cardImage}
+      />
       <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
     </TouchableOpacity>
   );
@@ -215,27 +207,26 @@ export default function CustomerMainPage() {
 
         {/* PLAN LIST */}
         <View style={styles.divider} />
-        <Text style={styles.sectionTitle}>Recommended Plan</Text>
-        {DUMMY_PLANS.map((plan) => (
-          <View key={plan.id} style={styles.planCard}>
-            <View style={styles.planRow}>
-              <Image source={{ uri: plan.image }} style={styles.planImage} />
+        <Text style={styles.sectionTitle}>Recommended Itineraries</Text>
+
+        {loading ? (
+          <ActivityIndicator size="small" color="#648DDB" />
+        ) : (
+          planList.map((plan) => (
+            <TouchableOpacity
+              key={plan.id}
+              style={styles.planCard}
+              onPress={() => router.push({ pathname: '/PlanDetailsScreen', params: { planId: plan.id } })}
+            >
+              <Image source={{ uri: plan.imageUrl }} style={styles.planImage} />
               <View style={styles.planInfo}>
-                <Text style={styles.planTitle}>{plan.title}</Text>
-                <Text style={styles.planDesc} numberOfLines={2}>{plan.desc}</Text>
-                <View style={styles.ratingRow}>
-                  <Text style={styles.ratingLabel}>Peer Rating</Text>
-                  <View style={{flexDirection:'row'}}>
-                    {[...Array(plan.rating)].map((_, i) => (
-                       <Ionicons key={i} name="star" size={14} color="#FFD700" />
-                    ))}
-                  </View>
-                </View>
-                <Text style={styles.priceText}>Estimated: RM {plan.price}</Text>
+                <Text style={styles.planTitle}>{plan.planName}</Text>
+                <Text style={styles.priceText}>RM {plan.estimatedCost}</Text>
               </View>
-            </View>
-          </View>
-        ))}
+            </TouchableOpacity>
+          ))
+        )}
+        {planList.length === 0 && !loading && <Text style={styles.emptyText}>No plans available yet.</Text>}
         
         {/* Extra space at bottom since FAB is gone */}
         <View style={{height: 40}} /> 
@@ -376,4 +367,20 @@ const styles = StyleSheet.create({
   menuDivider: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 15 },
   logoutButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20, borderTopWidth: 1, borderTopColor: '#F0F0F0', marginBottom: 20 },
   logoutText: { fontSize: 16, marginLeft: 15, color: '#FF3B30', fontWeight: 'bold' },
+  // Add these to your Stylesheet
+  tagRow: { flexDirection: 'row', marginTop: 5 },
+  tag: {
+    backgroundColor: '#F0F0F0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginRight: 8
+  },
+  tagText: { fontSize: 10, fontWeight: '600', color: '#555' },
+  priceText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2E7D32', // Greenish for cost
+    marginTop: 8
+  },
 });

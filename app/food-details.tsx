@@ -1,14 +1,20 @@
+import EntertainmentDetailsScreen from '@/src/screens/EntertainmentDetailsScreen';
 import { Stack } from 'expo-router';
-import React, { ComponentType } from 'react';
-import FoodDetailsScreen from '../src/screens/FoodDetailsScreen';
-
-const TypedFoodDetailsScreen = FoodDetailsScreen as ComponentType;
+import React from 'react';
 
 export default function Page() {
     return (
         <>
-            <Stack.Screen options={{ title: 'Food Details' }} />
-            <TypedFoodDetailsScreen />
+            <Stack.Screen
+                options={{
+                    title: 'Details',
+                    headerShown: true, // Shows the back arrow automatically
+                    headerBackTitle: 'Back',
+                    headerTintColor: '#007AFF', // Color of the back arrow
+                    headerTitleStyle: { color: 'black' }
+                }}
+            />
+            <EntertainmentDetailsScreen />
         </>
     );
 }

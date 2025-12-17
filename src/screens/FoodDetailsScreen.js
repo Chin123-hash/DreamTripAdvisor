@@ -1,7 +1,7 @@
 // src/screens/FoodDetailsScreen.js
 
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -12,49 +12,50 @@ import {
     Modal,
     ScrollView,
     StatusBar,
-    StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
-import { addItemToPlan, createNewPlan, getFoodById, getUserPlans } from '../services/AuthService';
+
+// SERVICES
+import {
+    addItemToPlan,
+    createNewPlan,
+    getFoodById,
+    getUserPlans
+} from '../services/AuthService';
 
 const { width, height } = Dimensions.get('window');
 
 const FoodDetailsScreen = () => {
-    const router = useRouter();
     const { id } = useLocalSearchParams();
 
-    // Data State
+    // DATA
     const [data, setData] = useState(null);
-    const [food, setFood] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // Modal State
+    // MODAL
     const [modalVisible, setModalVisible] = useState(false);
     const [plans, setPlans] = useState([]);
     const [loadingPlans, setLoadingPlans] = useState(false);
 
-    // New Plan Input State
+    // NEW PLAN
     const [isCreatingPlan, setIsCreatingPlan] = useState(false);
     const [newPlanName, setNewPlanName] = useState('');
 
     useEffect(() => {
         const fetchDetails = async () => {
-            try {
-                const data = await getFoodById(id);
-                setFood(data);
-            } catch (error) {
-                console.error(error);
-            } finally {
-                setLoading(false);
+            if (id) {
+                const result = await getFoodById(id);
+                setData(result);
             }
+            setLoading(false);
         };
         fetchDetails();
     }, [id]);
 
-    // --- ACTION: Open Modal & Fetch Plans ---
+    // OPEN MODAL
     const handleAddToPlanClick = async () => {
         setModalVisible(true);
         setLoadingPlans(true);
@@ -62,13 +63,13 @@ const FoodDetailsScreen = () => {
             const userPlans = await getUserPlans();
             setPlans(userPlans);
         } catch (error) {
-            Alert.alert("Error", "Could not fetch your plans.");
+            Alert.alert("Error", "Failed to fetch plans.");
         } finally {
             setLoadingPlans(false);
         }
     };
 
-    // --- ACTION: Create New Plan & Auto-Select ---
+    // CREATE PLAN
     const handleCreatePlan = async () => {
         if (!newPlanName.trim()) {
             Alert.alert("Required", "Please enter a trip name.");
@@ -76,49 +77,56 @@ const FoodDetailsScreen = () => {
         }
         try {
             const newPlanId = await createNewPlan(newPlanName);
-            await handleSelectItem({ id: newPlanId, planName: newPlanName });
-        } catch (error) {
+            await handleSelectPlan({ id: newPlanId, planName: newPlanName });
+        } catch {
             Alert.alert("Error", "Failed to create plan.");
         }
     };
 
-    // --- ACTION: Add Item to Selected Plan ---
-    const handleSelectItem = async (plan) => {
+    // ADD FOOD TO PLAN
+    const handleSelectPlan = async (plan) => {
         try {
             const itemToSave = {
                 id: data.id,
                 title: data.title,
-                price: parseFloat(data.estimatedTotalExpenses) || 0, // Using the estimate for the timeline
+                price: totalExpenses,
                 imageUrl: data.imageUrl,
-                type: 'food' // Explicitly set type for the timeline icon logic
+                type: 'food'
             };
 
             await addItemToPlan(plan.id, itemToSave);
 
             setModalVisible(false);
-            setNewPlanName('');
             setIsCreatingPlan(false);
+            setNewPlanName('');
 
-            Alert.alert("Success", `Added to ${plan.planName}!`);
-        } catch (error) {
-            Alert.alert("Error", "Could not add to plan.");
+            Alert.alert("Success", `Added to ${plan.planName}`);
+        } catch {
+            Alert.alert("Error", "Failed to add item.");
         }
     };
 
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#FF7C5E" />
+                <ActivityIndicator size="large" color="#5A8AE4" />
             </View>
         );
     }
 
-    if (!data) return <View style={styles.loadingContainer}><Text>Food Not Found</Text></View>;
+    if (!data) {
+        return (
+            <View style={styles.loadingContainer}>
+                <Text>Food not found</Text>
+            </View>
+        );
+    }
 
+    // CALCULATIONS
     const bgImage = data.imageUrl || 'https://via.placeholder.com/400';
-    const priceRange = data.priceRange || "RM 10 - RM 30"; // Fallback text
-    const transportPrice = parseFloat(data.transportCost) || 0;
-    const estimatedExp = parseFloat(data.estimatedTotalExpenses) || 0;
+    const foodCost = parseFloat(data.estimatedTotalExpenses) || 0;
+    const transportCost = parseFloat(data.transportCost) || 0;
+    const totalExpenses = (foodCost + transportCost).toFixed(2);
     const rating = data.rating || 4.5;
 
     return (
@@ -126,35 +134,36 @@ const FoodDetailsScreen = () => {
             <Stack.Screen options={{ headerTransparent: true, headerTitle: "", headerTintColor: "#FFF" }} />
             <StatusBar barStyle="light-content" />
 
+            {/* IMAGE */}
             <View style={styles.imageContainer}>
                 <Image source={{ uri: bgImage }} style={styles.heroImage} />
             </View>
 
+            {/* CONTENT */}
             <View style={styles.sheetContainer}>
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                    <View style={styles.headerSection}>
-                        <Text style={styles.title}>{data.title}</Text>
-                        <View style={styles.ratingRow}>
-                            <Ionicons name="star" size={18} color="#FFD700" />
-                            <Text style={styles.ratingText}>{rating} (Foodie Rating)</Text>
-                        </View>
+                    <Text style={styles.title}>{data.title}</Text>
+
+                    <View style={styles.ratingRow}>
+                        <Ionicons name="star" size={18} color="#FFD700" />
+                        <Text style={styles.ratingText}>{rating} (Food Rating)</Text>
                     </View>
 
                     <View style={styles.divider} />
 
-                    <Text style={styles.sectionTitle}>About this Spot</Text>
+                    <Text style={styles.sectionTitle}>Description</Text>
                     <Text style={styles.descriptionText}>{data.description}</Text>
 
                     <View style={styles.divider} />
 
-                    <Text style={styles.sectionTitle}>Estimated Costs</Text>
+                    <Text style={styles.sectionTitle}>Cost Breakdown</Text>
                     <View style={styles.costRow}>
-                        <Text style={styles.costLabel}>Price Range</Text>
-                        <Text style={styles.costValue}>{priceRange}</Text>
+                        <Text style={styles.costLabel}>Food</Text>
+                        <Text style={styles.costValue}>RM {foodCost.toFixed(2)}</Text>
                     </View>
                     <View style={styles.costRow}>
-                        <Text style={styles.costLabel}>Transport ({data.suggestedTransport || 'Grab'})</Text>
-                        <Text style={styles.costValue}>RM {transportPrice.toFixed(2)}</Text>
+                        <Text style={styles.costLabel}>Transport</Text>
+                        <Text style={styles.costValue}>RM {transportCost.toFixed(2)}</Text>
                     </View>
 
                     <View style={{ height: 140 }} />
@@ -164,21 +173,16 @@ const FoodDetailsScreen = () => {
             {/* BOTTOM BAR */}
             <View style={styles.bottomBar}>
                 <View>
-                    <Text style={styles.totalLabel}>Estimated Total</Text>
-                    <Text style={styles.totalPrice}>RM {estimatedExp.toFixed(2)}</Text>
+                    <Text style={styles.totalLabel}>Total Expenses</Text>
+                    <Text style={styles.totalPrice}>RM {totalExpenses}</Text>
                 </View>
-                <TouchableOpacity style={[styles.addButton, { backgroundColor: '#FF7C5E' }]} onPress={handleAddToPlanClick}>
+                <TouchableOpacity style={styles.addButton} onPress={handleAddToPlanClick}>
                     <Text style={styles.addButtonText}>Add to Plan</Text>
                 </TouchableOpacity>
             </View>
 
-            {/* MODAL: ADD TO PLAN (Same as Entertainment) */}
-            <Modal
-                animationType="slide"
-                transparent={true}
-                visible={modalVisible}
-                onRequestClose={() => setModalVisible(false)}
-            >
+            {/* MODAL */}
+            <Modal transparent animationType="slide" visible={modalVisible}>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
@@ -196,32 +200,27 @@ const FoodDetailsScreen = () => {
                         {!isCreatingPlan && (
                             <>
                                 {loadingPlans ? (
-                                    <ActivityIndicator color="#FF7C5E" style={{ margin: 20 }} />
+                                    <ActivityIndicator style={{ margin: 20 }} />
                                 ) : (
-                                    <View style={{ maxHeight: 300 }}>
-                                        <FlatList
-                                            data={plans}
-                                            keyExtractor={item => item.id}
-                                            renderItem={({ item }) => (
-                                                <TouchableOpacity
-                                                    style={styles.planItem}
-                                                    onPress={() => handleSelectItem(item)}
-                                                >
-                                                    <View style={[styles.planIcon, { backgroundColor: '#FFF0ED' }]}>
-                                                        <Ionicons name="restaurant" size={20} color="#FF7C5E" />
-                                                    </View>
-                                                    <View>
-                                                        <Text style={styles.planName}>{item.planName}</Text>
-                                                        <Text style={styles.planSub}>{item.items?.length || 0} items</Text>
-                                                    </View>
-                                                    <Ionicons name="add-circle-outline" size={24} color="#FF7C5E" style={{ marginLeft: 'auto' }} />
-                                                </TouchableOpacity>
-                                            )}
-                                            ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#999', margin: 20 }}>No active plans.</Text>}
-                                        />
-                                    </View>
+                                    <FlatList
+                                        data={plans}
+                                        keyExtractor={item => item.id}
+                                        renderItem={({ item }) => (
+                                            <TouchableOpacity
+                                                style={styles.planItem}
+                                                onPress={() => handleSelectPlan(item)}
+                                            >
+                                                <Ionicons name="restaurant" size={20} color="#5A8AE4" />
+                                                <Text style={styles.planName}>{item.planName}</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    />
                                 )}
-                                <TouchableOpacity style={styles.createPlanBtn} onPress={() => setIsCreatingPlan(true)}>
+
+                                <TouchableOpacity
+                                    style={styles.createPlanBtn}
+                                    onPress={() => setIsCreatingPlan(true)}
+                                >
                                     <Ionicons name="add" size={20} color="#FFF" />
                                     <Text style={styles.createPlanText}>Create New Plan</Text>
                                 </TouchableOpacity>
@@ -229,23 +228,20 @@ const FoodDetailsScreen = () => {
                         )}
 
                         {isCreatingPlan && (
-                            <View style={{ width: '100%' }}>
+                            <>
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="e.g. Weekend Feast"
+                                    placeholder="Trip name"
                                     value={newPlanName}
                                     onChangeText={setNewPlanName}
-                                    autoFocus
                                 />
-                                <View style={styles.modalActionRow}>
-                                    <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#f0f0f0' }]} onPress={() => setIsCreatingPlan(false)}>
-                                        <Text style={{ color: '#666' }}>Back</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#FF7C5E' }]} onPress={handleCreatePlan}>
-                                        <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Create & Add</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
+                                <TouchableOpacity
+                                    style={styles.addButton}
+                                    onPress={handleCreatePlan}
+                                >
+                                    <Text style={styles.addButtonText}>Create & Add</Text>
+                                </TouchableOpacity>
+                            </>
                         )}
                     </View>
                 </View>
@@ -253,42 +249,5 @@ const FoodDetailsScreen = () => {
         </View>
     );
 };
-
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFF' },
-    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    imageContainer: { height: height * 0.5, width: '100%', position: 'absolute', top: 0 },
-    heroImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-    sheetContainer: { flex: 1, marginTop: height * 0.35, backgroundColor: '#FFF', borderTopLeftRadius: 35, borderTopRightRadius: 35, elevation: 10 },
-    scrollContent: { paddingHorizontal: 25, paddingTop: 35 },
-    headerSection: { marginBottom: 20 },
-    title: { fontSize: 28, fontWeight: 'bold', marginBottom: 8 },
-    ratingRow: { flexDirection: 'row', alignItems: 'center' },
-    ratingText: { marginLeft: 5, fontSize: 15, color: '#666' },
-    divider: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 20 },
-    sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 12 },
-    descriptionText: { fontSize: 16, color: '#666', lineHeight: 26 },
-    costRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
-    costLabel: { fontSize: 17, color: '#333' },
-    costValue: { fontSize: 17, fontWeight: 'bold' },
-    bottomBar: { position: 'absolute', bottom: 0, width: '100%', height: 120, backgroundColor: '#FFF', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 30, paddingBottom: 20, borderTopWidth: 1, borderColor: '#F0F0F0', elevation: 20 },
-    totalLabel: { fontSize: 14, color: '#888', textTransform: 'uppercase' },
-    totalPrice: { fontSize: 28, fontWeight: '800', color: '#FF7C5E' },
-    addButton: { paddingVertical: 18, paddingHorizontal: 32, borderRadius: 20, elevation: 5 },
-    addButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 25, minHeight: 300 },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-    modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-    planItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
-    planIcon: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
-    planName: { fontSize: 16, fontWeight: '600', color: '#333' },
-    planSub: { fontSize: 12, color: '#888' },
-    createPlanBtn: { marginTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#333', paddingVertical: 15, borderRadius: 12 },
-    createPlanText: { color: '#FFF', fontWeight: 'bold', marginLeft: 8 },
-    input: { backgroundColor: '#F9F9F9', borderWidth: 1, borderColor: '#EEE', borderRadius: 12, padding: 15, fontSize: 16, marginBottom: 20 },
-    modalActionRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    modalBtn: { flex: 1, paddingVertical: 15, borderRadius: 12, alignItems: 'center', marginHorizontal: 5 }
-});
 
 export default FoodDetailsScreen;

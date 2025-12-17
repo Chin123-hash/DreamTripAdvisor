@@ -7,6 +7,7 @@ import React, { useEffect, useLayoutEffect, useState } from 'react'; // [2] Add 
 import {
     ActivityIndicator,
     Alert,
+    Animated,
     SafeAreaView,
     ScrollView,
     StyleSheet,
@@ -14,7 +15,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { getPlanById } from '../services/AuthService';
+import { addMasterPlanToUser, getPlanById } from '../services/AuthService';
 
 export default function PlanDetailsScreen() {
     const { planId } = useLocalSearchParams();
@@ -24,8 +25,13 @@ export default function PlanDetailsScreen() {
     const [plan, setPlan] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // --- NEW STATE FOR POP-UP ---
+    const [showSuccess, setShowSuccess] = useState(false);
+    const fadeAnim = useState(new Animated.Value(0))[0];
+
     useEffect(() => {
         if (planId) {
+            console.log("Fetching Plan ID:", planId); // Debugging
             fetchPlan();
         }
     }, [planId]);
@@ -51,9 +57,41 @@ export default function PlanDetailsScreen() {
             setPlan(data);
         } catch (e) {
             console.error("Failed to load plan:", e);
+            Alert.alert("Error", "Could not fetch plan details.");
         } finally {
             setLoading(false);
         }
+    };
+
+    // --- NEW: HANDLE ADD TO CART ---
+    const handleAddToCart = async () => {
+        try {
+            // Save the plan to the user's specific collection
+            await addMasterPlanToUser(plan);
+
+            // Show UI feedback
+            setShowSuccess(true);
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: true,
+            }).start();
+
+            setTimeout(() => {
+                hidePopUp();
+            }, 3000);
+        } catch (error) {
+            console.error("Add to cart failed:", error);
+            Alert.alert("Error", "Failed to add plan to your account.");
+        }
+    };
+
+    const hidePopUp = () => {
+        Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+        }).start(() => setShowSuccess(false));
     };
 
     if (loading) {
@@ -64,20 +102,24 @@ export default function PlanDetailsScreen() {
         );
     }
 
-    if (!plan) return null;
+    if (!plan) return (
+        <View style={styles.loadingContainer}>
+            <Text>Plan not found.</Text>
+        </View>
+    );
 
     const items = plan.items || [];
-    const totalExpenses = items.reduce((sum, item) => sum + (item.price || 0), 0);
+    const totalCost = parseFloat(plan.estimatedCost) || 0;
 
     return (
         <SafeAreaView style={styles.container}>
             {/* REMOVED: The custom <View style={styles.header}> was here */}
 
-            <ScrollView contentContainerStyle={{ padding: 20 }}>
+            <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
                 <Text style={styles.sectionHeader}>Itinerary</Text>
 
                 <View style={styles.timelineCard}>
-                    {items.map((item, index) => (
+                    {items.length > 0 ? items.map((item, index) => (
                         <View key={index} style={styles.timelineRow}>
                             <View style={styles.timeCol}>
                                 <Ionicons
@@ -99,18 +141,39 @@ export default function PlanDetailsScreen() {
                                 </Text>
                             </View>
                         </View>
-                    ))}
+                    )) : (
+                        <Text style={{ color: '#999', textAlign: 'center' }}>No items in this itinerary.</Text>
+                    )}
                 </View>
 
                 <View style={styles.formCard}>
                     <Text style={styles.sectionTitle}>Total Expenses</Text>
-                    <Text style={styles.total}>RM {totalExpenses.toFixed(2)}</Text>
+                    {/* Display estimatedCost from DB */}
+                    <Text style={styles.total}>RM {totalCost.toFixed(2)}</Text>
                 </View>
 
-                <TouchableOpacity style={styles.confirmBtn}>
+                <TouchableOpacity
+                    style={styles.addToCartBtn}
+                    onPress={handleAddToCart}
+                >
+                    <Text style={styles.addToCartText}>Add to Cart</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.confirmBtn} onPress={() => Alert.alert("Confirm", "Proceed to payment?")}>
                     <Text style={styles.confirmText}>Confirm Order</Text>
                 </TouchableOpacity>
             </ScrollView>
+
+            {showSuccess && (
+                <Animated.View style={[styles.successPopUp, { opacity: fadeAnim }]}>
+                    <View style={styles.popUpContent}>
+                        <Text style={styles.popUpText}>Plan add to cart successfully</Text>
+                        <TouchableOpacity onPress={hidePopUp}>
+                            <Ionicons name="close" size={20} color="#333" />
+                        </TouchableOpacity>
+                    </View>
+                </Animated.View>
+            )}
         </SafeAreaView>
     );
 }
@@ -118,63 +181,30 @@ export default function PlanDetailsScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#FFF' },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 16,
-        justifyContent: 'space-between',
-        borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0'
-    },
-    headerTitle: { fontSize: 18, fontWeight: '600', color: '#333' },
-    sectionHeader: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        marginBottom: 15,
-        color: '#1F3A5F'
-    },
-    timelineCard: {
-        borderWidth: 1,
-        borderColor: '#EEE',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 20,
-        backgroundColor: '#FAFAFA'
-    },
-    timelineRow: {
-        flexDirection: 'row',
-        marginBottom: 20,
-        position: 'relative' // Needed for dash line positioning
-    },
-    timeCol: {
-        width: 60,
-        alignItems: 'center',
-        marginRight: 10
-    },
-    timeText: {
-        fontSize: 12,
-        color: '#888',
-        marginTop: 4
-    },
-    dashLine: {
-        position: 'absolute',
-        left: 29, // Horizontally align with the icon center (width 60 / 2 approx)
-        top: 25,  // Start below the icon
-        bottom: -15, // Extend down to the next item
-        width: 1,
-        backgroundColor: '#DDD'
-    },
+    sectionHeader: { fontSize: 20, fontWeight: 'bold', marginBottom: 15, color: '#1F3A5F' },
+    timelineCard: { borderWidth: 1, borderColor: '#EEE', borderRadius: 16, padding: 16, marginBottom: 20, backgroundColor: '#FAFAFA' },
+    timelineRow: { flexDirection: 'row', marginBottom: 20, position: 'relative' },
+    timeCol: { width: 60, alignItems: 'center', marginRight: 10 },
+    timeText: { fontSize: 12, color: '#888', marginTop: 4 },
+    dashLine: { position: 'absolute', left: 29, top: 25, bottom: -15, width: 1, backgroundColor: '#DDD' },
     contentCol: { flex: 1 },
     activityTitle: { fontSize: 16, fontWeight: '600', color: '#333' },
     activityDesc: { marginTop: 4, color: '#777' },
-    formCard: {
-        backgroundColor: '#F5F5F5',
-        borderRadius: 16,
-        padding: 20,
-        marginBottom: 30,
-    },
+    formCard: { backgroundColor: '#F5F5F5', borderRadius: 16, padding: 20, marginBottom: 20 },
     sectionTitle: { fontSize: 16, fontWeight: '600', color: '#555' },
     total: { fontSize: 24, fontWeight: 'bold', marginTop: 8, color: '#333' },
+
+    // Buttons
+    addToCartBtn: {
+        backgroundColor: '#7395F7', // Lighter blue like the image
+        paddingVertical: 12,
+        borderRadius: 20,
+        alignItems: 'center',
+        marginBottom: 12,
+        width: '60%',
+        alignSelf: 'center'
+    },
+    addToCartText: { color: '#FFF', fontWeight: 'bold' },
     confirmBtn: {
         backgroundColor: '#6C8CF5',
         paddingVertical: 16,
@@ -182,25 +212,37 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         shadowColor: "#6C8CF5",
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 5,
-        elevation: 5
+        shadowOpacity: 0.3, shadowRadius: 5, elevation: 5
     },
     confirmText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
-    emptyContainer: {
-        flex: 1,
-        justifyContent: 'center',
+
+    // Success Pop-Up Style
+    successPopUp: {
+        position: 'absolute',
+        bottom: 40,
+        left: 20,
+        right: 20,
+        backgroundColor: '#FFF',
+        borderRadius: 25,
+        paddingVertical: 15,
+        paddingHorizontal: 25,
+        // Shadow for the "floating" effect
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 10,
+        borderWidth: 1,
+        borderColor: '#f0f0f0'
+    },
+    popUpContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 40,
     },
-    emptyTitle: {
-        fontSize: 18,
+    popUpText: {
+        fontSize: 16,
         fontWeight: '600',
-        marginTop: 16,
-    },
-    emptyDesc: {
-        marginTop: 8,
-        color: '#888',
-        textAlign: 'center',
-    },
+        color: '#333',
+    }
 });

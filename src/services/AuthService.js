@@ -231,11 +231,11 @@ export const addItemToPlan = async (planId, itemData) => {
 
         await updateDoc(planRef, {
             items: arrayUnion({
-                itemId: itemData.id, // Ensure we use 'id'
+                itemId: itemData.id,
                 title: itemData.title,
-                price: parseFloat(itemData.price), // Store as number
-                image: itemData.imageUrl,
-                type: 'entertainment',
+                price: parseFloat(itemData.price),
+                imageUrl: itemData.imageUrl, // Change 'image' to 'imageUrl' for consistency
+                type: itemData.type || 'item', // Use the type from the screen
                 addedAt: new Date().toISOString()
             })
         });
@@ -520,6 +520,64 @@ export const addPlan = async (planData, imageUri) => {
         return docRef.id;
     } catch (error) {
         console.error("Error adding plan:", error);
+        throw error;
+    }
+};
+// Add this to your AuthService.js
+export const getMasterPlans = async () => {
+    try {
+        const querySnapshot = await getDocs(collection(db, "plans"));
+        return querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+    } catch (error) {
+        console.error("Error fetching master plans:", error);
+        return [];
+    }
+};
+
+export const addMasterPlanToUser = async (masterPlanData) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+        // Path: users -> {uid} -> plans (verified in image_bc6061.png)
+        const userPlansRef = collection(db, "users", user.uid, "plans");
+
+        const planToSave = {
+            planName: masterPlanData.planName,
+            imageUrl: masterPlanData.imageUrl,
+            estimatedCost: masterPlanData.estimatedCost,
+            tripPeriod: masterPlanData.tripPeriod,
+            suggestedPax: masterPlanData.suggestedPax,
+            masterPlanId: masterPlanData.id, // Reference to the original root plan
+            createdAt: new Date().toISOString(),
+            status: 'in-cart'
+        };
+
+        const docRef = await addDoc(userPlansRef, planToSave);
+        return docRef.id;
+    } catch (error) {
+        console.error("Error cloning master plan:", error);
+        throw error;
+    }
+};
+
+export const getPlanList = async () => {
+    try {
+        const plansRef = collection(db, "plans");
+        const querySnapshot = await getDocs(plansRef);
+
+        // Map the firestore documents into a readable array
+        const plans = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        return plans;
+    } catch (error) {
+        console.error("Error in getPlanList:", error);
         throw error;
     }
 };
