@@ -46,7 +46,7 @@ export default function LoginScreen() {
         // router.replace('/admin-dashboard');
         Alert.alert("Welcome Admin", "Login Successful!");
       } else if (result.role === 'agency') {
-        router.replace('/agency-upload_food');
+        router.replace('/agency-main');
         Alert.alert("Welcome Agency", "Login Successful!");
       } else {
         router.replace('/customer-main'); // Traveller
