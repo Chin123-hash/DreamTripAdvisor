@@ -10,8 +10,8 @@ import {
     deleteDoc,
     doc, getDoc, getDocs, orderBy, // Changed from onSnapshot for simpler one-time fetch
     query, setDoc,
-
-    updateDoc
+    updateDoc,
+    where
 } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { auth, db, storage } from '../../firebaseConfig';
@@ -543,3 +543,25 @@ export const getCartPlanDetails = async (planId) => {
         throw error;
     }
 };
+
+export const getAgencies = async () => {
+    try {
+      // Determine the correct collection based on your logic (users or agencies)
+      // Assuming agencies are stored in 'users' collection with role 'agency'
+      const q = query(collection(db, "users"), where("role", "==", "agency"));
+      const querySnapshot = await getDocs(q);
+      
+      let agencies = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        agencies.push({
+          id: doc.id,
+          name: data.agencyName || data.fullName || "Unnamed Agency", // Fallback names
+        });
+      });
+      return agencies;
+    } catch (error) {
+      console.error("Error fetching agencies:", error);
+      return [];
+    }
+  };
