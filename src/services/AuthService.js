@@ -10,8 +10,8 @@ import {
     deleteDoc,
     doc, getDoc, getDocs, orderBy, // Changed from onSnapshot for simpler one-time fetch
     query, setDoc,
-
-    updateDoc
+    updateDoc,
+    where
 } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { auth, db, storage } from '../../firebaseConfig';
@@ -523,3 +523,45 @@ export const addPlan = async (planData, imageUri) => {
         throw error;
     }
 };
+export const getCartPlanDetails = async (planId) => {
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("User not authenticated");
+
+        // Assuming structure is: users/{uid}/plans/{planId}
+        const planRef = doc(db, "users", user.uid, "plans", planId); 
+        const planSnap = await getDoc(planRef);
+
+        if (planSnap.exists()) {
+            return { id: planSnap.id, ...planSnap.data() };
+        } else {
+            console.error("No such plan!");
+            return null;
+        }
+    } catch (error) {
+        console.error("Error fetching plan details:", error);
+        throw error;
+    }
+};
+
+export const getAgencies = async () => {
+    try {
+      // Determine the correct collection based on your logic (users or agencies)
+      // Assuming agencies are stored in 'users' collection with role 'agency'
+      const q = query(collection(db, "users"), where("role", "==", "agency"));
+      const querySnapshot = await getDocs(q);
+      
+      let agencies = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        agencies.push({
+          id: doc.id,
+          name: data.agencyName || data.fullName || "Unnamed Agency", // Fallback names
+        });
+      });
+      return agencies;
+    } catch (error) {
+      console.error("Error fetching agencies:", error);
+      return [];
+    }
+  };

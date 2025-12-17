@@ -1,0 +1,443 @@
+import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { getAgencies, getCartPlanDetails } from '../services/AuthService';
+
+const { width } = Dimensions.get('window');
+
+export default function PlanDetailsScreen() {
+    const router = useRouter();
+    const params = useLocalSearchParams(); 
+    const { planId } = params;
+    
+    // --- STATE ---
+    const [loading, setLoading] = useState(true);
+    const [isEditing, setIsEditing] = useState(false);
+
+    // Data State
+    const [planName, setPlanName] = useState('');
+    const [rawItems, setRawItems] = useState([]); 
+    const [schedule, setSchedule] = useState([]); 
+    
+    // Agency Data State
+    const [agencyList, setAgencyList] = useState([]);
+    const [selectedAgency, setSelectedAgency] = useState(null); 
+    const [showAgencyModal, setShowAgencyModal] = useState(false);
+
+    // Form State
+    const [pax, setPax] = useState('2');
+    const [fromDate, setFromDate] = useState(new Date()); 
+    const [toDate, setToDate] = useState(new Date());     
+    const [totalExpense, setTotalExpense] = useState(0);
+
+    // Date Picker State
+    const [showPicker, setShowPicker] = useState(false);
+    const [pickerMode, setPickerMode] = useState('from'); 
+
+    // --- 1. FETCH DATA ---
+    useEffect(() => {
+        const init = async () => {
+            if (planId) await loadPlanData(planId);
+            await fetchAgencies();
+            setLoading(false);
+        };
+        init();
+    }, [planId]);
+
+    useEffect(() => {
+        if (rawItems.length > 0) calculateTotal(rawItems);
+    }, [pax]);
+
+    const fetchAgencies = async () => {
+        const agencies = await getAgencies();
+        setAgencyList(agencies);
+        if (agencies.length > 0) setSelectedAgency(agencies[0]);
+    };
+
+    const loadPlanData = async (id) => {
+        try {
+            const planData = await getCartPlanDetails(id);
+            if (planData && planData.items) {
+                setPlanName(planData.planName || "My Trip");
+                setRawItems(planData.items);
+                generateSchedule(planData.items);
+                calculateTotal(planData.items);
+            }
+        } catch (error) {
+            console.log("Error loading plan", error);
+            Alert.alert("Error", "Could not load plan details");
+        }
+    };
+
+    const calculateTotal = (items) => {
+        const paxNum = parseInt(pax) || 1;
+        const sum = items.reduce((acc, curr) => acc + (parseFloat(curr.price) || 0), 0);
+        setTotalExpense(sum * paxNum);
+    };
+
+    // --- SCHEDULE LOGIC ---
+    const generateSchedule = (items) => {
+        let entertainment = items.filter(i => i.type && i.type.toLowerCase() === 'entertainment');
+        let food = items.filter(i => i.type && i.type.toLowerCase() === 'food');
+        
+        let generated = [];
+        const fmtTime = (hour) => {
+            const period = hour >= 12 ? 'p.m.' : 'a.m.';
+            const h = hour > 12 ? hour - 12 : hour;
+            return `${h.toFixed(2)} ${period}`;
+        };
+
+        let entCount = 0; 
+        for (let hour = 9; hour <= 18; hour++) {
+            let item = null;
+            if (hour === 13) {
+                item = food.length > 0 ? food.shift() : { title: 'Lunch Break', type: 'Food', price: 0, isPlaceholder: true };
+                entCount = 0; 
+            } else {
+                if (entCount < 2) {
+                    if (entertainment.length > 0) { item = entertainment.shift(); entCount++; } 
+                    else { item = { title: 'Free & Easy', type: 'Entertainment', price: 0, isPlaceholder: true }; }
+                } else {
+                    if (food.length > 0) { item = food.shift(); } 
+                    else if (entertainment.length > 0) { item = entertainment.shift(); } 
+                    else { item = { title: 'Rest Time', type: 'Entertainment', price: 0, isPlaceholder: true }; }
+                    entCount = 0; 
+                }
+            }
+            generated.push({ 
+                time: fmtTime(hour), 
+                ...item, 
+                price: item.price || 0, 
+                title: item.title || "Activity" 
+            });
+        }
+        setSchedule(generated);
+    };
+
+    // --- EDITING LOGIC (RESTORED) ---
+    const moveItem = (index, direction) => {
+        const newSchedule = [...schedule];
+        const targetIndex = index + direction;
+
+        if (targetIndex >= 0 && targetIndex < newSchedule.length) {
+            const tempTime = newSchedule[index].time;
+            const targetTime = newSchedule[targetIndex].time;
+
+            [newSchedule[index], newSchedule[targetIndex]] = [newSchedule[targetIndex], newSchedule[index]];
+            
+            newSchedule[index].time = tempTime;
+            newSchedule[targetIndex].time = targetTime;
+            
+            setSchedule(newSchedule);
+        }
+    };
+
+    const updateTime = (text, index) => {
+        const newSchedule = [...schedule];
+        newSchedule[index].time = text;
+        setSchedule(newSchedule);
+    };
+
+    // --- CHART LOGIC ---
+    const renderPieChart = () => {
+        const paxNum = parseInt(pax) || 1;
+        const getSum = (type) => rawItems.filter(i => i.type?.toLowerCase() === type).reduce((a, b) => a + (b.price || 0), 0) * paxNum;
+        
+        const foodTotal = getSum('food');
+        const entTotal = getSum('entertainment');
+        const hotelTotal = getSum('hotel');
+        const transTotal = getSum('transport'); 
+        
+        const grandTotal = foodTotal + entTotal + hotelTotal + transTotal || 1; 
+
+        const foodPct = (foodTotal / grandTotal) * 100;
+        const entPct = (entTotal / grandTotal) * 100;
+        const hotelPct = (hotelTotal / grandTotal) * 100;
+        const transPct = (transTotal / grandTotal) * 100;
+
+        return (
+            <View style={styles.chartContainer}>
+                <View style={styles.pieCircle}>
+                    {foodPct > 0 && <View style={[styles.slice, { backgroundColor: '#81C784', width: `${foodPct}%` }]} />}
+                    {entPct > 0 && <View style={[styles.slice, { backgroundColor: '#FF8A65', width: `${entPct}%` }]} />}
+                    {hotelPct > 0 && <View style={[styles.slice, { backgroundColor: '#64B5F6', width: `${hotelPct}%` }]} />}
+                    {transPct > 0 && <View style={[styles.slice, { backgroundColor: '#FFD54F', width: `${transPct}%` }]} />}
+                    {grandTotal === 1 && <View style={[styles.slice, { backgroundColor: '#EEE', width: '100%' }]} />}
+
+                    <View style={styles.chartOverlay}>
+                        <Text style={styles.chartTotalText}>RM {(grandTotal === 1 ? 0 : grandTotal).toFixed(0)}</Text>
+                        <Text style={styles.chartTotalLabel}>Total</Text>
+                    </View>
+                </View>
+
+                <View style={styles.legendContainer}>
+                    {foodPct > 0 && <LegendItem color="#81C784" label="Food" />}
+                    {entPct > 0 && <LegendItem color="#FF8A65" label="Entertainment" />}
+                    {hotelPct > 0 && <LegendItem color="#64B5F6" label="Hotel" />}
+                    {transPct > 0 && <LegendItem color="#FFD54F" label="Transport" />}
+                </View>
+            </View>
+        );
+    };
+
+    const LegendItem = ({ color, label }) => (
+        <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: color }]} />
+            <Text style={styles.legendText}>{label}</Text>
+        </View>
+    );
+
+    // --- UTILS ---
+    const onDateChange = (event, selectedDate) => {
+        setShowPicker(false);
+        if (selectedDate) {
+            pickerMode === 'from' ? setFromDate(selectedDate) : setToDate(selectedDate);
+        }
+    };
+
+    const openDatePicker = (mode) => {
+        if (!isEditing) return; 
+        setPickerMode(mode);
+        setShowPicker(true);
+    };
+
+    if (loading) return <ActivityIndicator style={{flex:1}} size="large" color="#648DDB" />;
+
+    return (
+        <SafeAreaView style={styles.container}>
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                
+                {/* HEADER */}
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                        <Ionicons name="arrow-back" size={24} color="#333" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>{isEditing ? "Edit Itinerary" : (planName || "Order Form")}</Text>
+                    {isEditing ? (
+                        <TouchableOpacity style={styles.saveHeaderBtn} onPress={() => { Alert.alert("Saved"); setIsEditing(false); }}>
+                            <Text style={{color: '#FFF', fontWeight: 'bold'}}>Save</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <TouchableOpacity style={styles.editHeaderIcon} onPress={() => setIsEditing(true)}>
+                            <Ionicons name="pencil" size={20} color="#FFF" />
+                        </TouchableOpacity>
+                    )}
+                </View>
+
+                {/* TIMELINE (RESTORED EDITING UI) */}
+                <View style={[styles.timelineCard, isEditing && styles.editingCard]}>
+                    {schedule.map((item, index) => (
+                        <View key={index} style={styles.timelineRow}>
+                            {/* Time Column: Input if editing, Text if viewing */}
+                            <View style={styles.timeCol}>
+                                {isEditing ? (
+                                    <TextInput 
+                                        style={styles.timeInput}
+                                        value={item.time}
+                                        onChangeText={(text) => updateTime(text, index)}
+                                    />
+                                ) : (
+                                    <Text style={styles.timeText}>{item.time}</Text>
+                                )}
+                                {index < schedule.length - 1 && <View style={styles.dottedLine} />}
+                            </View>
+
+                            {/* Content Column */}
+                            <View style={styles.contentCol}>
+                                <Text style={styles.contentTitle}>{item.title}</Text>
+                                <Text style={styles.contentDesc}>{item.isPlaceholder ? item.type : `RM ${item.price}`}</Text>
+                            </View>
+
+                            {/* Reorder Arrows: Only if editing */}
+                            {isEditing && (
+                                <View style={styles.reorderCol}>
+                                    {index > 0 && (
+                                        <TouchableOpacity onPress={() => moveItem(index, -1)}>
+                                            <Ionicons name="chevron-up" size={20} color="#648DDB" />
+                                        </TouchableOpacity>
+                                    )}
+                                    {index < schedule.length - 1 && (
+                                        <TouchableOpacity onPress={() => moveItem(index, 1)}>
+                                            <Ionicons name="chevron-down" size={20} color="#648DDB" />
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            )}
+                        </View>
+                    ))}
+                </View>
+
+                {/* FORM */}
+                <View style={styles.formSection}>
+                    <View style={styles.bellHeader}>
+                        <Ionicons name="notifications-outline" size={24} color="#A94442" />
+                    </View>
+
+                    <View style={styles.formRow}>
+                        <Text style={styles.label}>From:</Text>
+                        <TouchableOpacity onPress={() => openDatePicker('from')} disabled={!isEditing} style={styles.dateInput}>
+                            <Text>{fromDate.toLocaleDateString()}</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.formRow}>
+                        <Text style={styles.label}>To:</Text>
+                        <TouchableOpacity onPress={() => openDatePicker('to')} disabled={!isEditing} style={styles.dateInput}>
+                            <Text>{toDate.toLocaleDateString()}</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.formRow}>
+                        <Text style={styles.label}>No of Pax:</Text>
+                        <TextInput 
+                            style={styles.paxInput} 
+                            value={pax} 
+                            onChangeText={setPax} 
+                            keyboardType="numeric"
+                            editable={isEditing}
+                        />
+                    </View>
+
+                    <Text style={[styles.label, {marginTop: 10, width:'100%'}]}>Travel Agency:</Text>
+                    <TouchableOpacity 
+                        style={styles.dropdown}
+                        onPress={() => isEditing && setShowAgencyModal(true)}
+                        disabled={!isEditing}
+                    >
+                        <Text style={styles.dropdownText}>
+                            {selectedAgency ? selectedAgency.name : "Select Agency..."}
+                        </Text>
+                        <Ionicons name="chevron-down" size={20} color="#333" />
+                    </TouchableOpacity>
+
+                    <View style={styles.totalRow}>
+                        <Text style={styles.totalLabel}>Total Expenses</Text>
+                        <Text style={styles.totalValue}>RM {totalExpense.toFixed(2)}</Text>
+                    </View>
+                </View>
+
+                <Text style={styles.handwrittenTitle}>Estimated Expenses</Text>
+                {renderPieChart()}
+
+                {!isEditing && (
+                    <TouchableOpacity style={styles.confirmBtn} onPress={() => Alert.alert("Confirmed", "Order placed!")}>
+                        <Text style={styles.confirmText}>Confirm Order</Text>
+                    </TouchableOpacity>
+                )}
+
+                <View style={{height: 40}} />
+            </ScrollView>
+
+            <Modal visible={showAgencyModal} transparent={true} animationType="slide">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContainer}>
+                        <Text style={styles.modalTitle}>Select Agency</Text>
+                        <ScrollView>
+                            {agencyList.map((agency) => (
+                                <TouchableOpacity 
+                                    key={agency.id} 
+                                    style={styles.modalItem}
+                                    onPress={() => {
+                                        setSelectedAgency(agency);
+                                        setShowAgencyModal(false);
+                                    }}
+                                >
+                                    <Text style={styles.modalItemText}>{agency.name}</Text>
+                                    {selectedAgency?.id === agency.id && <Ionicons name="checkmark" size={20} color="green" />}
+                                </TouchableOpacity>
+                            ))}
+                            {agencyList.length === 0 && <Text style={{padding:20, textAlign:'center'}}>No agencies found.</Text>}
+                        </ScrollView>
+                        <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowAgencyModal(false)}>
+                            <Text style={{color:'#FFF'}}>Close</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {showPicker && (
+                <DateTimePicker
+                    value={pickerMode === 'from' ? fromDate : toDate}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={onDateChange}
+                />
+            )}
+        </SafeAreaView>
+    );
+}
+
+const styles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: '#F8F9FA' },
+    scrollContent: { padding: 20 },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+    headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#000' },
+    editHeaderIcon: { backgroundColor: '#648DDB', padding: 8, borderRadius: 8 },
+    saveHeaderBtn: { backgroundColor: '#28A745', paddingVertical: 8, paddingHorizontal: 15, borderRadius: 8 },
+    
+    timelineCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, marginBottom: 25, borderWidth: 1, borderColor: '#000' },
+    editingCard: { borderColor: '#648DDB', borderWidth: 2 },
+    timelineRow: { flexDirection: 'row', marginBottom: 20, alignItems: 'center' },
+    timeCol: { width: 75, alignItems: 'center' },
+    timeText: { fontSize: 12, fontWeight: 'bold', color: '#333' },
+    timeInput: { fontSize: 12, fontWeight: 'bold', color: '#648DDB', borderBottomWidth: 1, borderBottomColor: '#648DDB', padding: 0, width: '100%', textAlign: 'center' },
+    dottedLine: { position: 'absolute', top: 20, bottom: -25, width: 1, backgroundColor: '#CCC', borderStyle: 'dotted', borderWidth: 1, borderColor: '#CCC' },
+    
+    contentCol: { flex: 1, marginLeft: 10 },
+    contentTitle: { fontSize: 16, fontFamily: 'serif', fontStyle: 'italic', color: '#333' }, 
+    contentDesc: { fontSize: 12, color: '#666', marginTop: 2 },
+    
+    // ADDED BACK: Reorder Column Style
+    reorderCol: { marginLeft: 5, alignItems: 'center', width: 30 },
+
+    formSection: { backgroundColor: '#F2F2F2', borderRadius: 16, padding: 20, marginBottom: 20 },
+    bellHeader: { marginBottom: 15 },
+    formRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
+    label: { fontSize: 14, fontWeight: '600', color: '#333', width: 80 },
+    dateInput: { backgroundColor: '#FFF', borderRadius: 8, padding: 10, flex: 1, borderWidth: 1, borderColor: '#E0E0E0', justifyContent: 'center' },
+    paxInput: { backgroundColor: '#FFF', borderRadius: 8, padding: 8, width: 100, borderWidth: 1, borderColor: '#E0E0E0', textAlign: 'center' },
+    
+    dropdown: { backgroundColor: '#EFEFEF', borderRadius: 8, padding: 12, borderWidth: 1, borderColor: '#DDD', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 5, marginBottom: 15 },
+    dropdownText: { color: '#555' },
+    totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
+    totalLabel: { fontSize: 16, fontWeight: '600', color: '#333' },
+    totalValue: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+
+    handwrittenTitle: { fontSize: 20, fontFamily: 'serif', fontStyle: 'italic', marginBottom: 20, color: '#000' },
+    chartContainer: { alignItems: 'center', marginBottom: 30 },
+    pieCircle: { width: 150, height: 150, borderRadius: 75, overflow: 'hidden', flexDirection: 'row', position: 'relative', marginBottom: 20 },
+    slice: { height: '100%' },
+    chartOverlay: { position: 'absolute', top: 35, left: 35, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.8)', justifyContent: 'center', alignItems: 'center' },
+    chartTotalText: { fontWeight: 'bold', fontSize: 14 },
+    chartTotalLabel: { fontSize: 10, color: '#666' },
+    
+    legendContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 15 },
+    legendItem: { flexDirection: 'row', alignItems: 'center' },
+    legendDot: { width: 12, height: 12, borderRadius: 6, marginRight: 5 },
+    legendText: { fontSize: 12, color: '#555' },
+
+    confirmBtn: { backgroundColor: '#648DDB', paddingVertical: 15, borderRadius: 30, alignItems: 'center', marginHorizontal: 40 },
+    confirmText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+    modalContainer: { width: '80%', backgroundColor: '#FFF', borderRadius: 10, padding: 20, maxHeight: '60%' },
+    modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center' },
+    modalItem: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#EEE', flexDirection: 'row', justifyContent: 'space-between' },
+    modalItemText: { fontSize: 16 },
+    modalCloseBtn: { marginTop: 15, backgroundColor: '#648DDB', padding: 10, borderRadius: 5, alignItems: 'center' }
+});
