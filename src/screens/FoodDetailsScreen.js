@@ -12,6 +12,7 @@ import {
     Modal,
     ScrollView,
     StatusBar,
+    StyleSheet, // <--- Added missing import
     Text,
     TextInput,
     TouchableOpacity,
@@ -182,7 +183,7 @@ const FoodDetailsScreen = () => {
             </View>
 
             {/* MODAL */}
-            <Modal transparent animationType="slide" visible={modalVisible}>
+            <Modal transparent animationType="slide" visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
@@ -200,7 +201,7 @@ const FoodDetailsScreen = () => {
                         {!isCreatingPlan && (
                             <>
                                 {loadingPlans ? (
-                                    <ActivityIndicator style={{ margin: 20 }} />
+                                    <ActivityIndicator style={{ margin: 20 }} color="#5A8AE4" />
                                 ) : (
                                     <FlatList
                                         data={plans}
@@ -210,10 +211,19 @@ const FoodDetailsScreen = () => {
                                                 style={styles.planItem}
                                                 onPress={() => handleSelectPlan(item)}
                                             >
-                                                <Ionicons name="restaurant" size={20} color="#5A8AE4" />
-                                                <Text style={styles.planName}>{item.planName}</Text>
+                                                <View style={styles.planIcon}>
+                                                    <Ionicons name="restaurant" size={20} color="#5A8AE4" />
+                                                </View>
+                                                <View>
+                                                    <Text style={styles.planName}>{item.planName}</Text>
+                                                    <Text style={styles.planSub}>{item.items?.length || 0} items</Text>
+                                                </View>
+                                                <Ionicons name="add-circle-outline" size={24} color="#5A8AE4" style={{ marginLeft: 'auto' }} />
                                             </TouchableOpacity>
                                         )}
+                                        ListEmptyComponent={
+                                            <Text style={{ textAlign: 'center', color: '#999', margin: 20 }}>No active plans.</Text>
+                                        }
                                     />
                                 )}
 
@@ -228,20 +238,29 @@ const FoodDetailsScreen = () => {
                         )}
 
                         {isCreatingPlan && (
-                            <>
+                            <View style={{ width: '100%' }}>
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Trip name"
                                     value={newPlanName}
                                     onChangeText={setNewPlanName}
+                                    autoFocus
                                 />
-                                <TouchableOpacity
-                                    style={styles.addButton}
-                                    onPress={handleCreatePlan}
-                                >
-                                    <Text style={styles.addButtonText}>Create & Add</Text>
-                                </TouchableOpacity>
-                            </>
+                                <View style={styles.modalActionRow}>
+                                    <TouchableOpacity
+                                        style={[styles.modalBtn, { backgroundColor: '#f0f0f0' }]}
+                                        onPress={() => setIsCreatingPlan(false)}
+                                    >
+                                        <Text style={{ color: '#666' }}>Back</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.modalBtn, { backgroundColor: '#5A8AE4' }]}
+                                        onPress={handleCreatePlan}
+                                    >
+                                        <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Create & Add</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
                         )}
                     </View>
                 </View>
@@ -249,5 +268,49 @@ const FoodDetailsScreen = () => {
         </View>
     );
 };
+
+// --- ADDED THE MISSING STYLES HERE ---
+const styles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: '#FFF' },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    imageContainer: { height: height * 0.5, width: '100%', position: 'absolute', top: 0 },
+    heroImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+    sheetContainer: { flex: 1, marginTop: height * 0.35, backgroundColor: '#FFF', borderTopLeftRadius: 35, borderTopRightRadius: 35, elevation: 10 },
+    scrollContent: { paddingHorizontal: 25, paddingTop: 35 },
+    title: { fontSize: 28, fontWeight: 'bold', marginBottom: 8 },
+    ratingRow: { flexDirection: 'row', alignItems: 'center' },
+    ratingText: { marginLeft: 5, fontSize: 15, color: '#666' },
+    divider: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 20 },
+    sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 12 },
+    descriptionText: { fontSize: 16, color: '#666', lineHeight: 26 },
+    costRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
+    costLabel: { fontSize: 17, color: '#333' },
+    costValue: { fontSize: 17, fontWeight: 'bold' },
+
+    // BOTTOM BAR
+    bottomBar: { position: 'absolute', bottom: 0, width: '100%', height: 120, backgroundColor: '#FFF', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 30, paddingBottom: 20, borderTopWidth: 1, borderColor: '#F0F0F0', elevation: 20 },
+    totalLabel: { fontSize: 14, color: '#888', textTransform: 'uppercase' },
+    totalPrice: { fontSize: 28, fontWeight: '800', color: '#5A8AE4' },
+    addButton: { backgroundColor: '#5A8AE4', paddingVertical: 18, paddingHorizontal: 32, borderRadius: 20, elevation: 5 },
+    addButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
+
+    // === MODAL STYLES ===
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+    modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 25, minHeight: 300 },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+    modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+
+    planItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
+    planIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#E3F2FD', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+    planName: { fontSize: 16, fontWeight: '600', color: '#333' },
+    planSub: { fontSize: 12, color: '#888' },
+
+    createPlanBtn: { marginTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#333', paddingVertical: 15, borderRadius: 12 },
+    createPlanText: { color: '#FFF', fontWeight: 'bold', marginLeft: 8 },
+
+    input: { backgroundColor: '#F9F9F9', borderWidth: 1, borderColor: '#EEE', borderRadius: 12, padding: 15, fontSize: 16, marginBottom: 20 },
+    modalActionRow: { flexDirection: 'row', justifyContent: 'space-between' },
+    modalBtn: { flex: 1, paddingVertical: 15, borderRadius: 12, alignItems: 'center', marginHorizontal: 5 }
+});
 
 export default FoodDetailsScreen;

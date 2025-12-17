@@ -1,4 +1,5 @@
-import EntertainmentDetailsScreen from '@/src/screens/EntertainmentDetailsScreen';
+// Change the import to point to FoodDetailsScreen
+import FoodDetailsScreen from '@/src/screens/FoodDetailsScreen';
 import { Stack } from 'expo-router';
 import React from 'react';
 
@@ -7,14 +8,17 @@ export default function Page() {
         <>
             <Stack.Screen
                 options={{
-                    title: 'Details',
-                    headerShown: true, // Shows the back arrow automatically
+                    title: 'Food Details', // Updated title
+                    headerShown: true,
                     headerBackTitle: 'Back',
-                    headerTintColor: '#007AFF', // Color of the back arrow
-                    headerTitleStyle: { color: 'black' }
+                    headerTintColor: '#007AFF',
+                    headerTitleStyle: { color: 'black' },
+                    headerTransparent: true, // Optional: matches your FoodDetailsScreen design
+                    headerTitle: "" // Optional: matches your FoodDetailsScreen design
                 }}
             />
-            <EntertainmentDetailsScreen />
+            {/* Render the correct screen */}
+            <FoodDetailsScreen /> 
         </>
     );
 }

@@ -180,7 +180,7 @@ export default function CustomerMainPage() {
         ) : (
           <FlatList
             data={entertainmentList}
-            renderItem={(item) => renderHorizontalCard({ ...item, isFood: false })}
+            renderItem={({ item }) => renderHorizontalCard({ item }, false)}
             keyExtractor={item => item.id}
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -196,7 +196,7 @@ export default function CustomerMainPage() {
               ) : (
                       <FlatList
                           data={foodList}
-                          renderItem={({ item }) => renderHorizontalCard({ item, isFood: true })} // FIXED: Added curly braces for destructuring
+                          renderItem={({ item }) => renderHorizontalCard({ item }, true)} // FIXED: Added curly braces for destructuring
                           keyExtractor={item => item.id}
                           horizontal
                           showsHorizontalScrollIndicator={false}
