@@ -8,6 +8,7 @@ import {
 
 
 
+
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -47,7 +48,7 @@ export default function LoginScreen() {
         Alert.alert("Welcome Admin", "Login Successful!");
       } else if (result.role === 'agency') {
         router.replace('/agency-main');
-        Alert.alert("Welcome Agency", "Login Successful!");
+        //Alert.alert("Welcome Agency", "Login Successful!");
       } else {
         router.replace('/customer-main'); // Traveller
         //Alert.alert("Welcome Traveller", "Login Successful!");
