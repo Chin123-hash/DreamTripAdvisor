@@ -44,11 +44,11 @@ export default function ProfileScreen() {
                 const user = await getCurrentUserData();
                 if (user) {
                     setUid(user.uid);
-                    setFullName(user.fullName || '');
+                    setFullName(user.fullName || user.agencyName || '');
                     setPhone(user.phone || '');
                     setEmail(user.email || 'No Email');
                     setRole(user.role || 'Traveller');
-                    setProfileImage(user.profileImage || null);
+                    setProfileImage(user.profileImage || user.logoUrl || null);
                 }
             } catch (error) {
                 console.error("Profile Load Error:", error);
