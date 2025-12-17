@@ -12,8 +12,9 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+// 1. Import SafeAreaView (Already present in your code)
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-// FIX 1: Use the 'legacy' import to allow deleteAsync to work
 import * as FileSystem from 'expo-file-system/legacy';
 
 export default function SettingsScreen() {
@@ -40,13 +41,9 @@ export default function SettingsScreen() {
                     style: "destructive",
                     onPress: async () => {
                         try {
-                            // FIX 2: Don't delete the folder itself. Delete the files INSIDE it.
                             const cacheDir = FileSystem.cacheDirectory;
-                            
-                            // Get list of all files in cache
                             const files = await FileSystem.readDirectoryAsync(cacheDir);
                             
-                            // Delete them one by one
                             const deletePromises = files.map(file => 
                                 FileSystem.deleteAsync(cacheDir + file, { idempotent: true })
                             );
@@ -90,64 +87,58 @@ export default function SettingsScreen() {
     );
 
     return (
-        <ScrollView style={[styles.container, isDarkMode && styles.darkContainer]}>
+        // 2. Wrap everything in SafeAreaView
+        // We move the container style here so the background color fills the "notches" too
+        <SafeAreaView style={[styles.container, isDarkMode && styles.darkContainer]}>
             
-            <Text style={styles.sectionHeader}>PREFERENCES</Text>
-            <View style={[styles.section, isDarkMode && styles.darkSection]}>
-                <SettingItem 
-                    icon="moon" 
-                    color="#5856D6" 
-                    title="Dark Mode" 
-                    isSwitch={true}
-                    value={isDarkMode}
-                    onPress={handleDarkMode}
-                />
-            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
 
-            <Text style={styles.sectionHeader}>ACCOUNT</Text>
-            <View style={[styles.section, isDarkMode && styles.darkSection]}>
-                <SettingItem 
-                    icon="person" 
-                    color="#5A8AE4" 
-                    title="Edit Profile" 
-                    onPress={() => router.push('/profile')}
-                />
-                <View style={[styles.divider, isDarkMode && styles.darkDivider]} />
-                <SettingItem 
-                    icon="lock-closed" 
-                    color="#FF3B30" 
-                    title="Change Password" 
-                    onPress={() => router.push('/forgot-password')}
-                />
-            </View>
+                <Text style={styles.sectionHeader}>ACCOUNT</Text>
+                <View style={[styles.section, isDarkMode && styles.darkSection]}>
+                    <SettingItem 
+                        icon="person" 
+                        color="#5A8AE4" 
+                        title="Edit Profile" 
+                        onPress={() => router.push('/profile')}
+                    />
+                    <View style={[styles.divider, isDarkMode && styles.darkDivider]} />
+                    <SettingItem 
+                        icon="lock-closed" 
+                        color="#FF3B30" 
+                        title="Change Password" 
+                        onPress={() => router.push('/forgot-password')}
+                    />
+                </View>
 
-            <Text style={styles.sectionHeader}>SUPPORT & INFO</Text>
-            <View style={[styles.section, isDarkMode && styles.darkSection]}>
-                <SettingItem 
-                    icon="trash" 
-                    color="#8E8E93" 
-                    title="Clear Cache" 
-                    onPress={handleClearCache}
-                />
-                <View style={[styles.divider, isDarkMode && styles.darkDivider]} />
-                <SettingItem 
-                    icon="document-text" 
-                    color="#34C759" 
-                    title="Terms of Service" 
-                    onPress={() => Alert.alert("Info", "Terms of Service placeholder.")}
-                />
-                <View style={[styles.divider, isDarkMode && styles.darkDivider]} />
-                <SettingItem 
-                    icon="information-circle" 
-                    color="#007AFF" 
-                    title="About App" 
-                    onPress={() => Alert.alert("Dream Trip Advisor", "Version 1.0.0\nDeveloped for MPU32013.")}
-                />
-            </View>
+                <Text style={styles.sectionHeader}>SUPPORT & INFO</Text>
+                <View style={[styles.section, isDarkMode && styles.darkSection]}>
+                    <SettingItem 
+                        icon="trash" 
+                        color="#8E8E93" 
+                        title="Clear Cache" 
+                        onPress={handleClearCache}
+                    />
+                    <View style={[styles.divider, isDarkMode && styles.darkDivider]} />
+                    <SettingItem 
+                        icon="document-text" 
+                        color="#34C759" 
+                        title="Terms of Service" 
+                        onPress={() => Alert.alert("Info", "Terms of Service placeholder.")}
+                    />
+                    <View style={[styles.divider, isDarkMode && styles.darkDivider]} />
+                    <SettingItem 
+                        icon="information-circle" 
+                        color="#007AFF" 
+                        title="About App" 
+                        onPress={() => Alert.alert("Dream Trip Advisor", "Version 1.0.0\nDeveloped for MPU32013.")}
+                    />
+                </View>
 
-            <Text style={styles.footerText}>Version 1.0.0 (Build 2025)</Text>
-            <View style={{height: 50}} />
-        </ScrollView>
+                <Text style={styles.footerText}>Version 1.0.0 (Build 2025)</Text>
+                <View style={{height: 50}} />
+            </ScrollView>
+
+        </SafeAreaView>
     );
 }
 
@@ -160,7 +151,7 @@ const styles = StyleSheet.create({
         color: '#6D6D72',
         fontWeight: '600',
         marginBottom: 8,
-        marginTop: 30,
+        marginTop: 30, // SafeAreaView handles the top notch, so this margin is just for visual spacing now
         marginLeft: 20,
         textTransform: 'uppercase'
     },

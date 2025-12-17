@@ -167,15 +167,15 @@ export default function AgencyMainPageScreen() {
 
         {/* AGENCY ACTION BUTTONS */}
         <View style={styles.gridContainer}>
-            <TouchableOpacity style={styles.gridButton}>
+            <TouchableOpacity style={styles.gridButton} onPress={() => router.push('/agency-upload_plan')}>
                 <Ionicons name="add-circle-outline" size={24} color="#648DDB" />
                 <Text style={styles.gridText}>Add Plan</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.gridButton}>
+            <TouchableOpacity style={styles.gridButton} onPress={() => router.push('/agency-upload_food')}> 
                 <Ionicons name="fast-food-outline" size={24} color="#648DDB" />
                 <Text style={styles.gridText}>Add Food</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.gridButton}>
+            <TouchableOpacity style={styles.gridButton} onPress={() => router.push('/agency-upload_entertainment')}>
                 <Ionicons name="musical-notes-outline" size={24} color="#648DDB" />
                 <Text style={styles.gridText}>Add Ent.</Text>
             </TouchableOpacity>

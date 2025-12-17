@@ -3,6 +3,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router'; // <--- ADDED IMPORT
 import { getAuth } from 'firebase/auth';
 import React, { useState } from 'react';
 import {
@@ -30,6 +31,7 @@ const generateEntertainmentId = () => {
 };
 
 export function AgencyUploadEntertainmentScreen() {
+    const router = useRouter(); // <--- INITIALIZE ROUTER
     const auth = getAuth();
     const currentUser = auth.currentUser;
 
@@ -89,38 +91,25 @@ export function AgencyUploadEntertainmentScreen() {
             return;
         }
 
-        // 验证数字
         if (isNaN(parseFloat(ticketPrice)) || (transportPrice && isNaN(parseFloat(transportPrice)))) {
             Alert.alert("Error", "Ticket Price and Transport Price must be valid numbers.");
             return;
         }
         
-        // 准备数据对象
-        // ⚠️ 重要：这里的字段名已经对应了 AuthService 里的读取逻辑
         const entertainmentData = {
             title: title,
             description: description,
-            
-            // 对应 Service 里的 suggestedTransport
             suggestedTransport: transportType || 'N/A', 
-            
-            // 对应 Service 里的 transportCost
             transportCost: transportPrice || '0', 
-            
-            // 对应 Service 里的 estimatedTotalExpenses
             estimatedTotalExpenses: totalExpenses || '0', 
-            
-            // 额外字段
             ticketPrice: ticketPrice, 
             rating: 5, 
             referenceId: entertainmentId,
-            agencyId: currentUser.uid // 记录是谁上传的
+            agencyId: currentUser.uid 
         };
 
         setLoading(true);
         try {
-            // ⚠️ 关键修复：只传 2 个参数 (data, uri)
-            // 这样就不会报错 Network request failed 了
             await addEntertainment(
                 entertainmentData,
                 imageUri
@@ -140,7 +129,8 @@ export function AgencyUploadEntertainmentScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.headerBar}>
-                <TouchableOpacity style={styles.backButton} onPress={() => console.log("Back pressed")}>
+                {/* UPDATED BACK BUTTON */}
+                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={28} color="#333" /> 
                 </TouchableOpacity>
                 

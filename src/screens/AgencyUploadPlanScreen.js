@@ -16,12 +16,11 @@ import {
     ScrollView,
     StyleSheet,
     Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+    TextInput, TouchableOpacity, View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useRouter } from 'expo-router';
 import { addPlan, fetchEntertainmentList, fetchFoodList } from '../services/AuthService';
 
 
@@ -200,12 +199,13 @@ export function AgencyUploadPlanScreen() {
     const isBasicFilled = planName && days && pax && cost && imageUri;
     const isSelectionValid = selectedEnt || selectedFood;
     const canSave = isBasicFilled && isSelectionValid;
-
+    const router = useRouter();
     return (
+        
         <SafeAreaView style={styles.container}>
             {/* Header */}
             <View style={styles.headerBar}>
-                <TouchableOpacity style={styles.backButton} onPress={() => console.log("Back")}>
+                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={28} color="#333" /> 
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Upload Plan</Text>

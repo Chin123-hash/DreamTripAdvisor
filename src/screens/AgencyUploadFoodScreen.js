@@ -3,6 +3,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router'; // <--- ADDED IMPORT
 import { getAuth } from 'firebase/auth';
 import React, { useState } from 'react';
 import {
@@ -29,6 +30,7 @@ const generateFoodId = () => {
 };
 
 export function AgencyUploadFoodScreen() {
+    const router = useRouter(); // <--- INITIALIZE ROUTER
     const auth = getAuth();
     const currentUser = auth.currentUser;
 
@@ -105,7 +107,8 @@ export function AgencyUploadFoodScreen() {
         <SafeAreaView style={styles.container}>
             {/* Header */}
             <View style={styles.headerBar}>
-                <TouchableOpacity style={styles.backButton} onPress={() => console.log("Back")}>
+                {/* UPDATED BACK BUTTON */}
+                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={28} color="#333" /> 
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Upload Food</Text>
