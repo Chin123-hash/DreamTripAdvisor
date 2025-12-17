@@ -455,3 +455,71 @@ export const updateFood = async (foodId, updatedData, newImageUri) => {
         throw error;
     }
 };
+
+/**
+ * 1. Fetch Food List for Dropdown
+ * Formats data into { label, value } for RNPickerSelect
+ */
+export const fetchFoodList = async () => {
+    try {
+        const foodCol = collection(db, 'foods'); // Ensure this matches your collection name
+        const snapshot = await getDocs(foodCol);
+        return snapshot.docs.map(doc => ({
+            label: doc.data().title, // Display name
+            value: doc.id,           // Document ID
+        }));
+    } catch (error) {
+        console.error("Error fetching food:", error);
+        throw error;
+    }
+};
+
+/**
+ * 2. Fetch Entertainment List for Dropdown
+ */
+export const fetchEntertainmentList = async () => {
+    try {
+        const entCol = collection(db, 'entertainments'); // Ensure this matches your collection name
+        const snapshot = await getDocs(entCol);
+        return snapshot.docs.map(doc => ({
+            label: doc.data().title, // Adjust 'title' if your field is named differently
+            value: doc.id,
+        }));
+    } catch (error) {
+        console.error("Error fetching entertainment:", error);
+        throw error;
+    }
+};
+
+/**
+ * 3. Add New Plan
+ * Handles image upload to Storage and data save to Firestore
+ */
+export const addPlan = async (planData, imageUri) => {
+    try {
+        let imageUrl = '';
+
+        // Handle Image Upload
+        if (imageUri) {
+            const response = await fetch(imageUri);
+            const blob = await response.blob();
+            const filename = `plans/${Date.now()}.jpg`;
+            const storageRef = ref(storage, filename);
+
+            await uploadBytes(storageRef, blob);
+            imageUrl = await getDownloadURL(storageRef);
+        }
+
+        // Add to Firestore
+        const docRef = await addDoc(collection(db, 'plans'), {
+            ...planData,
+            imageUrl,
+            createdAt: new Date().toISOString(),
+        });
+
+        return docRef.id;
+    } catch (error) {
+        console.error("Error adding plan:", error);
+        throw error;
+    }
+};
