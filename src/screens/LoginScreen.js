@@ -7,6 +7,7 @@ import {
 
 
 
+
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -45,7 +46,7 @@ export default function LoginScreen() {
         // router.replace('/admin-dashboard');
         Alert.alert("Welcome Admin", "Login Successful!");
       } else if (result.role === 'agency') {
-        //router.replace('/agency-home');
+        router.replace('/agency-upload_entertainment');
         Alert.alert("Welcome Agency", "Login Successful!");
       } else {
         router.replace('/customer-main'); // Traveller
