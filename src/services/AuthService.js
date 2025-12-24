@@ -613,3 +613,40 @@ export const getPlanDetails = async (planId) => {
         throw error;
     }
 };
+
+export const createOrder = async (orderData) => {
+    try {
+        const docRef = await addDoc(collection(db, 'orders'), {
+            ...orderData,
+            status: 'Pending',
+            createdAt: serverTimestamp(),
+        });
+        return docRef.id;
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const getUserOrders = async () => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+        // Query 'orders' collection where customerId matches current user
+        const q = query(
+            collection(db, "orders"),
+            where("customerId", "==", user.uid),
+            orderBy("createdAt", "desc")
+        );
+
+        const querySnapshot = await getDocs(q);
+        const orders = [];
+        querySnapshot.forEach((doc) => {
+            orders.push({ id: doc.id, ...doc.data() });
+        });
+        return orders;
+    } catch (error) {
+        console.error("Error fetching orders:", error);
+        throw error;
+    }
+};
