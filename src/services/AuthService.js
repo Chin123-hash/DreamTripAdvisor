@@ -531,7 +531,7 @@ export const getCartPlanDetails = async (planId) => {
         if (!user) throw new Error("User not authenticated");
 
         // Assuming structure is: users/{uid}/plans/{planId}
-        const planRef = doc(db, "users", user.uid, "plans", planId); 
+        const planRef = doc(db, "users", user.uid, "plans", planId);
         const planSnap = await getDoc(planRef);
 
         if (planSnap.exists()) {
@@ -548,27 +548,27 @@ export const getCartPlanDetails = async (planId) => {
 
 export const getAgencies = async () => {
     try {
-      // Determine the correct collection based on your logic (users or agencies)
-      // Assuming agencies are stored in 'users' collection with role 'agency'
-      const q = query(collection(db, "users"), where("role", "==", "agency"));
-      const querySnapshot = await getDocs(q);
-      
-      let agencies = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        agencies.push({
-          id: doc.id,
-          name: data.agencyName || data.fullName || "Unnamed Agency", // Fallback names
-        });
-      });
-      return agencies;
-    } catch (error) {
-      console.error("Error fetching agencies:", error);
-      return [];
-    }
-  };
+        // Determine the correct collection based on your logic (users or agencies)
+        // Assuming agencies are stored in 'users' collection with role 'agency'
+        const q = query(collection(db, "users"), where("role", "==", "agency"));
+        const querySnapshot = await getDocs(q);
 
-  export const getPlanList = async () => {
+        let agencies = [];
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            agencies.push({
+                id: doc.id,
+                name: data.agencyName || data.fullName || "Unnamed Agency", // Fallback names
+            });
+        });
+        return agencies;
+    } catch (error) {
+        console.error("Error fetching agencies:", error);
+        return [];
+    }
+};
+
+export const getPlanList = async () => {
     try {
         const querySnapshot = await getDocs(collection(db, "plans"));
         const plans = [];
@@ -610,6 +610,95 @@ export const getPlanDetails = async (planId) => {
         }
     } catch (error) {
         console.error("Error fetching plan details:", error);
+        throw error;
+    }
+};
+
+export const createOrder = async (orderData) => {
+    try {
+        const docRef = await addDoc(collection(db, 'orders'), {
+            ...orderData,
+            status: 'Pending',
+            createdAt: serverTimestamp(),
+        });
+        return docRef.id;
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const getUserOrders = async () => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+        // Query 'orders' collection where customerId matches current user
+        const q = query(
+            collection(db, "orders"),
+            where("customerId", "==", user.uid),
+            orderBy("createdAt", "desc")
+        );
+
+        const querySnapshot = await getDocs(q);
+        const orders = [];
+        querySnapshot.forEach((doc) => {
+            orders.push({ id: doc.id, ...doc.data() });
+        });
+        return orders;
+    } catch (error) {
+        console.error("Error fetching orders:", error);
+        throw error;
+    }
+};
+
+export const getAgencyOrders = async () => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+        // 1. Ensure the field name matches your screenshot: "agencyId"
+        const q = query(
+            collection(db, "orders"),
+            where("agencyId", "==", user.uid),
+            orderBy("createdAt", "desc")
+        );
+
+        const querySnapshot = await getDocs(q);
+        const orders = [];
+
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+
+            // 2. MANUALLY CALCULATE TOTAL: Sum prices from the 'items' array 
+            // since totalAmount is missing from your top-level document
+            let calculatedTotal = 0;
+            if (data.items && Array.isArray(data.items)) {
+                calculatedTotal = data.items.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+            }
+
+            orders.push({
+                id: doc.id,
+                ...data,
+                // Add this so your UI has a number to display
+                totalAmount: data.totalAmount || calculatedTotal
+            });
+        });
+
+        return orders;
+    } catch (error) {
+        // 3. CHECK CONSOLE: If it says 'The query requires an index', 
+        // click the link provided in the error message.
+        console.error("Error fetching agency orders:", error);
+        throw error;
+    }
+};
+
+export const getOrderDetails = async (orderId) => {
+    try {
+        const docRef = doc(db, "orders", orderId);
+        const docSnap = await getDoc(docRef);
+        return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+    } catch (error) {
         throw error;
     }
 };
