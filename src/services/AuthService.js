@@ -656,7 +656,7 @@ export const getAgencyOrders = async () => {
     if (!user) throw new Error("User not authenticated");
 
     try {
-        // 1. Ensure the field name matches your screenshot: "agencyId"
+        // This assumes your 'orders' documents include an 'agencyId' field
         const q = query(
             collection(db, "orders"),
             where("agencyId", "==", user.uid),
@@ -665,29 +665,11 @@ export const getAgencyOrders = async () => {
 
         const querySnapshot = await getDocs(q);
         const orders = [];
-
         querySnapshot.forEach((doc) => {
-            const data = doc.data();
-
-            // 2. MANUALLY CALCULATE TOTAL: Sum prices from the 'items' array 
-            // since totalAmount is missing from your top-level document
-            let calculatedTotal = 0;
-            if (data.items && Array.isArray(data.items)) {
-                calculatedTotal = data.items.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
-            }
-
-            orders.push({
-                id: doc.id,
-                ...data,
-                // Add this so your UI has a number to display
-                totalAmount: data.totalAmount || calculatedTotal
-            });
+            orders.push({ id: doc.id, ...doc.data() });
         });
-
         return orders;
     } catch (error) {
-        // 3. CHECK CONSOLE: If it says 'The query requires an index', 
-        // click the link provided in the error message.
         console.error("Error fetching agency orders:", error);
         throw error;
     }
