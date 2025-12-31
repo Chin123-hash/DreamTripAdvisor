@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
     RefreshControl,
+    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -14,19 +15,36 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getAgencyOrders } from '../services/AuthService';
 
+const FILTER_OPTIONS = [
+    { label: 'All', value: 'all' },
+    { label: 'Last 3 Days', value: 3 },
+    { label: 'Last Week', value: 7 },
+    { label: 'Last Month', value: 30 },
+    { label: 'Last 6 Months', value: 180 },
+];
+
 export default function AgencyOrdersScreen() {
     const router = useRouter();
     const [orders, setOrders] = useState([]);
     const [stats, setStats] = useState({ revenue: 0, bookings: 0, customers: 0 });
     const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
+    const [refreshing, setRefreshing] = useState(false); 
+    const [selectedFilter, setSelectedFilter] = useState('all');
 
     const loadData = async () => {
         try {
-            const data = await getAgencyOrders(); // Fetches where agencyId == currentUser.uid
-            setOrders(data);
+            const data = await getAgencyOrders();
 
-            // Calculate Summary Data
+            // Sort by latest first (descending)
+            const sortedData = data.sort((a, b) => {
+                const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+                const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+                return dateB - dateA;
+            });
+
+            setOrders(sortedData);
+
+            // Calculate Summary Data (based on ALL data as per dashboard standards)
             const totalRevenue = data.reduce((sum, order) => sum + (parseFloat(order.totalAmount) || 0), 0);
             const uniqueCustomers = new Set(data.map(o => o.customerId)).size;
 
@@ -47,10 +65,67 @@ export default function AgencyOrdersScreen() {
         loadData();
     }, []);
 
+    const filteredOrders = useMemo(() => {
+        if (selectedFilter === 'all') return orders;
+
+        const now = new Date();
+
+        // Start from beginning of today
+        const filterDate = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate()
+        );
+
+        // Subtract days
+        filterDate.setDate(filterDate.getDate() - (selectedFilter - 1));
+
+        return orders.filter(order => {
+            const orderDate = order.createdAt?.toDate
+                ? order.createdAt.toDate()
+                : new Date(order.createdAt);
+
+            return orderDate >= filterDate;
+        });
+    }, [orders, selectedFilter]);
+
+    const filteredStats = useMemo(() => {
+        const data = selectedFilter === 'all' ? orders : filteredOrders;
+
+        const revenue = data.reduce(
+            (sum, o) => sum + (parseFloat(o.totalAmount) || 0), 0
+        );
+
+        return {
+            revenue: revenue.toFixed(2),
+            bookings: data.length,
+            customers: new Set(data.map(o => o.customerId)).size
+        };
+    }, [orders, filteredOrders, selectedFilter]);
+
+
     const onRefresh = () => {
         setRefreshing(true);
         loadData();
     };
+
+    const FilterBar = () => (
+        <View style={styles.filterWrapper}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+                {FILTER_OPTIONS.map((opt) => (
+                    <TouchableOpacity
+                        key={opt.value}
+                        style={[styles.filterChip, selectedFilter === opt.value && styles.activeFilterChip]}
+                        onPress={() => setSelectedFilter(opt.value)}
+                    >
+                        <Text style={[styles.filterChipText, selectedFilter === opt.value && styles.activeFilterChipText]}>
+                            {opt.label}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </ScrollView>
+        </View>
+    );
 
     // UI Component for the Summary Cards
     const SummarySection = () => (
@@ -71,24 +146,43 @@ export default function AgencyOrdersScreen() {
                     <Text style={styles.miniValue}>{stats.customers}</Text>
                 </View>
             </View>
+
+            <Text style={styles.sectionTitle}>Recent Transactions</Text>
+            <FilterBar />
         </View>
     );
 
     const renderOrderItem = ({ item }) => (
-        <TouchableOpacity style={styles.orderCard}>
+        <TouchableOpacity
+            style={styles.orderCard}
+            onPress={() =>
+                router.push({
+                    pathname: '/order-details',
+                    params: {
+                        orderData: JSON.stringify(item),
+                },
+            })
+        }
+    >
+
             <View style={styles.cardHeader}>
                 <View style={styles.customerAvatar}>
                     <Text style={styles.avatarText}>{item.customerName?.charAt(0) || 'C'}</Text>
                 </View>
                 <View style={styles.headerInfo}>
-                    <Text style={styles.customerName}>{item.customerName || 'Chin'}</Text>
+                    <Text style={styles.customerName}>{item.customerName || 'Customer'}</Text>
                     <Text style={styles.planName}>{item.items?.[0]?.title || 'Package Fee'}</Text>
                 </View>
                 <View style={styles.amountContainer}>
                     <Text style={styles.amountText}>+RM {parseFloat(item.totalAmount || 0).toFixed(2)}</Text>
                     <Text style={styles.dateText}>
-                        {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString() : 'Dec 24, 2025'}
+                        {item.createdAt
+                            ? (item.createdAt.toDate
+                                ? item.createdAt.toDate().toLocaleDateString()
+                                : new Date(item.createdAt).toLocaleDateString())
+                            : '—'}
                     </Text>
+
                 </View>
             </View>
         </TouchableOpacity>
@@ -96,7 +190,6 @@ export default function AgencyOrdersScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            {/* Header Bar matching Upload Screen */}
             <View style={styles.headerBar}>
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={28} color="#333" />
@@ -111,7 +204,7 @@ export default function AgencyOrdersScreen() {
                 </View>
             ) : (
                 <FlatList
-                    data={orders}
+                    data={filteredOrders} // Use the filtered list here
                     ListHeaderComponent={SummarySection}
                     renderItem={renderOrderItem}
                     keyExtractor={item => item.id}
@@ -120,7 +213,7 @@ export default function AgencyOrdersScreen() {
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Ionicons name="receipt-outline" size={50} color="#CCC" />
-                            <Text style={styles.emptyText}>No sales data available.</Text>
+                            <Text style={styles.emptyText}>No sales data for this period.</Text>
                         </View>
                     }
                 />
@@ -137,17 +230,34 @@ const styles = StyleSheet.create({
 
     listContent: { paddingHorizontal: 20, paddingBottom: 40 },
 
-    // Summary Styles
-    summaryContainer: { marginBottom: 25, marginTop: 10 },
-    mainStatCard: { borderRadius: 15, padding: 20, marginBottom: 15, position: 'overflow' },
+    summaryContainer: { marginBottom: 15, marginTop: 10 },
+    mainStatCard: { borderRadius: 15, padding: 20, marginBottom: 15, overflow: 'hidden' },
     statLabel: { color: '#FFF', fontSize: 14, opacity: 0.9 },
     statValue: { color: '#FFF', fontSize: 28, fontWeight: 'bold', marginTop: 5 },
     statIcon: { position: 'absolute', right: 20, bottom: 10 },
 
-    row: { flexDirection: 'row', justifyContent: 'space-between' },
+    row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
     miniStatCard: { width: '48%', borderRadius: 12, padding: 15, alignItems: 'center' },
     miniLabel: { fontSize: 12, color: '#666', marginBottom: 5 },
     miniValue: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+
+    sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 12 },
+
+    // Filter Styles
+    filterWrapper: { marginBottom: 10 },
+    filterScroll: { paddingRight: 20 },
+    filterChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        backgroundColor: '#F0F0F0',
+        marginRight: 10,
+        borderWidth: 1,
+        borderColor: '#EEE'
+    },
+    activeFilterChip: { backgroundColor: '#648DDB', borderColor: '#648DDB' },
+    filterChipText: { fontSize: 13, color: '#666' },
+    activeFilterChipText: { color: '#FFF', fontWeight: 'bold' },
 
     // Order Card Styles
     orderCard: {
@@ -157,7 +267,6 @@ const styles = StyleSheet.create({
         marginBottom: 12,
         borderWidth: 1,
         borderColor: '#EEE',
-        elevation: 1
     },
     cardHeader: { flexDirection: 'row', alignItems: 'center' },
     customerAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#E8F0FE', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
