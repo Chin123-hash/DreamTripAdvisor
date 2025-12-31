@@ -1,11 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { getAuth } from 'firebase/auth'; // Added for User Info
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     Dimensions,
+    KeyboardAvoidingView,
     Modal,
     Platform,
     ScrollView,
@@ -16,7 +18,8 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getAgencies, getCartPlanDetails } from '../services/AuthService';
+// Ensure createOrder is imported
+import { createOrder, getAgencies, getCartPlanDetails } from '../services/AuthService';
 
 const { width } = Dimensions.get('window');
 
@@ -24,9 +27,11 @@ export default function PlanDetailsScreen() {
     const router = useRouter();
     const params = useLocalSearchParams(); 
     const { planId } = params;
+    const auth = getAuth(); // Get current user
     
     // --- STATE ---
     const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false); // New state for submission loading
     const [isEditing, setIsEditing] = useState(false);
 
     // Data State
@@ -39,11 +44,17 @@ export default function PlanDetailsScreen() {
     const [selectedAgency, setSelectedAgency] = useState(null); 
     const [showAgencyModal, setShowAgencyModal] = useState(false);
 
-    // Form State
+    // Form State (Trip)
     const [pax, setPax] = useState('2');
     const [fromDate, setFromDate] = useState(new Date()); 
     const [toDate, setToDate] = useState(new Date());     
     const [totalExpense, setTotalExpense] = useState(0);
+
+    // Form State (Customer Details - SPRINT 5 REQUIREMENT)
+    const [customerName, setCustomerName] = useState('');
+    const [customerEmail, setCustomerEmail] = useState('');
+    const [customerPhone, setCustomerPhone] = useState('');
+    const [specialRequest, setSpecialRequest] = useState('');
 
     // Date Picker State
     const [showPicker, setShowPicker] = useState(false);
@@ -54,6 +65,14 @@ export default function PlanDetailsScreen() {
         const init = async () => {
             if (planId) await loadPlanData(planId);
             await fetchAgencies();
+            
+            // Pre-fill user data if available
+            if (auth.currentUser) {
+                setCustomerEmail(auth.currentUser.email);
+                // If you have stored display name:
+                if (auth.currentUser.displayName) setCustomerName(auth.currentUser.displayName);
+            }
+            
             setLoading(false);
         };
         init();
@@ -88,6 +107,61 @@ export default function PlanDetailsScreen() {
         const paxNum = parseInt(pax) || 1;
         const sum = items.reduce((acc, curr) => acc + (parseFloat(curr.price) || 0), 0);
         setTotalExpense(sum * paxNum);
+    };
+
+    // --- SUBMIT ORDER LOGIC (SPRINT 5) ---
+    const handleConfirmOrder = async () => {
+        // Validation
+        if (!customerName.trim() || !customerPhone.trim() || !customerEmail.trim()) {
+            Alert.alert("Missing Details", "Please fill in your Name, Phone, and Email.");
+            return;
+        }
+        if (!selectedAgency) {
+            Alert.alert("Missing Agency", "Please select a Travel Agency.");
+            return;
+        }
+
+        Alert.alert(
+            "Confirm Booking",
+            `Total Price: RM ${totalExpense.toFixed(2)}\nProceed with order?`,
+            [
+                { text: "Cancel", style: "cancel" },
+                { 
+                    text: "Confirm", 
+                    onPress: async () => {
+                        try {
+                            setSubmitting(true);
+                            const orderPayload = {
+                                customerId: auth.currentUser?.uid || 'anonymous',
+                                customerName,
+                                customerEmail,
+                                customerPhone,
+                                specialRequest,
+                                planId,
+                                planName,
+                                agencyId: selectedAgency.id,
+                                agencyName: selectedAgency.name,
+                                travelDate: fromDate.toISOString(),
+                                returnDate: toDate.toISOString(),
+                                pax: parseInt(pax),
+                                totalAmount: totalExpense,
+                                items: rawItems // Save snapshot of items
+                            };
+
+                            await createOrder(orderPayload);
+                            Alert.alert("Success", "Your order has been placed successfully!", [
+                                { text: "OK", onPress: () => router.push('/customer-main') } // Navigate back to Dashboard
+                            ]);
+                        } catch (error) {
+                            Alert.alert("Error", "Failed to place order. Please try again.");
+                            console.error(error);
+                        } finally {
+                            setSubmitting(false);
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     // --- SCHEDULE LOGIC ---
@@ -129,20 +203,15 @@ export default function PlanDetailsScreen() {
         setSchedule(generated);
     };
 
-    // --- EDITING LOGIC (RESTORED) ---
     const moveItem = (index, direction) => {
         const newSchedule = [...schedule];
         const targetIndex = index + direction;
-
         if (targetIndex >= 0 && targetIndex < newSchedule.length) {
             const tempTime = newSchedule[index].time;
             const targetTime = newSchedule[targetIndex].time;
-
             [newSchedule[index], newSchedule[targetIndex]] = [newSchedule[targetIndex], newSchedule[index]];
-            
             newSchedule[index].time = tempTime;
             newSchedule[targetIndex].time = targetTime;
-            
             setSchedule(newSchedule);
         }
     };
@@ -153,7 +222,6 @@ export default function PlanDetailsScreen() {
         setSchedule(newSchedule);
     };
 
-    // --- CHART LOGIC ---
     const renderPieChart = () => {
         const paxNum = parseInt(pax) || 1;
         const getSum = (type) => rawItems.filter(i => i.type?.toLowerCase() === type).reduce((a, b) => a + (b.price || 0), 0) * paxNum;
@@ -202,7 +270,6 @@ export default function PlanDetailsScreen() {
         </View>
     );
 
-    // --- UTILS ---
     const onDateChange = (event, selectedDate) => {
         setShowPicker(false);
         if (selectedDate) {
@@ -220,6 +287,7 @@ export default function PlanDetailsScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{flex:1}}>
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 
                 {/* HEADER */}
@@ -229,7 +297,7 @@ export default function PlanDetailsScreen() {
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>{isEditing ? "Edit Itinerary" : (planName || "Order Form")}</Text>
                     {isEditing ? (
-                        <TouchableOpacity style={styles.saveHeaderBtn} onPress={() => { Alert.alert("Saved"); setIsEditing(false); }}>
+                        <TouchableOpacity style={styles.saveHeaderBtn} onPress={() => { Alert.alert("Saved locally"); setIsEditing(false); }}>
                             <Text style={{color: '#FFF', fontWeight: 'bold'}}>Save</Text>
                         </TouchableOpacity>
                     ) : (
@@ -239,11 +307,10 @@ export default function PlanDetailsScreen() {
                     )}
                 </View>
 
-                {/* TIMELINE (RESTORED EDITING UI) */}
+                {/* TIMELINE */}
                 <View style={[styles.timelineCard, isEditing && styles.editingCard]}>
                     {schedule.map((item, index) => (
                         <View key={index} style={styles.timelineRow}>
-                            {/* Time Column: Input if editing, Text if viewing */}
                             <View style={styles.timeCol}>
                                 {isEditing ? (
                                     <TextInput 
@@ -256,14 +323,10 @@ export default function PlanDetailsScreen() {
                                 )}
                                 {index < schedule.length - 1 && <View style={styles.dottedLine} />}
                             </View>
-
-                            {/* Content Column */}
                             <View style={styles.contentCol}>
                                 <Text style={styles.contentTitle}>{item.title}</Text>
                                 <Text style={styles.contentDesc}>{item.isPlaceholder ? item.type : `RM ${item.price}`}</Text>
                             </View>
-
-                            {/* Reorder Arrows: Only if editing */}
                             {isEditing && (
                                 <View style={styles.reorderCol}>
                                     {index > 0 && (
@@ -282,11 +345,41 @@ export default function PlanDetailsScreen() {
                     ))}
                 </View>
 
-                {/* FORM */}
+                {/* --- CUSTOMER DETAILS SECTION (NEW) --- */}
                 <View style={styles.formSection}>
-                    <View style={styles.bellHeader}>
-                        <Ionicons name="notifications-outline" size={24} color="#A94442" />
-                    </View>
+                    <Text style={styles.sectionHeader}>Contact Information</Text>
+                    
+                    <Text style={styles.label}>Full Name:</Text>
+                    <TextInput 
+                        style={styles.textInput} 
+                        placeholder="e.g. John Doe"
+                        value={customerName} 
+                        onChangeText={setCustomerName}
+                    />
+
+                    <Text style={styles.label}>Contact Number:</Text>
+                    <TextInput 
+                        style={styles.textInput} 
+                        placeholder="e.g. +60123456789"
+                        keyboardType="phone-pad"
+                        value={customerPhone} 
+                        onChangeText={setCustomerPhone}
+                    />
+
+                    <Text style={styles.label}>Email Address:</Text>
+                    <TextInput 
+                        style={styles.textInput} 
+                        placeholder="e.g. john@example.com"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        value={customerEmail} 
+                        onChangeText={setCustomerEmail}
+                    />
+                </View>
+
+                {/* TRIP DETAILS FORM */}
+                <View style={styles.formSection}>
+                    <Text style={styles.sectionHeader}>Trip Details</Text>
 
                     <View style={styles.formRow}>
                         <Text style={styles.label}>From:</Text>
@@ -313,7 +406,7 @@ export default function PlanDetailsScreen() {
                         />
                     </View>
 
-                    <Text style={[styles.label, {marginTop: 10, width:'100%'}]}>Travel Agency:</Text>
+                    <Text style={[styles.label, {marginTop: 10}]}>Travel Agency:</Text>
                     <TouchableOpacity 
                         style={styles.dropdown}
                         onPress={() => isEditing && setShowAgencyModal(true)}
@@ -325,6 +418,15 @@ export default function PlanDetailsScreen() {
                         <Ionicons name="chevron-down" size={20} color="#333" />
                     </TouchableOpacity>
 
+                    <Text style={styles.label}>Special Requests:</Text>
+                    <TextInput 
+                        style={[styles.textInput, {height: 80, textAlignVertical: 'top'}]} 
+                        placeholder="Any allergies or special requirements?"
+                        multiline
+                        value={specialRequest} 
+                        onChangeText={setSpecialRequest}
+                    />
+
                     <View style={styles.totalRow}>
                         <Text style={styles.totalLabel}>Total Expenses</Text>
                         <Text style={styles.totalValue}>RM {totalExpense.toFixed(2)}</Text>
@@ -334,15 +436,26 @@ export default function PlanDetailsScreen() {
                 <Text style={styles.handwrittenTitle}>Estimated Expenses</Text>
                 {renderPieChart()}
 
+                {/* CONFIRM BUTTON */}
                 {!isEditing && (
-                    <TouchableOpacity style={styles.confirmBtn} onPress={() => Alert.alert("Confirmed", "Order placed!")}>
-                        <Text style={styles.confirmText}>Confirm Order</Text>
+                    <TouchableOpacity 
+                        style={[styles.confirmBtn, submitting && { opacity: 0.7 }]} 
+                        onPress={handleConfirmOrder}
+                        disabled={submitting}
+                    >
+                        {submitting ? (
+                            <ActivityIndicator color="#FFF" />
+                        ) : (
+                            <Text style={styles.confirmText}>Confirm Order</Text>
+                        )}
                     </TouchableOpacity>
                 )}
 
                 <View style={{height: 40}} />
             </ScrollView>
+            </KeyboardAvoidingView>
 
+            {/* AGENCY MODAL */}
             <Modal visible={showAgencyModal} transparent={true} animationType="slide">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
@@ -397,24 +510,25 @@ const styles = StyleSheet.create({
     timeText: { fontSize: 12, fontWeight: 'bold', color: '#333' },
     timeInput: { fontSize: 12, fontWeight: 'bold', color: '#648DDB', borderBottomWidth: 1, borderBottomColor: '#648DDB', padding: 0, width: '100%', textAlign: 'center' },
     dottedLine: { position: 'absolute', top: 20, bottom: -25, width: 1, backgroundColor: '#CCC', borderStyle: 'dotted', borderWidth: 1, borderColor: '#CCC' },
-    
     contentCol: { flex: 1, marginLeft: 10 },
     contentTitle: { fontSize: 16, fontFamily: 'serif', fontStyle: 'italic', color: '#333' }, 
     contentDesc: { fontSize: 12, color: '#666', marginTop: 2 },
-    
-    // ADDED BACK: Reorder Column Style
     reorderCol: { marginLeft: 5, alignItems: 'center', width: 30 },
 
     formSection: { backgroundColor: '#F2F2F2', borderRadius: 16, padding: 20, marginBottom: 20 },
-    bellHeader: { marginBottom: 15 },
+    sectionHeader: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, color: '#444' },
+    
+    // Updated Form Styles
+    label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 5 },
+    textInput: { backgroundColor: '#FFF', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#E0E0E0', marginBottom: 15 },
+    
     formRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
-    label: { fontSize: 14, fontWeight: '600', color: '#333', width: 80 },
-    dateInput: { backgroundColor: '#FFF', borderRadius: 8, padding: 10, flex: 1, borderWidth: 1, borderColor: '#E0E0E0', justifyContent: 'center' },
-    paxInput: { backgroundColor: '#FFF', borderRadius: 8, padding: 8, width: 100, borderWidth: 1, borderColor: '#E0E0E0', textAlign: 'center' },
+    dateInput: { backgroundColor: '#FFF', borderRadius: 8, padding: 10, flex: 1, borderWidth: 1, borderColor: '#E0E0E0', justifyContent: 'center', marginLeft: 10 },
+    paxInput: { backgroundColor: '#FFF', borderRadius: 8, padding: 8, width: 100, borderWidth: 1, borderColor: '#E0E0E0', textAlign: 'center', marginLeft: 10 },
     
     dropdown: { backgroundColor: '#EFEFEF', borderRadius: 8, padding: 12, borderWidth: 1, borderColor: '#DDD', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 5, marginBottom: 15 },
     dropdownText: { color: '#555' },
-    totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
+    totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, borderTopWidth: 1, borderTopColor: '#DDD', paddingTop: 10 },
     totalLabel: { fontSize: 16, fontWeight: '600', color: '#333' },
     totalValue: { fontSize: 16, fontWeight: 'bold', color: '#333' },
 

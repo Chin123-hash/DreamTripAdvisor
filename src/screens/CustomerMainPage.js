@@ -273,8 +273,8 @@ export default function CustomerMainPage() {
                       </TouchableOpacity>
                       
                       <TouchableOpacity style={styles.menuItem} onPress={() => { closeSidebar(); router.push('/history'); }}>
-                          <Ionicons name="time-outline" size={24} color="#333" />
-                          <Text style={styles.menuText}>History</Text>
+                          <Ionicons name="receipt-outline" size={24} color="#333" />
+                          <Text style={styles.menuText}>Orders</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity style={styles.menuItem} onPress={() => closeSidebar()}>
