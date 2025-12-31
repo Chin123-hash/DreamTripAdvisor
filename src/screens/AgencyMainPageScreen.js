@@ -4,27 +4,27 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    Dimensions,
-    FlatList,
-    Image,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  FlatList,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // Service Imports
 import {
-    getCurrentUserData,
-    getEntertainmentList,
-    getFoodList,
-    getPlanList, // <--- UPDATED: Using getPlanList as requested
-    logoutUser
+  getCurrentUserData,
+  getEntertainmentList,
+  getFoodList,
+  getPlanList, // <--- UPDATED: Using getPlanList as requested
+  logoutUser
 } from '../services/AuthService';
 
 const { width } = Dimensions.get('window');
@@ -151,7 +151,7 @@ export default function AgencyMainPageScreen() {
                 <Ionicons name="musical-notes-outline" size={24} color="#648DDB" />
                 <Text style={styles.gridText}>Add Ent.</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.gridButton}>
+          <TouchableOpacity style={styles.gridButton} onPress={() => router.push('/orderSalesDashboard')}>
                 <Ionicons name="list-outline" size={24} color="#648DDB" />
                 <Text style={styles.gridText}>View Orders</Text>
             </TouchableOpacity>
