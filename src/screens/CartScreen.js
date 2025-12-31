@@ -132,7 +132,7 @@ export default function CartScreen() {
                             <TouchableOpacity
                                 onPress={(e) => {
                                     e.stopPropagation();
-                                    handleDeleteItemFromPlan(item.id, item.items[0].id);
+                                    handleDeletePlan(item.id, item.items[0].id);
                                 }}
                             >
                                 <Ionicons name="trash-outline" size={22} color="#9DB7E8" />

@@ -64,9 +64,7 @@ export default function OrderDetailsScreen() {
                     <Ionicons name="arrow-back" size={24} color="#333" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Order Details</Text>
-                <View style={styles.statusBadge}>
-                    <Text style={styles.statusText}>{order.status || 'Pending'}</Text>
-                </View>
+                
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>

@@ -13,7 +13,8 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getAgencyOrders } from '../services/AuthService';
+// CHANGED: Import getUserProfile
+import { getAgencyOrders, getUserProfile } from '../services/AuthService';
 
 const FILTER_OPTIONS = [
     { label: 'All', value: 'all' },
@@ -33,10 +34,35 @@ export default function AgencyOrdersScreen() {
 
     const loadData = async () => {
         try {
-            const data = await getAgencyOrders();
+            // 1. Fetch Orders
+            const orderData = await getAgencyOrders();
 
-            // Sort by latest first (descending)
-            const sortedData = data.sort((a, b) => {
+            // 2. Extract Unique Customer IDs
+            const uniqueCustomerIds = [...new Set(orderData.map(o => o.customerId).filter(id => id))];
+
+            // 3. Fetch Profiles for these IDs
+            const profilesMap = {};
+            await Promise.all(uniqueCustomerIds.map(async (uid) => {
+                const profile = await getUserProfile(uid);
+                if (profile) {
+                    profilesMap[uid] = profile;
+                }
+            }));
+
+            // 4. Merge Profile Data into Orders
+            const enrichedData = orderData.map(order => {
+                const profile = profilesMap[order.customerId];
+                return {
+                    ...order,
+                    // Prefer profile data, fallback to order data, fallback to defaults
+                    customerName: profile?.fullName || profile?.username || order.customerName || 'Guest',
+                    customerEmail: profile?.email || order.customerEmail || 'No Email',
+                    customerPhone: profile?.phone || order.customerPhone || 'No Phone'
+                };
+            });
+
+            // 5. Sort by latest first (descending)
+            const sortedData = enrichedData.sort((a, b) => {
                 const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
                 const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
                 return dateB - dateA;
@@ -44,13 +70,13 @@ export default function AgencyOrdersScreen() {
 
             setOrders(sortedData);
 
-            // Calculate Summary Data (based on ALL data as per dashboard standards)
-            const totalRevenue = data.reduce((sum, order) => sum + (parseFloat(order.totalAmount) || 0), 0);
-            const uniqueCustomers = new Set(data.map(o => o.customerId)).size;
+            // Calculate Summary Data
+            const totalRevenue = sortedData.reduce((sum, order) => sum + (parseFloat(order.totalAmount) || 0), 0);
+            const uniqueCustomers = new Set(sortedData.map(o => o.customerId)).size;
 
             setStats({
                 revenue: totalRevenue.toFixed(2),
-                bookings: data.length,
+                bookings: sortedData.length,
                 customers: uniqueCustomers
             });
         } catch (error) {
@@ -69,39 +95,20 @@ export default function AgencyOrdersScreen() {
         if (selectedFilter === 'all') return orders;
 
         const now = new Date();
-
-        // Start from beginning of today
         const filterDate = new Date(
             now.getFullYear(),
             now.getMonth(),
             now.getDate()
         );
-
-        // Subtract days
         filterDate.setDate(filterDate.getDate() - (selectedFilter - 1));
 
         return orders.filter(order => {
             const orderDate = order.createdAt?.toDate
                 ? order.createdAt.toDate()
                 : new Date(order.createdAt);
-
             return orderDate >= filterDate;
         });
     }, [orders, selectedFilter]);
-
-    const filteredStats = useMemo(() => {
-        const data = selectedFilter === 'all' ? orders : filteredOrders;
-
-        const revenue = data.reduce(
-            (sum, o) => sum + (parseFloat(o.totalAmount) || 0), 0
-        );
-
-        return {
-            revenue: revenue.toFixed(2),
-            bookings: data.length,
-            customers: new Set(data.map(o => o.customerId)).size
-        };
-    }, [orders, filteredOrders, selectedFilter]);
 
 
     const onRefresh = () => {
@@ -109,6 +116,7 @@ export default function AgencyOrdersScreen() {
         loadData();
     };
 
+    // ... (FilterBar and SummarySection components remain unchanged) ...
     const FilterBar = () => (
         <View style={styles.filterWrapper}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
@@ -127,7 +135,6 @@ export default function AgencyOrdersScreen() {
         </View>
     );
 
-    // UI Component for the Summary Cards
     const SummarySection = () => (
         <View style={styles.summaryContainer}>
             <LinearGradient colors={['#648DDB', '#5A8AE4']} style={styles.mainStatCard}>
@@ -160,17 +167,18 @@ export default function AgencyOrdersScreen() {
                     pathname: '/order-details',
                     params: {
                         orderData: JSON.stringify(item),
-                },
-            })
-        }
-    >
-
+                    },
+                })
+            }
+        >
             <View style={styles.cardHeader}>
                 <View style={styles.customerAvatar}>
                     <Text style={styles.avatarText}>{item.customerName?.charAt(0) || 'C'}</Text>
                 </View>
                 <View style={styles.headerInfo}>
                     <Text style={styles.customerName}>{item.customerName || 'Customer'}</Text>
+                    {/* Added Email for better context since we fetched it */}
+                    <Text style={{fontSize: 10, color: '#999'}}>{item.customerEmail}</Text> 
                     <Text style={styles.planName}>{item.items?.[0]?.title || 'Package Fee'}</Text>
                 </View>
                 <View style={styles.amountContainer}>
@@ -182,7 +190,6 @@ export default function AgencyOrdersScreen() {
                                 : new Date(item.createdAt).toLocaleDateString())
                             : '—'}
                     </Text>
-
                 </View>
             </View>
         </TouchableOpacity>
@@ -204,7 +211,7 @@ export default function AgencyOrdersScreen() {
                 </View>
             ) : (
                 <FlatList
-                    data={filteredOrders} // Use the filtered list here
+                    data={filteredOrders}
                     ListHeaderComponent={SummarySection}
                     renderItem={renderOrderItem}
                     keyExtractor={item => item.id}

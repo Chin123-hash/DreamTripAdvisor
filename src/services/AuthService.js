@@ -6,7 +6,8 @@ import {
     signOut
 } from 'firebase/auth';
 import {
-    addDoc, arrayRemove, arrayUnion, collection,
+    addDoc,
+    arrayUnion, collection,
     deleteDoc,
     doc, getDoc, getDocs, orderBy, // Changed from onSnapshot for simpler one-time fetch
     query,
@@ -224,6 +225,7 @@ export const createNewPlan = async (planName) => {
 };
 
 // 3. Add Item to a Specific Plan
+// 1. UPDATE: Add a unique 'cartId' when adding items
 export const addItemToPlan = async (planId, itemData) => {
     const user = auth.currentUser;
     if (!user) throw new Error("User not authenticated");
@@ -231,13 +233,17 @@ export const addItemToPlan = async (planId, itemData) => {
     try {
         const planRef = doc(db, "users", user.uid, "plans", planId);
 
+        // Generate a unique ID for this specific instance
+        const newCartId = Date.now().toString() + Math.floor(Math.random() * 1000).toString();
+
         await updateDoc(planRef, {
             items: arrayUnion({
-                itemId: itemData.id, // Ensure we use 'id'
+                itemId: itemData.id, 
+                cartId: newCartId, // <--- NEW UNIQUE ID
                 title: itemData.title,
-                price: parseFloat(itemData.price), // Store as number
+                price: parseFloat(itemData.price), 
                 image: itemData.imageUrl,
-                type: 'entertainment',
+                type: itemData.type || 'entertainment', 
                 addedAt: new Date().toISOString()
             })
         });
@@ -298,6 +304,19 @@ export const getCurrentUserData = async () => {
         return null;
     } catch (error) {
         console.error("Error fetching user data:", error);
+        return null;
+    }
+};
+
+export const getUserProfile = async (uid) => {
+    try {
+        const userDoc = await getDoc(doc(db, "users", uid));
+        if (userDoc.exists()) {
+            return userDoc.data();
+        }
+        return null;
+    } catch (error) {
+        console.error("Error fetching user profile:", error);
         return null;
     }
 };
@@ -370,22 +389,36 @@ export const getPlanById = async (planId) => {
     }
 };
 
-export const deleteItemFromPlan = async (planId, itemId) => {
+export const deleteItemFromPlan = async (planId, targetCartId) => {
     const user = auth.currentUser;
     if (!user) throw new Error("User not authenticated");
 
     try {
         const planRef = doc(db, "users", user.uid, "plans", planId);
-        await updateDoc(planRef, {
-            items: arrayRemove({ itemId: itemId })
+        
+        const planDoc = await getDoc(planRef);
+        if (!planDoc.exists()) throw new Error("Plan not found");
+        
+        const currentData = planDoc.data();
+        const currentItems = currentData.items || [];
+
+        // FILTER: Keep items where cartId DOES NOT match the target
+        // (Fallback: if cartId is missing for old items, we check unique timestamp 'addedAt' or worst case 'itemId')
+        const updatedItems = currentItems.filter(item => {
+            if (item.cartId) return item.cartId !== targetCartId;
+            return item.itemId !== targetCartId; // Fallback for old items
         });
+
+        await updateDoc(planRef, {
+            items: updatedItems
+        });
+        
         return true;
     } catch (error) {
         console.error("Error deleting item from plan:", error);
         throw error;
     }
 };
-
 // --- ADD FOOD (For Agencies) ---
 export const addFood = async (data, imageUri) => {
     try {
@@ -618,7 +651,6 @@ export const createOrder = async (orderData) => {
     try {
         const docRef = await addDoc(collection(db, 'orders'), {
             ...orderData,
-            status: 'Pending',
             createdAt: serverTimestamp(),
         });
         return docRef.id;

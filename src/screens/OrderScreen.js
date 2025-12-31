@@ -43,14 +43,6 @@ export default function HistoryScreen() {
     };
 
     // Helper to get status color
-    const getStatusColor = (status) => {
-        switch (status?.toLowerCase()) {
-            case 'confirmed': return '#28A745';
-            case 'pending': return '#FFC107';
-            case 'cancelled': return '#DC3545';
-            default: return '#666';
-        }
-    };
 
     const renderOrderItem = ({ item }) => (
         <TouchableOpacity 
@@ -71,9 +63,7 @@ export default function HistoryScreen() {
                     </Text>
                 </View>
                 {/* Status Badge */}
-                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-                    <Text style={styles.statusText}>{item.status || 'Pending'}</Text>
-                </View>
+                
             </View>
 
             <View style={styles.divider} />

@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // Ensure createOrder is imported
-import { createOrder, getAgencies, getCartPlanDetails } from '../services/AuthService';
+import { createOrder, deleteItemFromPlan, deletePlan, getAgencies, getCartPlanDetails } from '../services/AuthService';
 
 const { width } = Dimensions.get('window');
 
@@ -112,10 +112,6 @@ export default function PlanDetailsScreen() {
     // --- SUBMIT ORDER LOGIC (SPRINT 5) ---
     const handleConfirmOrder = async () => {
         // Validation
-        if (!customerName.trim() || !customerPhone.trim() || !customerEmail.trim()) {
-            Alert.alert("Missing Details", "Please fill in your Name, Phone, and Email.");
-            return;
-        }
         if (!selectedAgency) {
             Alert.alert("Missing Agency", "Please select a Travel Agency.");
             return;
@@ -133,9 +129,6 @@ export default function PlanDetailsScreen() {
                             setSubmitting(true);
                             const orderPayload = {
                                 customerId: auth.currentUser?.uid || 'anonymous',
-                                customerName,
-                                customerEmail,
-                                customerPhone,
                                 specialRequest,
                                 planId,
                                 planName,
@@ -145,12 +138,17 @@ export default function PlanDetailsScreen() {
                                 returnDate: toDate.toISOString(),
                                 pax: parseInt(pax),
                                 totalAmount: totalExpense,
-                                items: rawItems // Save snapshot of items
+                                items: rawItems 
                             };
 
+                            // 1. Create the Order
                             await createOrder(orderPayload);
+
+                            // 2. DELETE FROM CART (New Logic)
+                            await deletePlan(planId); 
+
                             Alert.alert("Success", "Your order has been placed successfully!", [
-                                { text: "OK", onPress: () => router.push('/customer-main') } // Navigate back to Dashboard
+                                { text: "OK", onPress: () => router.push('/customer-main') } 
                             ]);
                         } catch (error) {
                             Alert.alert("Error", "Failed to place order. Please try again.");
@@ -163,9 +161,31 @@ export default function PlanDetailsScreen() {
             ]
         );
     };
-
+// --- DELETE ITEM LOGIC ---
+    const handleDeleteItem = (cartId) => {
+        Alert.alert("Remove Item", "Are you sure you want to remove this activity?", [
+            { text: "Cancel", style: "cancel" },
+            {
+                text: "Remove",
+                style: "destructive",
+                onPress: async () => {
+                    try {
+                        setLoading(true);
+                        await deleteItemFromPlan(planId, cartId);
+                        // Reload data to reflect changes
+                        await loadPlanData(planId); 
+                    } catch (error) {
+                        Alert.alert("Error", "Failed to remove item.");
+                    } finally {
+                        setLoading(false);
+                    }
+                }
+            }
+        ]);
+    };
     // --- SCHEDULE LOGIC ---
     const generateSchedule = (items) => {
+        // Create separate queues for items
         let entertainment = items.filter(i => i.type && i.type.toLowerCase() === 'entertainment');
         let food = items.filter(i => i.type && i.type.toLowerCase() === 'food');
         
@@ -179,25 +199,60 @@ export default function PlanDetailsScreen() {
         let entCount = 0; 
         for (let hour = 9; hour <= 18; hour++) {
             let item = null;
+
+            // --- 1. HANDLE LUNCH BREAK (1:00 PM) ---
             if (hour === 13) {
-                item = food.length > 0 ? food.shift() : { title: 'Lunch Break', type: 'Food', price: 0, isPlaceholder: true };
-                entCount = 0; 
-            } else {
-                if (entCount < 2) {
-                    if (entertainment.length > 0) { item = entertainment.shift(); entCount++; } 
-                    else { item = { title: 'Free & Easy', type: 'Entertainment', price: 0, isPlaceholder: true }; }
+                // Check if we have too many items left for the remaining slots (14,15,16,17,18 = 5 slots)
+                const itemsLeft = entertainment.length + food.length;
+                
+                if (itemsLeft > 5) {
+                    // If we have > 5 items, we MUST use this slot, so we take a food item (or ent)
+                    if (food.length > 0) item = food.shift();
+                    else if (entertainment.length > 0) item = entertainment.shift();
                 } else {
-                    if (food.length > 0) { item = food.shift(); } 
-                    else if (entertainment.length > 0) { item = entertainment.shift(); } 
-                    else { item = { title: 'Rest Time', type: 'Entertainment', price: 0, isPlaceholder: true }; }
-                    entCount = 0; 
+                    // Otherwise, we have enough space to keep the default Lunch Break
+                    item = { title: 'Lunch Break', type: 'Food', price: 0, isPlaceholder: true };
+                }
+                entCount = 0; // Reset the rhythm after lunch
+            } 
+            // --- 2. HANDLE NORMAL SLOTS ---
+            else {
+                // Logic: Prioritize showing REAL items before falling back to placeholders
+                // Rhythm preference: 2 Ents, then 1 Food/Rest
+                const preferEnt = entCount < 2;
+
+                if (preferEnt) {
+                    // Preference: Entertainment -> Food -> Free & Easy
+                    if (entertainment.length > 0) {
+                        item = entertainment.shift();
+                        entCount++;
+                    } else if (food.length > 0) {
+                        item = food.shift();
+                        entCount = 0; // Reset count because we inserted food
+                    } else {
+                        item = { title: 'Free & Easy', type: 'Entertainment', price: 0, isPlaceholder: true };
+                        entCount++;
+                    }
+                } else {
+                    // Preference: Food -> Entertainment -> Rest Time
+                    if (food.length > 0) {
+                        item = food.shift();
+                    } else if (entertainment.length > 0) {
+                        item = entertainment.shift();
+                    } else {
+                        item = { title: 'Rest Time', type: 'Entertainment', price: 0, isPlaceholder: true };
+                    }
+                    entCount = 0; // Reset count after the "Rest/Food" slot
                 }
             }
+
             generated.push({ 
                 time: fmtTime(hour), 
                 ...item, 
                 price: item.price || 0, 
-                title: item.title || "Activity" 
+                title: item.title || "Activity",
+                itemId: item.itemId, // Maintain ID for delete function
+                cartId: item.cartId
             });
         }
         setSchedule(generated);
@@ -224,7 +279,9 @@ export default function PlanDetailsScreen() {
 
     const renderPieChart = () => {
         const paxNum = parseInt(pax) || 1;
-        const getSum = (type) => rawItems.filter(i => i.type?.toLowerCase() === type).reduce((a, b) => a + (b.price || 0), 0) * paxNum;
+        const getSum = (type) => rawItems
+            .filter(i => i.type?.toLowerCase() === type)
+            .reduce((a, b) => a + (parseFloat(b.price) || 0), 0) * paxNum;
         
         const foodTotal = getSum('food');
         const entTotal = getSum('entertainment');
@@ -245,6 +302,8 @@ export default function PlanDetailsScreen() {
                     {entPct > 0 && <View style={[styles.slice, { backgroundColor: '#FF8A65', width: `${entPct}%` }]} />}
                     {hotelPct > 0 && <View style={[styles.slice, { backgroundColor: '#64B5F6', width: `${hotelPct}%` }]} />}
                     {transPct > 0 && <View style={[styles.slice, { backgroundColor: '#FFD54F', width: `${transPct}%` }]} />}
+                    
+                    {/* Fallback grey circle if total is 0 */}
                     {grandTotal === 1 && <View style={[styles.slice, { backgroundColor: '#EEE', width: '100%' }]} />}
 
                     <View style={styles.chartOverlay}>
@@ -323,58 +382,40 @@ export default function PlanDetailsScreen() {
                                 )}
                                 {index < schedule.length - 1 && <View style={styles.dottedLine} />}
                             </View>
-                            <View style={styles.contentCol}>
-                                <Text style={styles.contentTitle}>{item.title}</Text>
-                                <Text style={styles.contentDesc}>{item.isPlaceholder ? item.type : `RM ${item.price}`}</Text>
-                            </View>
-                            {isEditing && (
-                                <View style={styles.reorderCol}>
-                                    {index > 0 && (
-                                        <TouchableOpacity onPress={() => moveItem(index, -1)}>
-                                            <Ionicons name="chevron-up" size={20} color="#648DDB" />
-                                        </TouchableOpacity>
-                                    )}
-                                    {index < schedule.length - 1 && (
-                                        <TouchableOpacity onPress={() => moveItem(index, 1)}>
-                                            <Ionicons name="chevron-down" size={20} color="#648DDB" />
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
-                            )}
+                            {/* Content Column */}
+    <View style={styles.contentCol}>
+        <Text style={styles.contentTitle}>{item.title}</Text>
+        <Text style={styles.contentDesc}>{item.isPlaceholder ? item.type : `RM ${item.price}`}</Text>
+    </View>
+
+    {/* EDITING CONTROLS */}
+    {isEditing && (
+        <View style={styles.reorderCol}>
+            {/* 1. Delete Button (Only for real items) */}
+            {!item.isPlaceholder && (
+                <TouchableOpacity 
+                    onPress={() => handleDeleteItem(item.cartId || item.itemId)} // Ensure your item has itemId
+                    style={{ marginBottom: 5 }}
+                >
+                    <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+                </TouchableOpacity>
+            )}
+
+            {/* 2. Reorder Arrows (Existing) */}
+            {index > 0 && (
+                <TouchableOpacity onPress={() => moveItem(index, -1)}>
+                    <Ionicons name="chevron-up" size={20} color="#648DDB" />
+                </TouchableOpacity>
+            )}
+            {index < schedule.length - 1 && (
+                <TouchableOpacity onPress={() => moveItem(index, 1)}>
+                    <Ionicons name="chevron-down" size={20} color="#648DDB" />
+                </TouchableOpacity>
+            )}
+        </View>
+    )}
                         </View>
                     ))}
-                </View>
-
-                {/* --- CUSTOMER DETAILS SECTION (NEW) --- */}
-                <View style={styles.formSection}>
-                    <Text style={styles.sectionHeader}>Contact Information</Text>
-                    
-                    <Text style={styles.label}>Full Name:</Text>
-                    <TextInput 
-                        style={styles.textInput} 
-                        placeholder="e.g. John Doe"
-                        value={customerName} 
-                        onChangeText={setCustomerName}
-                    />
-
-                    <Text style={styles.label}>Contact Number:</Text>
-                    <TextInput 
-                        style={styles.textInput} 
-                        placeholder="e.g. +60123456789"
-                        keyboardType="phone-pad"
-                        value={customerPhone} 
-                        onChangeText={setCustomerPhone}
-                    />
-
-                    <Text style={styles.label}>Email Address:</Text>
-                    <TextInput 
-                        style={styles.textInput} 
-                        placeholder="e.g. john@example.com"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        value={customerEmail} 
-                        onChangeText={setCustomerEmail}
-                    />
                 </View>
 
                 {/* TRIP DETAILS FORM */}
@@ -526,7 +567,7 @@ const styles = StyleSheet.create({
     dateInput: { backgroundColor: '#FFF', borderRadius: 8, padding: 10, flex: 1, borderWidth: 1, borderColor: '#E0E0E0', justifyContent: 'center', marginLeft: 10 },
     paxInput: { backgroundColor: '#FFF', borderRadius: 8, padding: 8, width: 100, borderWidth: 1, borderColor: '#E0E0E0', textAlign: 'center', marginLeft: 10 },
     
-    dropdown: { backgroundColor: '#EFEFEF', borderRadius: 8, padding: 12, borderWidth: 1, borderColor: '#DDD', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 5, marginBottom: 15 },
+    dropdown: { backgroundColor: '#FFF', borderRadius: 8, padding: 12, borderWidth: 1, borderColor: '#DDD', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 5, marginBottom: 15 },
     dropdownText: { color: '#555' },
     totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, borderTopWidth: 1, borderTopColor: '#DDD', paddingTop: 10 },
     totalLabel: { fontSize: 16, fontWeight: '600', color: '#333' },
