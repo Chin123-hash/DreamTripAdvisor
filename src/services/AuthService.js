@@ -741,3 +741,41 @@ export const getOrderDetails = async (orderId) => {
         throw error;
     }
 };
+
+export const getAllUsers = async () => {
+    try {
+        const querySnapshot = await getDocs(collection(db, "users"));
+        const users = [];
+        querySnapshot.forEach((doc) => {
+            // 把 ID 和数据合并
+            users.push({ id: doc.id, ...doc.data() });
+        });
+        return users;
+    } catch (error) {
+        console.error("Error fetching all users:", error);
+        return [];
+    }
+};
+
+// 2. 删除用户数据 (这就是 Option A)
+export const deleteUserFromFirestore = async (userId) => {
+    try {
+        await deleteDoc(doc(db, "users", userId));
+        return true;
+    } catch (error) {
+        console.error("Error deleting user:", error);
+        throw error;
+    }
+};
+
+// 3. 管理员更新用户信息 (比如重置名字)
+export const adminUpdateUser = async (userId, newData) => {
+    try {
+        const userRef = doc(db, "users", userId);
+        await updateDoc(userRef, newData);
+        return true;
+    } catch (error) {
+        console.error("Error admin updating user:", error);
+        throw error;
+    }
+};
