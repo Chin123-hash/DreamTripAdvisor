@@ -7,7 +7,7 @@ export default function Page() {
     <>
       <Stack.Screen 
         options={{ 
-          title: 'Details',
+          title: 'Entertainment Details',
           headerShown: true, // Shows the back arrow automatically
           headerBackTitle: 'Back',
           headerTintColor: '#007AFF', // Color of the back arrow

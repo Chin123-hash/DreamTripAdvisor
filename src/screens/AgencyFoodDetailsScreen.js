@@ -2,10 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
+    ActivityIndicator, // <--- Added
+    Alert // <--- Added
+    ,
     Dimensions,
     Image,
     ImageBackground,
+    Linking,
     SafeAreaView,
     ScrollView,
     StatusBar,
@@ -14,7 +17,8 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-// Re-using your existing service function
+import { WebView } from 'react-native-webview'; // <--- Added
+
 import { getFoodById } from '../services/AuthService';
 
 const { width } = Dimensions.get('window');
@@ -30,7 +34,6 @@ const AgencyFoodDetailsScreen = () => {
         const fetchDetails = async () => {
             try {
                 if (id) {
-                    // Fetching directly from 'foods' collection as per your AuthService
                     const result = await getFoodById(id);
                     setItem(result);
                 }
@@ -42,6 +45,34 @@ const AgencyFoodDetailsScreen = () => {
         };
         fetchDetails();
     }, [id]);
+
+    // 1. Navigation Logic
+    const openNavigationApp = () => {
+        if (item?.locationURL) {
+            Linking.openURL(item.locationURL).catch(() => {
+                Alert.alert('Error', 'Could not open map application.');
+            });
+        } else {
+            Alert.alert('No Location', 'No location link provided.');
+        }
+    };
+
+    // 2. Clean up Google Maps UI Script
+    const mobileCleanScript = `
+      (function() {
+        var style = document.createElement('style');
+        style.innerHTML = \`
+          .app-view-header, header, .ml-searchbox-landing-omnibox-container, .searchbox-hamburger-container { display: none !important; }
+          .scene-footer, .place-card-large, .bottom-panel, #bottom-pane, .quick-actions-container { display: none !important; }
+          .ml-promotion-container, .mobile-promotion-container, .promotional-footer, .upsell-container, div[role="dialog"] { display: none !important; }
+          .gb_gd, .gb_T { display: none !important; }
+          html, body, #app-container, #content-container { height: 100% !important; width: 100% !important; background-color: white; }
+        \`;
+        document.head.appendChild(style);
+        try { document.body.style.zoom = '0.85'; } catch(e) {}
+      })();
+      true;
+    `;
 
     if (loading) {
         return (
@@ -78,7 +109,6 @@ const AgencyFoodDetailsScreen = () => {
                 <SafeAreaView style={styles.safeArea}>
                     {/* HEADER */}
                     <View style={styles.header}>
-                       
                         <Text style={styles.headerTitle} numberOfLines={1}>{item.title}</Text>
                         <View style={{ width: 45 }} /> 
                     </View>
@@ -88,7 +118,7 @@ const AgencyFoodDetailsScreen = () => {
                         {/* MAIN IMAGE */}
                         <View style={styles.imageWrapper}>
                             <Image source={{ uri: item.imageUrl }} style={styles.mainImage} />
-                            {/* Rating Badge (from your rating field) */}
+                            {/* Rating Badge */}
                             <View style={styles.ratingBadge}>
                                 <Ionicons name="star" size={16} color="#FFD700" />
                                 <Text style={styles.ratingText}>{item.rating?.toFixed(1) || '0.0'}</Text>
@@ -113,6 +143,59 @@ const AgencyFoodDetailsScreen = () => {
 
                             <View style={styles.divider} />
 
+                            {/* --- MAP SECTION ADDED HERE --- */}
+                            <Text style={[styles.cardLabel, {fontSize: 14, marginBottom: 10, color: '#888'}]}>Location Preview</Text>
+
+                            <View style={styles.mapContainer}>
+                                {item.locationURL ? (
+                                    <WebView
+                                        source={{ uri: item.locationURL }}
+                                        style={styles.mapWebView}
+                                        nestedScrollEnabled={true}
+                                        showsUserLocation={false}
+                                        // Mobile UserAgent to force Google Maps mobile view
+                                        userAgent="Mozilla/5.0 (Linux; Android 10; Mobile; rv:89.0) Gecko/89.0 Firefox/89.0"
+                                        injectedJavaScript={mobileCleanScript}
+                                        originWhitelist={['*']}
+                                        javaScriptEnabled={true}
+                                        domStorageEnabled={true}
+                                        setSupportMultipleWindows={false}
+                                        startInLoadingState={true}
+                                        renderLoading={() => (
+                                            <View style={styles.loadingOverlay}>
+                                                <ActivityIndicator color="#648DDB" />
+                                                <Text style={styles.loadingText}>Loading Map...</Text>
+                                            </View>
+                                        )}
+                                        // Block Intent Redirections
+                                        onShouldStartLoadWithRequest={(request) => {
+                                            const { url } = request;
+                                            if (url.startsWith('intent:') || url.startsWith('intent://')) return false; 
+                                            if (url.startsWith('http:') || url.startsWith('https:')) return true;
+                                            return false;
+                                        }}
+                                        onError={(syntheticEvent) => {
+                                            const { nativeEvent } = syntheticEvent;
+                                            console.warn('WebView error: ', nativeEvent);
+                                        }}
+                                    />
+                                ) : (
+                                    <View style={styles.noMapContainer}>
+                                        <Ionicons name="map-outline" size={30} color="#ccc" />
+                                        <Text style={styles.noMapText}>No location map available</Text>
+                                    </View>
+                                )}
+
+                                {/* Floating "Go" Button */}
+                                <TouchableOpacity style={styles.navigateFab} onPress={openNavigationApp}>
+                                    <Ionicons name="navigate" size={20} color="#FFF" />
+                                    <Text style={styles.navigateFabText}>Go</Text>
+                                </TouchableOpacity>
+                            </View>
+                            {/* ----------------------------- */}
+
+                            <View style={styles.divider} />
+
                             <Text style={styles.descriptionLabel}>Description</Text>
                             <Text style={styles.descriptionText}>{item.description}</Text>
 
@@ -133,36 +216,21 @@ const styles = StyleSheet.create({
     loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
     safeArea: { flex: 1 },
     header: {
-        height: 50, // Set a fixed height for your header
+        height: 50,
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center', // Important: aligns content to center
+        justifyContent: 'center',
         paddingHorizontal: 20,
-        position: 'relative', // Needed for the absolute child
-        
-      },
-      headerTitle: {
+        position: 'relative',
+    },
+    headerTitle: {
         fontSize: 18,
         fontWeight: 'bold',
         color: '#000',
         textAlign: 'center',
-        // === The Magic Part ===
-        position: 'absolute', // Takes the title out of the flow
+        position: 'absolute',
         left: 0,
-        right: 0, // left 0 + right 0 stretches it across the screen
-       
-      },
-    circleButton: {
-        width: 45,
-        height: 45,
-        borderRadius: 22.5,
-        backgroundColor: '#FFF',
-        justifyContent: 'center',
-        alignItems: 'center',
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
+        right: 0,
     },
     scrollContent: { alignItems: 'center', paddingBottom: 40 },
     imageWrapper: {
@@ -214,7 +282,45 @@ const styles = StyleSheet.create({
     totalLabel: { fontSize: 12, color: '#888', textTransform: 'uppercase' },
     totalAmount: { fontSize: 22, fontWeight: 'bold', color: '#E35D5D' },
     errorText: { fontSize: 16, color: '#666' },
-    backLink: { marginTop: 15 }
+    backLink: { marginTop: 15 },
+
+    // --- MAP STYLES FROM REFERENCE ---
+    mapContainer: {
+        width: '100%',
+        height: 450, // Height from reference
+        borderRadius: 12,
+        overflow: 'hidden',
+        marginBottom: 10,
+        position: 'relative',
+        backgroundColor: '#f9f9f9',
+        borderWidth: 1,
+        borderColor: '#EEE'
+    },
+    mapWebView: {
+        flex: 1,
+        backgroundColor: 'transparent'
+    },
+    navigateFab: {
+        position: 'absolute',
+        bottom: 10,
+        right: 10,
+        backgroundColor: '#4285F4',
+        flexDirection: 'row',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+        alignItems: 'center',
+        elevation: 5,
+        zIndex: 999 
+    },
+    navigateFabText: { color: '#FFF', marginLeft: 5, fontSize: 12, fontWeight: 'bold' },
+    noMapContainer: { height: 100, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 12 },
+    noMapText: { marginTop: 5, color: '#999', fontSize: 12 },
+    loadingOverlay: {
+        position: 'absolute', top: 0, bottom: 0, left: 0, right: 0,
+        justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5'
+    },
+    loadingText: { fontSize: 10, color: '#999', marginTop: 5 },
 });
 
 export default AgencyFoodDetailsScreen;

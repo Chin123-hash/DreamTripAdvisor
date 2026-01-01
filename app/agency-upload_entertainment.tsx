@@ -5,7 +5,7 @@ import { AgencyUploadEntertainmentScreen } from '../src/screens/AgencyUploadEnte
 export default function Page() {
   return (
     <>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen options={{ headerShown:false, title: 'Upload Entertainment' }} />
       <AgencyUploadEntertainmentScreen />
     </>
   );

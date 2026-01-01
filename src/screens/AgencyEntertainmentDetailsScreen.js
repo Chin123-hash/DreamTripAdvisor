@@ -1,3 +1,5 @@
+// src/screens/AgencyEntertainmentDetailsScreen.js
+
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -16,7 +18,6 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-// 只引入 WebView
 import { WebView } from 'react-native-webview';
 
 import { getEntertainmentById } from '../services/AuthService';
@@ -57,55 +58,26 @@ const AgencyEntertainmentDetailsScreen = () => {
     };
 
     // =================================================================
-    // 🧹 手机版专用清理脚本 🧹
-    // 专门针对 Android Chrome 浏览器的 Google Maps 界面进行裁剪
+    // 🧹 VISUAL CLEANUP & ZOOM SCRIPT 🧹
+    // 1. Hides search bars/footers
+    // 2. Zooms out to 85% to show more map area
     // =================================================================
     const mobileCleanScript = `
       (function() {
         var style = document.createElement('style');
         style.innerHTML = \`
-          /* 1. 隐藏顶部搜索栏、Header、汉堡菜单 */
-          .app-view-header, 
-          .ml-searchbox-landing-omnibox-container, 
-          .searchbox-hamburger-container,
-          header { 
-              display: none !important; 
-          }
-
-          /* 2. 隐藏底部的白色详情卡片 (Place Card) */
-          .scene-footer, 
-          .place-card-large, 
-          .bottom-panel, 
-          .quick-actions-container,
-          #bottom-pane { 
-              display: none !important; 
-          }
-
-          /* 3. 隐藏 "在 App 中打开" / "下载 App" 的弹窗和横幅 */
-          .ml-promotion-container, 
-          .mobile-promotion-container, 
-          .promotional-footer, 
-          div[role="dialog"],
-          .modal-overlay { 
-              display: none !important; 
-              opacity: 0 !important;
-              pointer-events: none !important;
-          }
-
-          /* 4. 强制隐藏登录按钮 */
-          .gb_gd, .gb_T {
-              display: none !important;
-          }
-
-          /* 5. 确保地图占满整个容器 */
-          html, body, #app-container, #content-container { 
-              height: 100% !important; 
-              width: 100% !important;
-              margin: 0 !important;
-              padding: 0 !important;
-          }
+          .app-view-header, header, .ml-searchbox-landing-omnibox-container, .searchbox-hamburger-container { display: none !important; }
+          .scene-footer, .place-card-large, .bottom-panel, #bottom-pane, .quick-actions-container { display: none !important; }
+          .ml-promotion-container, .mobile-promotion-container, .promotional-footer, .upsell-container, div[role="dialog"] { display: none !important; }
+          .gb_gd, .gb_T { display: none !important; }
+          html, body, #app-container, #content-container { height: 100% !important; width: 100% !important; background-color: white; }
         \`;
         document.head.appendChild(style);
+
+        // OPTIONAL: Zoom out slightly to show more content
+        try {
+            document.body.style.zoom = '0.85';
+        } catch(e) {}
       })();
       true;
     `;
@@ -147,7 +119,6 @@ const AgencyEntertainmentDetailsScreen = () => {
                     </View>
 
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                        {/* IMAGE */}
                         <View style={styles.imageWrapper}>
                             <Image source={{ uri: item.imageUrl }} style={styles.mainImage} />
                             <View style={styles.ratingBadge}>
@@ -156,7 +127,6 @@ const AgencyEntertainmentDetailsScreen = () => {
                             </View>
                         </View>
 
-                        {/* INFO CARD */}
                         <View style={styles.infoCard}>
                             <Text style={styles.cardLabel}>Activity Details</Text>
 
@@ -172,7 +142,7 @@ const AgencyEntertainmentDetailsScreen = () => {
 
                             <View style={styles.divider} />
 
-                            {/* --- MAP SECTION (WebView Only) --- */}
+                            {/* --- MAP SECTION --- */}
                             <Text style={[styles.dataTitle, { marginBottom: 10 }]}>Location Preview</Text>
 
                             <View style={styles.mapContainer}>
@@ -183,15 +153,15 @@ const AgencyEntertainmentDetailsScreen = () => {
                                         nestedScrollEnabled={true}
                                         showsUserLocation={false}
                                         
-                                        // 1. 设置为 Android 手机 UserAgent
+                                        // Mobile UserAgent
                                         userAgent="Mozilla/5.0 (Linux; Android 10; Mobile; rv:89.0) Gecko/89.0 Firefox/89.0"
                                         
-                                        // 2. 注入 CSS 隐藏干扰元素
                                         injectedJavaScript={mobileCleanScript}
                                         
-                                        // 3. 禁用缓存，防止旧布局残留
-                                        incognito={true}
-                                        cacheEnabled={false}
+                                        originWhitelist={['*']}
+                                        javaScriptEnabled={true}
+                                        domStorageEnabled={true}
+                                        setSupportMultipleWindows={false}
                                         
                                         startInLoadingState={true}
                                         renderLoading={() => (
@@ -200,6 +170,19 @@ const AgencyEntertainmentDetailsScreen = () => {
                                                 <Text style={styles.loadingText}>Loading Map...</Text>
                                             </View>
                                         )}
+
+                                        // Block Intent Redirections
+                                        onShouldStartLoadWithRequest={(request) => {
+                                            const { url } = request;
+                                            if (url.startsWith('intent:') || url.startsWith('intent://')) return false; 
+                                            if (url.startsWith('http:') || url.startsWith('https:')) return true;
+                                            return false;
+                                        }}
+
+                                        onError={(syntheticEvent) => {
+                                            const { nativeEvent } = syntheticEvent;
+                                            console.warn('WebView error: ', nativeEvent);
+                                        }}
                                     />
                                 ) : (
                                     <View style={styles.noMapContainer}>
@@ -208,7 +191,6 @@ const AgencyEntertainmentDetailsScreen = () => {
                                     </View>
                                 )}
 
-                                {/* Go 按钮：悬浮在 WebView 之上，点击直接跳转 App */}
                                 <TouchableOpacity style={styles.navigateFab} onPress={openNavigationApp}>
                                     <Ionicons name="navigate" size={20} color="#FFF" />
                                     <Text style={styles.navigateFabText}>Go</Text>
@@ -254,10 +236,10 @@ const styles = StyleSheet.create({
     dataValue: { fontSize: 15, color: '#444' },
     divider: { height: 1, backgroundColor: '#EEE', marginVertical: 15 },
     
-    // 地图样式
+    // Map Styles - UPDATED HEIGHT
     mapContainer: {
         width: '100%',
-        height: 250,
+        height: 450, // INCREASED HEIGHT from 250 to 450
         borderRadius: 12,
         overflow: 'hidden',
         marginBottom: 10,
@@ -268,7 +250,7 @@ const styles = StyleSheet.create({
     },
     mapWebView: {
         flex: 1,
-        opacity: 0.99, 
+        backgroundColor: 'transparent'
     },
     navigateFab: {
         position: 'absolute',
