@@ -271,11 +271,21 @@ export default function AdminOrdersScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.headerBar}>
+                {/* Back Button */}
                 <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
                     <Ionicons name="arrow-back" size={28} color="#333" />
                 </TouchableOpacity>
+
+                {/* Title */}
                 <Text style={styles.headerTitle}>Admin Control Center</Text>
-                <View style={{ width: 40 }} />
+
+                {/* Analytics Button */}
+                <TouchableOpacity
+                    style={styles.analyticsButton}
+                    onPress={() => router.push('/admin-analytic')}
+                >
+                    <Ionicons name="analytics-outline" size={26} color="#333" />
+                </TouchableOpacity>
             </View>
 
             {loading ? (
@@ -499,5 +509,11 @@ const styles = StyleSheet.create({
     applyText: {
         color: '#FFF',
         fontWeight: 'bold',
+    },
+    analyticsButton: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 });
