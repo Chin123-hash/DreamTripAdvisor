@@ -137,6 +137,7 @@ export const addEntertainment = async (data, imageUri) => {
         await addDoc(collection(db, "entertainments"), {
             title: data.title,
             description: data.description,
+            locationURL: data.locationURL || "",
             suggestedTransport: data.suggestedTransport,
             transportCost: parseFloat(data.transportCost) || 0,
             estimatedTotalExpenses: parseFloat(data.estimatedTotalExpenses) || 0,
@@ -438,6 +439,7 @@ export const addFood = async (data, imageUri) => {
         await addDoc(collection(db, "foods"), {
             title: data.title,
             description: data.description,
+            locationURL: data.locationURL || "",
             priceRange: data.priceRange, // e.g., "RM 10 - RM 30"
             suggestedTransport: data.suggestedTransport,
             transportCost: parseFloat(data.transportCost) || 0,
@@ -703,6 +705,30 @@ export const getAgencyOrders = async () => {
         return orders;
     } catch (error) {
         console.error("Error fetching agency orders:", error);
+        throw error;
+    }
+};
+
+export const getAllOrders = async () => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+        // This assumes your 'orders' documents include an 'agencyId' field
+        const q = query(
+            collection(db, "orders"),
+            where("adminId", "==", user.uid),
+            orderBy("createdAt", "desc")
+        );
+
+        const querySnapshot = await getDocs(q);
+        const orders = [];
+        querySnapshot.forEach((doc) => {
+            orders.push({ id: doc.id, ...doc.data() });
+        });
+        return orders;
+    } catch (error) {
+        console.error("Error fetching all orders:", error);
         throw error;
     }
 };
