@@ -6,7 +6,8 @@ import {
     signOut
 } from 'firebase/auth';
 import {
-    addDoc, arrayRemove, arrayUnion, collection,
+    addDoc,
+    arrayUnion, collection,
     deleteDoc,
     doc, getDoc, getDocs, orderBy, // Changed from onSnapshot for simpler one-time fetch
     query,
@@ -72,14 +73,15 @@ export const registerAgency = async (email, password, agencyData, logoUri) => {
             logoUrl = await uploadLogo(logoUri, user.uid);
         }
 
-        // 3. Save Data to Firestore
+        // 3. Save Data to Firestore with default status 'pending'
         await setDoc(doc(db, "users", user.uid), {
             email: email,
             role: 'agency',
             agencyName: agencyData.agencyName,
             licenseNo: agencyData.licenseNo,
             companyUrl: agencyData.companyUrl,
-            logoUrl: logoUrl, // We save the link, not the file!
+            logoUrl: logoUrl,      // We save the link, not the file!
+            status: 'pending',     // <-- Default status
             createdAt: new Date().toISOString()
         });
 
@@ -136,6 +138,7 @@ export const addEntertainment = async (data, imageUri) => {
         await addDoc(collection(db, "entertainments"), {
             title: data.title,
             description: data.description,
+            locationURL: data.locationURL || "",
             suggestedTransport: data.suggestedTransport,
             transportCost: parseFloat(data.transportCost) || 0,
             estimatedTotalExpenses: parseFloat(data.estimatedTotalExpenses) || 0,
@@ -224,6 +227,7 @@ export const createNewPlan = async (planName) => {
 };
 
 // 3. Add Item to a Specific Plan
+// 1. UPDATE: Add a unique 'cartId' when adding items
 export const addItemToPlan = async (planId, itemData) => {
     const user = auth.currentUser;
     if (!user) throw new Error("User not authenticated");
@@ -231,13 +235,17 @@ export const addItemToPlan = async (planId, itemData) => {
     try {
         const planRef = doc(db, "users", user.uid, "plans", planId);
 
+        // Generate a unique ID for this specific instance
+        const newCartId = Date.now().toString() + Math.floor(Math.random() * 1000).toString();
+
         await updateDoc(planRef, {
             items: arrayUnion({
-                itemId: itemData.id, // Ensure we use 'id'
+                itemId: itemData.id, 
+                cartId: newCartId, // <--- NEW UNIQUE ID
                 title: itemData.title,
-                price: parseFloat(itemData.price), // Store as number
+                price: parseFloat(itemData.price), 
                 image: itemData.imageUrl,
-                type: 'entertainment',
+                type: itemData.type || 'entertainment', 
                 addedAt: new Date().toISOString()
             })
         });
@@ -298,6 +306,19 @@ export const getCurrentUserData = async () => {
         return null;
     } catch (error) {
         console.error("Error fetching user data:", error);
+        return null;
+    }
+};
+
+export const getUserProfile = async (uid) => {
+    try {
+        const userDoc = await getDoc(doc(db, "users", uid));
+        if (userDoc.exists()) {
+            return userDoc.data();
+        }
+        return null;
+    } catch (error) {
+        console.error("Error fetching user profile:", error);
         return null;
     }
 };
@@ -370,22 +391,36 @@ export const getPlanById = async (planId) => {
     }
 };
 
-export const deleteItemFromPlan = async (planId, itemId) => {
+export const deleteItemFromPlan = async (planId, targetCartId) => {
     const user = auth.currentUser;
     if (!user) throw new Error("User not authenticated");
 
     try {
         const planRef = doc(db, "users", user.uid, "plans", planId);
-        await updateDoc(planRef, {
-            items: arrayRemove({ itemId: itemId })
+        
+        const planDoc = await getDoc(planRef);
+        if (!planDoc.exists()) throw new Error("Plan not found");
+        
+        const currentData = planDoc.data();
+        const currentItems = currentData.items || [];
+
+        // FILTER: Keep items where cartId DOES NOT match the target
+        // (Fallback: if cartId is missing for old items, we check unique timestamp 'addedAt' or worst case 'itemId')
+        const updatedItems = currentItems.filter(item => {
+            if (item.cartId) return item.cartId !== targetCartId;
+            return item.itemId !== targetCartId; // Fallback for old items
         });
+
+        await updateDoc(planRef, {
+            items: updatedItems
+        });
+        
         return true;
     } catch (error) {
         console.error("Error deleting item from plan:", error);
         throw error;
     }
 };
-
 // --- ADD FOOD (For Agencies) ---
 export const addFood = async (data, imageUri) => {
     try {
@@ -405,6 +440,7 @@ export const addFood = async (data, imageUri) => {
         await addDoc(collection(db, "foods"), {
             title: data.title,
             description: data.description,
+            locationURL: data.locationURL || "",
             priceRange: data.priceRange, // e.g., "RM 10 - RM 30"
             suggestedTransport: data.suggestedTransport,
             transportCost: parseFloat(data.transportCost) || 0,
@@ -531,7 +567,7 @@ export const getCartPlanDetails = async (planId) => {
         if (!user) throw new Error("User not authenticated");
 
         // Assuming structure is: users/{uid}/plans/{planId}
-        const planRef = doc(db, "users", user.uid, "plans", planId); 
+        const planRef = doc(db, "users", user.uid, "plans", planId);
         const planSnap = await getDoc(planRef);
 
         if (planSnap.exists()) {
@@ -548,27 +584,27 @@ export const getCartPlanDetails = async (planId) => {
 
 export const getAgencies = async () => {
     try {
-      // Determine the correct collection based on your logic (users or agencies)
-      // Assuming agencies are stored in 'users' collection with role 'agency'
-      const q = query(collection(db, "users"), where("role", "==", "agency"));
-      const querySnapshot = await getDocs(q);
-      
-      let agencies = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        agencies.push({
-          id: doc.id,
-          name: data.agencyName || data.fullName || "Unnamed Agency", // Fallback names
-        });
-      });
-      return agencies;
-    } catch (error) {
-      console.error("Error fetching agencies:", error);
-      return [];
-    }
-  };
+        // Determine the correct collection based on your logic (users or agencies)
+        // Assuming agencies are stored in 'users' collection with role 'agency'
+        const q = query(collection(db, "users"), where("role", "==", "agency"));
+        const querySnapshot = await getDocs(q);
 
-  export const getPlanList = async () => {
+        let agencies = [];
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            agencies.push({
+                id: doc.id,
+                name: data.agencyName || data.fullName || "Unnamed Agency", // Fallback names
+            });
+        });
+        return agencies;
+    } catch (error) {
+        console.error("Error fetching agencies:", error);
+        return [];
+    }
+};
+
+export const getPlanList = async () => {
     try {
         const querySnapshot = await getDocs(collection(db, "plans"));
         const plans = [];
@@ -610,6 +646,136 @@ export const getPlanDetails = async (planId) => {
         }
     } catch (error) {
         console.error("Error fetching plan details:", error);
+        throw error;
+    }
+};
+
+export const createOrder = async (orderData) => {
+    try {
+        const docRef = await addDoc(collection(db, 'orders'), {
+            ...orderData,
+            createdAt: serverTimestamp(),
+        });
+        return docRef.id;
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const getUserOrders = async () => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+        // Query 'orders' collection where customerId matches current user
+        const q = query(
+            collection(db, "orders"),
+            where("customerId", "==", user.uid),
+            orderBy("createdAt", "desc")
+        );
+
+        const querySnapshot = await getDocs(q);
+        const orders = [];
+        querySnapshot.forEach((doc) => {
+            orders.push({ id: doc.id, ...doc.data() });
+        });
+        return orders;
+    } catch (error) {
+        console.error("Error fetching orders:", error);
+        throw error;
+    }
+};
+
+export const getAgencyOrders = async () => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+        // This assumes your 'orders' documents include an 'agencyId' field
+        const q = query(
+            collection(db, "orders"),
+            where("agencyId", "==", user.uid),
+            orderBy("createdAt", "desc")
+        );
+
+        const querySnapshot = await getDocs(q);
+        const orders = [];
+        querySnapshot.forEach((doc) => {
+            orders.push({ id: doc.id, ...doc.data() });
+        });
+        return orders;
+    } catch (error) {
+        console.error("Error fetching agency orders:", error);
+        throw error;
+    }
+};
+
+export const getAllOrders = async () => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+        // This assumes your 'orders' documents include an 'agencyId' field
+        const q = query(
+            collection(db, "orders"),
+            orderBy("createdAt", "desc")
+        );
+
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+    } catch (error) {
+        console.error("Error fetching all orders:", error);
+        throw error;
+    }
+};
+
+export const getOrderDetails = async (orderId) => {
+    try {
+        const docRef = doc(db, "orders", orderId);
+        const docSnap = await getDoc(docRef);
+        return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const getAllUsers = async () => {
+    try {
+        const querySnapshot = await getDocs(collection(db, "users"));
+        const users = [];
+        querySnapshot.forEach((doc) => {
+            // 把 ID 和数据合并
+            users.push({ id: doc.id, ...doc.data() });
+        });
+        return users;
+    } catch (error) {
+        console.error("Error fetching all users:", error);
+        return [];
+    }
+};
+
+// 2. 删除用户数据 (这就是 Option A)
+export const deleteUserFromFirestore = async (userId) => {
+    try {
+        await deleteDoc(doc(db, "users", userId));
+        return true;
+    } catch (error) {
+        console.error("Error deleting user:", error);
+        throw error;
+    }
+};
+
+// 3. 管理员更新用户信息 (比如重置名字)
+export const adminUpdateUser = async (userId, newData) => {
+    try {
+        const userRef = doc(db, "users", userId);
+        await updateDoc(userRef, newData);
+        return true;
+    } catch (error) {
+        console.error("Error admin updating user:", error);
         throw error;
     }
 };

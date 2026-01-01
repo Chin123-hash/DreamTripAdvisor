@@ -9,6 +9,7 @@ import {
 
 
 
+
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -44,7 +45,7 @@ export default function LoginScreen() {
   
       // 2. Check Role & Navigate
       if (result.role === 'admin') {
-        // router.replace('/admin-dashboard');
+        router.replace('/admin-user-list');
         Alert.alert("Welcome Admin", "Login Successful!");
       } else if (result.role === 'agency') {
         router.replace('/agency-main');

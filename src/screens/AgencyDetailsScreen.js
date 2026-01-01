@@ -6,6 +6,7 @@ import {
   Image // Needed to show the selected photo
   ,
 
+
   KeyboardAvoidingView,
   Platform,
   ScrollView,
