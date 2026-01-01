@@ -140,9 +140,6 @@ export default function AdminOrdersScreen() {
         loadData();
     };
 
-    const handleBackPress = () => {
-        Alert.alert("Main Page will be done in a while");
-    };
 
     const FilterSection = () => (
         <View style={styles.filterSection}>
@@ -272,7 +269,7 @@ export default function AdminOrdersScreen() {
         <SafeAreaView style={styles.container}>
             <View style={styles.headerBar}>
                 {/* Back Button */}
-                <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
+                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={28} color="#333" />
                 </TouchableOpacity>
 

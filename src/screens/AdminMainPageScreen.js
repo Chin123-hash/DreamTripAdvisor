@@ -160,7 +160,7 @@ export default function AdminMainPageScreen() {
                     {/* ORDERS BUTTON */}
                     <TouchableOpacity 
                         style={[styles.bigButton, { backgroundColor: '#E8F5E9' }]} 
-                        onPress={() => router.push('/admin/orders')}
+                        onPress={() => router.push('/admin-order-dashboard')}
                     >
                         <View style={[styles.iconCircle, { backgroundColor: '#C8E6C9' }]}>
                             <Ionicons name="receipt-sharp" size={42} color="#388E3C" />

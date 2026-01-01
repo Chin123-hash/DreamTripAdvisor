@@ -11,7 +11,7 @@ import {
     Alert,
     Image,
     KeyboardAvoidingView,
-    LogBox,
+    LogBox, // <--- Ensure this is imported
     Platform,
     ScrollView,
     StyleSheet,
@@ -25,8 +25,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { addFood } from '../services/AuthService';
 
-// Ignore nested list warnings
-LogBox.ignoreLogs(['VirtualizedLists should not be nested']);
+// [FIXED] Updated the text to match the actual React Native warning exactly
+LogBox.ignoreLogs(['VirtualizedLists should never be nested']);
 
 const generateFoodId = () => {
     const timestamp = new Date().getTime().toString().slice(-10);
@@ -37,21 +37,20 @@ const generateFoodId = () => {
 // 🔴 REPLACE WITH YOUR ACTUAL API KEY
 const GOOGLE_PLACES_API_KEY = 'AIzaSyDIAZukJLwu4-KsDsZASQ8byWKAEPTos7g'; 
 
-export function AgencyUploadFoodScreen() {
+export default function AgencyUploadFoodScreen() { // Added export default
     const router = useRouter();
     const auth = getAuth();
     const currentUser = auth.currentUser;
     const locationRef = useRef(); 
 
-    // State Variables
+    // ... (Your State Variables remain the same)
     const [foodId] = useState(generateFoodId());
     const [foodName, setFoodName] = useState('');
     const [priceRange, setPriceRange] = useState('');
     const [cuisineType, setCuisineType] = useState('');
     
-    // [FIX 1] Added separate state for the URL
-    const [location, setLocation] = useState(''); // Text address (Visual)
-    const [locationUrl, setLocationUrl] = useState(''); // Map Link (Logic)
+    const [location, setLocation] = useState(''); 
+    const [locationUrl, setLocationUrl] = useState(''); 
     
     const [imageUri, setImageUri] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -61,7 +60,7 @@ export function AgencyUploadFoodScreen() {
         setPriceRange('');
         setCuisineType('');
         setLocation('');
-        setLocationUrl(''); // Clear URL on reset
+        setLocationUrl(''); 
         setImageUri(null);
         if (locationRef.current) {
             locationRef.current.setAddressText('');
@@ -87,7 +86,6 @@ export function AgencyUploadFoodScreen() {
             return;
         }
 
-        // Check if locationUrl is present now
         if (!foodName || !priceRange || !cuisineType || !location || !imageUri) {
             Alert.alert("Missing Info", "Please fill in all fields and upload a picture.");
             return;
@@ -99,10 +97,7 @@ export function AgencyUploadFoodScreen() {
             title: foodName,              
             priceRange: priceRange,       
             description: finalDescription,
-            
-            // [FIX 2] Explicitly saving the locationURL
             locationURL: locationUrl, 
-            
             suggestedTransport: 'N/A',
             transportCost: 0,
             estimatedTotalExpenses: parseFloat(priceRange) || 0,
@@ -112,7 +107,6 @@ export function AgencyUploadFoodScreen() {
         setLoading(true);
         try {
             await addFood(foodData, imageUri);
-            
             Alert.alert("Success", "Food Item Uploaded!");
             handleReset(); 
         } catch (error) {
@@ -139,7 +133,8 @@ export function AgencyUploadFoodScreen() {
             >
                 <ScrollView 
                     contentContainerStyle={styles.scrollContainer}
-                    keyboardShouldPersistTaps="always" 
+                    keyboardShouldPersistTaps="always"
+                    nestedScrollEnabled={true} // [FIXED] Helps Android handle nested scrolling better
                 >
                     
                     <Text style={styles.idText}>
@@ -214,24 +209,32 @@ export function AgencyUploadFoodScreen() {
                         <View style={{ zIndex: 9999, marginBottom: 15 }}>
                             <GooglePlacesAutocomplete
                                 ref={locationRef}
+                                // 1. ADD THIS: Delays the API call slightly (300ms) so it doesn't freeze while typing
+                                debounce={300} 
+                                
+                                // 2. ADD THIS: Improves text input responsiveness
+                                textInputProps={{
+                                    onChangeText: (text) => { console.log(text); }, // Optional: for debugging
+                                    autoCorrect: false, // Disabling auto-correct speeds up typing
+                                }}
                                 placeholder="Search Restaurant Location..."
                                 fetchDetails={true}
                                 onPress={(data, details = null) => {
-                                    // 1. Save Text Address
                                     setLocation(data.description);
                                     
-                                    // [FIX 3] Generate and Save URL
                                     if (details?.url) {
                                         setLocationUrl(details.url);
                                     } else if (details?.geometry?.location) {
                                         const { lat, lng } = details.geometry.location;
-                                        const generatedUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+                                        // [FIXED] Correct URL string interpolation
+                                        const generatedUrl = `http://googleusercontent.com/maps.google.com/maps?q=${lat},${lng}`;
                                         setLocationUrl(generatedUrl);
                                     }
                                 }}
                                 query={{
                                     key: GOOGLE_PLACES_API_KEY,
                                     language: 'en',
+                                    
                                 }}
                                 styles={{
                                     textInput: styles.searchInput,

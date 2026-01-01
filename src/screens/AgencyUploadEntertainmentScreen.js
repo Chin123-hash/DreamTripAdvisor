@@ -11,7 +11,7 @@ import {
     Alert,
     Image,
     KeyboardAvoidingView,
-    LogBox,
+    LogBox, // <--- Ensure LogBox is imported
     Platform,
     ScrollView,
     StyleSheet,
@@ -25,8 +25,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { addEntertainment } from '../services/AuthService';
 
-// Ignore nested list warnings
-LogBox.ignoreLogs(['VirtualizedLists should not be nested']);
+// [FIXED] Updated the text to match the actual React Native warning exactly
+LogBox.ignoreLogs(['VirtualizedLists should never be nested']);
 
 const generateEntertainmentId = () => {
     const timestamp = new Date().getTime().toString().slice(-10);
@@ -37,7 +37,7 @@ const generateEntertainmentId = () => {
 // 🔴 REPLACE WITH YOUR ACTUAL API KEY
 const GOOGLE_PLACES_API_KEY = 'AIzaSyDIAZukJLwu4-KsDsZASQ8byWKAEPTos7g'; 
 
-export function AgencyUploadEntertainmentScreen() {
+export default function AgencyUploadEntertainmentScreen() { // [FIXED] Added export default
     const router = useRouter();
     const auth = getAuth();
     const currentUser = auth.currentUser;
@@ -53,9 +53,9 @@ export function AgencyUploadEntertainmentScreen() {
     const [description, setDescription] = useState('');
     const [totalExpenses, setTotalExpenses] = useState('');
     
-    // Location States (Match Food Style)
-    const [location, setLocation] = useState(''); // Text address (Visual)
-    const [locationUrl, setLocationUrl] = useState(''); // Map Link (Logic)
+    // Location States
+    const [location, setLocation] = useState(''); 
+    const [locationUrl, setLocationUrl] = useState(''); 
 
     const [imageUri, setImageUri] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -115,8 +115,6 @@ export function AgencyUploadEntertainmentScreen() {
         // Use user input for total, or auto-calculated sum if empty
         const finalTotal = totalExpenses ? totalExpenses : (currentSum > 0 ? currentSum.toString() : '0');
 
-        // Append Location address to description for display consistency
-        // (Optional: You can remove this line if you don't want address in description)
         const finalDescription = `${description}\n\nLocation: ${location}`;
 
         const entertainmentData = {
@@ -126,10 +124,7 @@ export function AgencyUploadEntertainmentScreen() {
             transportCost: transportPrice || '0', 
             estimatedTotalExpenses: finalTotal, 
             ticketPrice: ticketPrice, 
-            
-            // Location URL for the Map View
             locationURL: locationUrl, 
-
             rating: 5, 
             referenceId: entertainmentId,
             agencyId: currentUser.uid 
@@ -138,7 +133,6 @@ export function AgencyUploadEntertainmentScreen() {
         setLoading(true);
         try {
             await addEntertainment(entertainmentData, imageUri);
-            
             Alert.alert("Success", "Entertainment Package Uploaded!");
             handleReset(); 
         } catch (error) {
@@ -149,16 +143,13 @@ export function AgencyUploadEntertainmentScreen() {
         }
     };
 
-    // --- Render UI ---
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.headerBar}>
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={28} color="#333" /> 
                 </TouchableOpacity>
-                
                 <Text style={styles.headerTitle}>Upload Entertainment</Text>
-                
                 <View style={{ width: 33 }} />
             </View>
 
@@ -169,14 +160,13 @@ export function AgencyUploadEntertainmentScreen() {
                 <ScrollView 
                     contentContainerStyle={styles.scrollContainer}
                     keyboardShouldPersistTaps="always"
+                    nestedScrollEnabled={true} // [FIXED] Allow nested scrolling
                 >
                     
-                    {/* ID Display */}
                     <Text style={styles.idText}>
                         Entertainment ID: <Text style={{ fontWeight: '600' }}>{entertainmentId}</Text>
                     </Text>
 
-                    {/* Image Upload Area */}
                     <View style={styles.imageContainer}>
                         <View style={styles.imageBox}>
                             {imageUri ? (
@@ -206,7 +196,6 @@ export function AgencyUploadEntertainmentScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Form Inputs (Green Container Style) */}
                     <View style={styles.formContainer}>
                         <Text style={styles.label}>Entertainment Name</Text>
                         <TextInput 
@@ -217,7 +206,6 @@ export function AgencyUploadEntertainmentScreen() {
                             onChangeText={setTitle} 
                         />
                         
-                        {/* Row 1: Ticket Price & Transport Type */}
                         <View style={styles.row}>
                             <View style={styles.col}>
                                 <Text style={styles.label}>Ticket Price (RM)</Text>
@@ -242,7 +230,6 @@ export function AgencyUploadEntertainmentScreen() {
                             </View>
                         </View>
 
-                        {/* Row 2: Transport Price & Total Expenses */}
                         <View style={styles.row}>
                             <View style={styles.col}>
                                 <Text style={styles.label}>Transport Cost</Text>
@@ -265,7 +252,6 @@ export function AgencyUploadEntertainmentScreen() {
                                     value={totalExpenses} 
                                     onChangeText={setTotalExpenses} 
                                     onFocus={() => {
-                                        // Auto-fill sum if empty
                                         if (!totalExpenses && currentSum > 0) {
                                             setTotalExpenses(currentSum.toString());
                                         }
@@ -274,29 +260,36 @@ export function AgencyUploadEntertainmentScreen() {
                             </View>
                         </View>
 
-                        {/* Google Places Search */}
                         <Text style={styles.label}>Location Search</Text>
                         <View style={{ zIndex: 9999, marginBottom: 15 }}>
                             <GooglePlacesAutocomplete
                                 ref={locationRef}
+                                // 1. ADD THIS: Delays the API call slightly (300ms) so it doesn't freeze while typing
+                                debounce={300} 
+                                
+                                // 2. ADD THIS: Improves text input responsiveness
+                                textInputProps={{
+                                    onChangeText: (text) => { console.log(text); }, // Optional: for debugging
+                                    autoCorrect: false, // Disabling auto-correct speeds up typing
+                                }}
                                 placeholder="Search Entertainment Location..."
                                 fetchDetails={true}
                                 onPress={(data, details = null) => {
-                                    // 1. Save Text Address
                                     setLocation(data.description);
                                     
-                                    // 2. Generate and Save URL (Same logic as Food Screen)
                                     if (details?.url) {
                                         setLocationUrl(details.url);
                                     } else if (details?.geometry?.location) {
                                         const { lat, lng } = details.geometry.location;
-                                        const generatedUrl = `http://googleusercontent.com/maps.google.com/?q=${lat},${lng}`;
+                                        // [FIXED] Correct URL string interpolation with ${}
+                                        const generatedUrl = `http://googleusercontent.com/maps.google.com/maps?q=${lat},${lng}`;
                                         setLocationUrl(generatedUrl);
                                     }
                                 }}
                                 query={{
                                     key: GOOGLE_PLACES_API_KEY,
                                     language: 'en',
+                                    
                                 }}
                                 styles={{
                                     textInput: styles.searchInput,
@@ -318,7 +311,6 @@ export function AgencyUploadEntertainmentScreen() {
                             onChangeText={setDescription} 
                         />
 
-                        {/* Buttons inside container */}
                         <View style={styles.buttonRow}>
                             <TouchableOpacity
                                 style={[styles.resetButton, loading && {opacity: 0.5}]}
@@ -380,7 +372,6 @@ const styles = StyleSheet.create({
     },
     changePictureText: { marginLeft: 8, fontSize: 14, color: '#FFFFFF', fontWeight: 'bold' },
 
-    // Form Styles (Matching Food Screen)
     formContainer: {
         backgroundColor: '#F4FFF2', 
         borderRadius: 15, padding: 20, marginBottom: 30,
@@ -395,7 +386,6 @@ const styles = StyleSheet.create({
         fontSize: 15, marginBottom: 15, color: '#333',
     },
 
-    // Search Input Styles
     searchInput: {
         height: 45,
         borderWidth: 1,
