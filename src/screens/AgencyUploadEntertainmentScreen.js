@@ -3,7 +3,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router'; // <--- ADDED IMPORT
+import { useRouter } from 'expo-router';
 import { getAuth } from 'firebase/auth';
 import React, { useState } from 'react';
 import {
@@ -23,7 +23,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { addEntertainment } from '../services/AuthService';
 
-
 const generateEntertainmentId = () => {
     const timestamp = new Date().getTime().toString().slice(-10);
     const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
@@ -31,17 +30,23 @@ const generateEntertainmentId = () => {
 };
 
 export function AgencyUploadEntertainmentScreen() {
-    const router = useRouter(); // <--- INITIALIZE ROUTER
+    const router = useRouter();
     const auth = getAuth();
     const currentUser = auth.currentUser;
 
     const [entertainmentId] = useState(generateEntertainmentId());
+    
+    // --- States ---
     const [title, setTitle] = useState('');
     const [ticketPrice, setTicketPrice] = useState('');
     const [transportType, setTransportType] = useState(''); 
     const [transportPrice, setTransportPrice] = useState(''); 
     const [description, setDescription] = useState('');
     const [totalExpenses, setTotalExpenses] = useState('');
+    
+    // 1. 新增 Location State
+    const [locationUrl, setLocationUrl] = useState(''); 
+
     const [imageUri, setImageUri] = useState(null);
     const [loading, setLoading] = useState(false);
 
@@ -60,12 +65,12 @@ export function AgencyUploadEntertainmentScreen() {
         setTransportPrice('');
         setDescription('');
         setTotalExpenses('');
+        setLocationUrl(''); // 2. Reset时清空地址
         setImageUri(null); 
     };
 
     
     const pickImage = async () => {
-       
         let result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images, 
             allowsEditing: true,
@@ -85,7 +90,7 @@ export function AgencyUploadEntertainmentScreen() {
             return;
         }
 
-      
+        // 验证必填项 (Location 可选，如果必须填请在下面加上 !locationUrl)
         if (!title || !ticketPrice || !description || !imageUri) {
             Alert.alert("Error", "Please fill in Entertainment Name, Ticket Price, Description, and upload a Picture.");
             return;
@@ -103,6 +108,11 @@ export function AgencyUploadEntertainmentScreen() {
             transportCost: transportPrice || '0', 
             estimatedTotalExpenses: totalExpenses || '0', 
             ticketPrice: ticketPrice, 
+            
+            // 3. 把 locationURL 加入数据包
+            // 注意：这里用了 locationURL (大写URL)，因为你的 AuthService 是这样写的
+            locationURL: locationUrl, 
+
             rating: 5, 
             referenceId: entertainmentId,
             agencyId: currentUser.uid 
@@ -129,7 +139,6 @@ export function AgencyUploadEntertainmentScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.headerBar}>
-                {/* UPDATED BACK BUTTON */}
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={28} color="#333" /> 
                 </TouchableOpacity>
@@ -243,6 +252,21 @@ export function AgencyUploadEntertainmentScreen() {
                                     }}
                                 />
                             </View>
+                        </View>
+
+                        {/* 4. 新增：Location Input (放在Total Expenses下面，Description上面) */}
+                        <Text style={styles.label}>Location Link (Google Map / Waze)</Text>
+                        <View style={styles.locationInputContainer}>
+                            <Ionicons name="location-sharp" size={20} color="#666" style={{ marginRight: 8 }} />
+                            <TextInput 
+                                style={styles.locationInput} 
+                                placeholder="Paste location link here..." 
+                                placeholderTextColor="#888"
+                                value={locationUrl} 
+                                onChangeText={setLocationUrl} 
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                            />
                         </View>
 
                         <Text style={styles.label}>Description</Text>
@@ -376,7 +400,7 @@ const styles = StyleSheet.create({
     },
 
     formContainer: {
-        backgroundColor: '#F4FFF2', // 绿色主题背景
+        backgroundColor: '#F4FFF2', 
         borderRadius: 15,
         padding: 20,
         marginBottom: 30,
@@ -404,6 +428,27 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         color: '#333',
     },
+    
+    // 5. 新增 Location 输入框样式
+    locationInputContainer: {
+        width: '100%',
+        height: 45,
+        borderWidth: 1,
+        borderColor: '#E1E1E1',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        backgroundColor: '#FFFFFF',
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    locationInput: {
+        flex: 1,
+        height: '100%',
+        fontSize: 15,
+        color: '#333',
+    },
+
     multilineInput: {
         height: 100,
         textAlignVertical: 'top',
