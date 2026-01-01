@@ -73,14 +73,15 @@ export const registerAgency = async (email, password, agencyData, logoUri) => {
             logoUrl = await uploadLogo(logoUri, user.uid);
         }
 
-        // 3. Save Data to Firestore
+        // 3. Save Data to Firestore with default status 'pending'
         await setDoc(doc(db, "users", user.uid), {
             email: email,
             role: 'agency',
             agencyName: agencyData.agencyName,
             licenseNo: agencyData.licenseNo,
             companyUrl: agencyData.companyUrl,
-            logoUrl: logoUrl, // We save the link, not the file!
+            logoUrl: logoUrl,      // We save the link, not the file!
+            status: 'pending',     // <-- Default status
             createdAt: new Date().toISOString()
         });
 
