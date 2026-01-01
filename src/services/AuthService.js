@@ -717,16 +717,14 @@ export const getAllOrders = async () => {
         // This assumes your 'orders' documents include an 'agencyId' field
         const q = query(
             collection(db, "orders"),
-            where("adminId", "==", user.uid),
             orderBy("createdAt", "desc")
         );
 
         const querySnapshot = await getDocs(q);
-        const orders = [];
-        querySnapshot.forEach((doc) => {
-            orders.push({ id: doc.id, ...doc.data() });
-        });
-        return orders;
+        return querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
     } catch (error) {
         console.error("Error fetching all orders:", error);
         throw error;
