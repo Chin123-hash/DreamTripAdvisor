@@ -1,8 +1,8 @@
 // src/screens/CustomerMainPage.js
 
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router'; // ADDED: useFocusEffect
+import React, { useCallback, useRef, useState } from 'react'; // ADDED: useCallback
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   FlatList,
   Image,
   Modal,
+  RefreshControl, // ADDED: RefreshControl
   ScrollView,
   StyleSheet,
   Text,
@@ -21,7 +22,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Service
-// ADDED: getPlanList to the imports
 import { getCurrentUserData, getEntertainmentList, getFoodList, getPlanList, logoutUser } from '../services/AuthService';
 
 const { width } = Dimensions.get('window');
@@ -32,18 +32,18 @@ export default function CustomerMainPage() {
   // --- STATE ---
   const [entertainmentList, setEntertainmentList] = useState([]);
   const [foodList, setFoodList] = useState([]);
-  // ADDED: State for plans
   const [planList, setPlanList] = useState([]); 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false); // ADDED: Refreshing state
   const [userData, setUserData] = useState(null);
 
   // --- SIDEBAR STATE ---
   const [isSidebarVisible, setSidebarVisible] = useState(false);
   const slideAnim = useRef(new Animated.Value(-width)).current; 
 
-  // --- FETCH DATA ---
-  useEffect(() => {
-    const fetchData = async () => {
+  // --- FETCH DATA FUNCTION ---
+  // We extracted this logic so it can be reused by Focus and Pull-to-Refresh
+  const fetchData = async () => {
       try {
         // 1. Fetch Entertainment
         const entData = await getEntertainmentList();
@@ -57,19 +57,14 @@ export default function CustomerMainPage() {
             .map(item => ({ ...item, image: item.imageUrl }));
         setFoodList(validFood);
 
-        // 3. Fetch Plans (NEW CODE)
+        // 3. Fetch Plans
         const pData = await getPlanList();
-        // We map the database fields to the names your UI expects
         const formattedPlans = pData.map(item => ({
             id: item.id,
             title: item.title || 'Untitled Plan',
-            // Check if DB uses 'description' or 'desc', fallback to empty string
             desc: item.description || item.desc || 'No description available.',
-            // Check if DB uses 'price', ensure it's a string or number
             price: item.price || 'N/A',
-            // Default rating to 5 if missing
             rating: item.rating || 5, 
-            // Use imageUrl from DB, or a placeholder if missing
             image: item.imageUrl || 'https://via.placeholder.com/300' 
         }));
         setPlanList(formattedPlans);
@@ -80,12 +75,30 @@ export default function CustomerMainPage() {
 
       } catch (error) {
         console.error("Failed to load data:", error);
-      } finally {
-        setLoading(false);
       }
-    };
-    fetchData();
-  }, []);
+  };
+
+  // --- AUTO REFRESH ON FOCUS ---
+  // This runs every time the screen becomes active/visible
+  useFocusEffect(
+    useCallback(() => {
+      const loadOnFocus = async () => {
+        // We do NOT set global loading=true here to prevent full screen flash
+        // We just fetch data in the background
+        await fetchData();
+        setLoading(false); // Ensure loading is off after first fetch
+      };
+      
+      loadOnFocus();
+    }, [])
+  );
+
+  // --- PULL TO REFRESH ---
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+  };
 
   // --- SIDEBAR ANIMATION ---
   const openSidebar = () => {
@@ -131,7 +144,14 @@ export default function CustomerMainPage() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        // ADDED: Refresh Control here
+        refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#648DDB']} />
+        }
+      >
         
         {/* HEADER */}
         <View style={styles.headerContainer}>
@@ -273,8 +293,8 @@ export default function CustomerMainPage() {
                       </TouchableOpacity>
                       
                       <TouchableOpacity style={styles.menuItem} onPress={() => { closeSidebar(); router.push('/history'); }}>
-                          <Ionicons name="time-outline" size={24} color="#333" />
-                          <Text style={styles.menuText}>History</Text>
+                          <Ionicons name="receipt-outline" size={24} color="#333" />
+                          <Text style={styles.menuText}>Orders</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity style={styles.menuItem} onPress={() => closeSidebar()}>

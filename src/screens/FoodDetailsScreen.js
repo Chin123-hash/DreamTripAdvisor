@@ -9,6 +9,7 @@ import {
     Dimensions,
     FlatList,
     Image,
+    Linking, // <--- Added for Navigation
     Modal,
     ScrollView,
     StatusBar,
@@ -18,6 +19,8 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { WebView } from 'react-native-webview'; // <--- Added for Map
+
 import { addItemToPlan, createNewPlan, getFoodById, getUserPlans } from '../services/AuthService';
 
 const { width, height } = Dimensions.get('window');
@@ -27,7 +30,6 @@ const FoodDetailsScreen = () => {
     const { id } = useLocalSearchParams();
 
     // Data State
-    // FIXED: Removed 'food' state, we only need 'data'
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -40,12 +42,12 @@ const FoodDetailsScreen = () => {
     const [isCreatingPlan, setIsCreatingPlan] = useState(false);
     const [newPlanName, setNewPlanName] = useState('');
 
-    // --- 1. FETCH DATA (FIXED) ---
+    // --- 1. FETCH DATA ---
     useEffect(() => {
         const fetchDetails = async () => {
             try {
-                const result = await getFoodById(id); // Renamed variable to avoid conflict
-                setData(result); // Set the correct state variable
+                const result = await getFoodById(id); 
+                setData(result); 
             } catch (error) {
                 console.error("Error fetching food details:", error);
             } finally {
@@ -54,6 +56,38 @@ const FoodDetailsScreen = () => {
         };
         if (id) fetchDetails();
     }, [id]);
+
+    // --- MAP CLEANING SCRIPT ---
+    const mobileCleanScript = `
+      (function() {
+        function hideJunk() {
+            var css = \`
+                .app-view-header, header, .ml-searchbox-landing-omnibox-container, .searchbox-hamburger-container { display: none !important; opacity: 0 !important; }
+                .place-card-large, .place-card, .bottom-panel, .scene-footer, .QU77pf, .k69vge, .bJzME, .h169D { display: none !important; opacity: 0 !important; }
+                .ml-promotion-container, .mobile-promotion-container, .promotional-footer, .upsell-container { display: none !important; opacity: 0 !important; }
+                .gb_gd, .gb_T, .gb_zd { display: none !important; opacity: 0 !important; }
+            \`;
+            var head = document.head || document.getElementsByTagName('head')[0];
+            var style = document.createElement('style');
+            style.type = 'text/css';
+            style.appendChild(document.createTextNode(css));
+            head.appendChild(style);
+        }
+        hideJunk();
+        setInterval(hideJunk, 500);
+      })();
+      true;
+    `;
+
+    const openNavigationApp = () => {
+        if (data?.locationURL) {
+            Linking.openURL(data.locationURL).catch(() => {
+                Alert.alert('Error', 'Could not open map application.');
+            });
+        } else {
+            Alert.alert('No Location', 'No location link provided.');
+        }
+    };
 
     // --- ACTION: Open Modal & Fetch Plans ---
     const handleAddToPlanClick = async () => {
@@ -77,7 +111,6 @@ const FoodDetailsScreen = () => {
         }
         try {
             const newPlanId = await createNewPlan(newPlanName);
-            // Pass the new plan directly to the selection handler
             await handleSelectItem({ id: newPlanId, planName: newPlanName });
         } catch (error) {
             Alert.alert("Error", "Failed to create plan.");
@@ -90,7 +123,6 @@ const FoodDetailsScreen = () => {
             const itemToSave = {
                 id: data.id,
                 title: data.title,
-                // Ensure price is a number
                 price: parseFloat(data.estimatedTotalExpenses) || parseFloat(data.price) || 0, 
                 imageUrl: data.imageUrl,
                 type: 'food' 
@@ -160,6 +192,49 @@ const FoodDetailsScreen = () => {
                         <Text style={styles.costLabel}>Transport ({data.suggestedTransport || 'Grab'})</Text>
                         <Text style={styles.costValue}>RM {transportPrice.toFixed(2)}</Text>
                     </View>
+
+                    <View style={styles.divider} />
+
+                    {/* === MAP SECTION ADDED HERE === */}
+                    <Text style={styles.sectionTitle}>Location Preview</Text>
+                    <View style={styles.mapContainer}>
+                        {data.locationURL ? (
+                            <WebView
+                                source={{ uri: data.locationURL }}
+                                style={styles.mapWebView}
+                                nestedScrollEnabled={true}
+                                showsUserLocation={false}
+                                androidLayerType="hardware"
+                                userAgent="Mozilla/5.0 (Linux; Android 10; Mobile; rv:89.0) Gecko/89.0 Firefox/89.0"
+                                injectedJavaScript={mobileCleanScript}
+                                originWhitelist={['*']}
+                                javaScriptEnabled={true}
+                                domStorageEnabled={true}
+                                startInLoadingState={true}
+                                renderLoading={() => (
+                                    <View style={styles.loadingOverlay}>
+                                        <ActivityIndicator color="#FF7C5E" />
+                                    </View>
+                                )}
+                                onShouldStartLoadWithRequest={(request) => {
+                                    const { url } = request;
+                                    if (url.startsWith('http') || url.startsWith('https')) return true;
+                                    return false;
+                                }}
+                            />
+                        ) : (
+                            <View style={styles.noMapContainer}>
+                                <Ionicons name="map-outline" size={30} color="#ccc" />
+                                <Text style={styles.noMapText}>No location map available</Text>
+                            </View>
+                        )}
+
+                        <TouchableOpacity style={styles.navigateFab} onPress={openNavigationApp}>
+                            <Ionicons name="navigate" size={20} color="#FFF" />
+                            <Text style={styles.navigateFabText}>Go</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {/* ============================= */}
 
                     <View style={{ height: 140 }} />
                 </ScrollView>
@@ -275,6 +350,45 @@ const styles = StyleSheet.create({
     costRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
     costLabel: { fontSize: 17, color: '#333' },
     costValue: { fontSize: 17, fontWeight: 'bold' },
+
+    // === MAP STYLES ===
+    mapContainer: {
+        width: '100%',
+        height: 450, // <--- Set to 450 as requested
+        borderRadius: 20,
+        overflow: 'hidden',
+        marginBottom: 10,
+        position: 'relative',
+        backgroundColor: '#f9f9f9',
+        borderWidth: 1,
+        borderColor: '#EEE'
+    },
+    mapWebView: {
+        flex: 1,
+        backgroundColor: 'transparent',
+        opacity: 0.99
+    },
+    navigateFab: {
+        position: 'absolute',
+        bottom: 10,
+        right: 10,
+        backgroundColor: '#FF7C5E', // Matched theme color
+        flexDirection: 'row',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+        alignItems: 'center',
+        elevation: 5,
+        zIndex: 999
+    },
+    navigateFabText: { color: '#FFF', marginLeft: 5, fontSize: 12, fontWeight: 'bold' },
+    noMapContainer: { height: 100, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 12 },
+    noMapText: { marginTop: 5, color: '#999', fontSize: 12 },
+    loadingOverlay: {
+        position: 'absolute', top: 0, bottom: 0, left: 0, right: 0,
+        justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0'
+    },
+
     bottomBar: { position: 'absolute', bottom: 0, width: '100%', height: 120, backgroundColor: '#FFF', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 30, paddingBottom: 20, borderTopWidth: 1, borderColor: '#F0F0F0', elevation: 20 },
     totalLabel: { fontSize: 14, color: '#888', textTransform: 'uppercase' },
     totalPrice: { fontSize: 28, fontWeight: '800', color: '#FF7C5E' },

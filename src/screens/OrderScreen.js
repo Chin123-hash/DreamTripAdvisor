@@ -12,20 +12,21 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { getUserPlans } from '../services/AuthService';
+// CHANGED: Import getUserOrders instead of getUserPlans
+import { getUserOrders } from '../services/AuthService';
 
 export default function HistoryScreen() {
     const router = useRouter();
-    const [plans, setPlans] = useState([]);
+    const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
-    const loadPlans = async () => {
+    const loadOrders = async () => {
         try {
-            const data = await getUserPlans();
-            setPlans(data);
+            const data = await getUserOrders();
+            setOrders(data);
         } catch (error) {
-            console.error("Error loading history:", error);
+            console.error("Error loading orders:", error);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -33,46 +34,48 @@ export default function HistoryScreen() {
     };
 
     useEffect(() => {
-        loadPlans();
+        loadOrders();
     }, []);
 
     const onRefresh = () => {
         setRefreshing(true);
-        loadPlans();
+        loadOrders();
     };
 
-    // Calculate total cost for a plan (just an estimate based on items)
-    const calculateTotal = (items) => {
-        if (!items) return "0.00";
-        return items.reduce((sum, item) => sum + (item.price || 0), 0).toFixed(2);
-    };
+    // Helper to get status color
 
-    const renderPlanItem = ({ item }) => (
+    const renderOrderItem = ({ item }) => (
         <TouchableOpacity 
             style={styles.card} 
-            onPress={() => alert(`Details for ${item.planName} coming soon!`)}
+            // You can implement an OrderDetails screen later if needed
+            onPress={() => alert(`Order ID: ${item.id}`)}
         >
             <View style={styles.cardHeader}>
                 <View style={styles.iconBox}>
-                    <Ionicons name="map" size={24} color="#5A8AE4" />
+                    {/* Changed icon to receipt/ticket */}
+                    <Ionicons name="ticket-outline" size={24} color="#5A8AE4" />
                 </View>
                 <View style={styles.cardInfo}>
-                    <Text style={styles.planName}>{item.planName}</Text>
-                    <Text style={styles.planDate}>Created: {new Date(item.createdAt).toLocaleDateString()}</Text>
+                    <Text style={styles.planName}>{item.planName || "Trip Order"}</Text>
+                    <Text style={styles.agencyName}>Agency: {item.agencyName || "Unknown"}</Text>
+                    <Text style={styles.dateText}>
+                        Travel Date: {item.travelDate ? new Date(item.travelDate).toLocaleDateString() : "N/A"}
+                    </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#CCC" />
+                {/* Status Badge */}
+                
             </View>
 
             <View style={styles.divider} />
 
             <View style={styles.cardFooter}>
                 <View style={styles.stat}>
-                    <Ionicons name="location-outline" size={16} color="#666" />
-                    <Text style={styles.statText}>{item.items?.length || 0} Places</Text>
+                    <Ionicons name="people-outline" size={16} color="#666" />
+                    <Text style={styles.statText}>{item.pax || 1} Pax</Text>
                 </View>
                 <View style={styles.stat}>
                     <Ionicons name="wallet-outline" size={16} color="#666" />
-                    <Text style={styles.statText}>RM {calculateTotal(item.items)}</Text>
+                    <Text style={styles.statText}>RM {item.totalAmount ? item.totalAmount.toFixed(2) : "0.00"}</Text>
                 </View>
             </View>
         </TouchableOpacity>
@@ -88,9 +91,11 @@ export default function HistoryScreen() {
 
     return (
         <View style={styles.container}>
+            {/* Added a Header Title since it's now Orders */}
+
             <FlatList
-                data={plans}
-                renderItem={renderPlanItem}
+                data={orders}
+                renderItem={renderOrderItem}
                 keyExtractor={item => item.id}
                 contentContainerStyle={styles.listContent}
                 refreshControl={
@@ -98,9 +103,9 @@ export default function HistoryScreen() {
                 }
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
-                        <Ionicons name="time-outline" size={60} color="#DDD" />
-                        <Text style={styles.emptyText}>No history yet.</Text>
-                        <Text style={styles.subEmptyText}>Start planning your first trip!</Text>
+                        <Ionicons name="receipt-outline" size={60} color="#DDD" />
+                        <Text style={styles.emptyText}>No orders yet.</Text>
+                        <Text style={styles.subEmptyText}>Book a trip to see it here!</Text>
                     </View>
                 }
             />
@@ -111,6 +116,10 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F8F9FA' },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    
+    screenHeader: { flexDirection: 'row', alignItems: 'center', padding: 20, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#EEE' },
+    screenTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+
     listContent: { padding: 20 },
     
     card: {
@@ -131,9 +140,13 @@ const styles = StyleSheet.create({
         marginRight: 15
     },
     cardInfo: { flex: 1 },
-    planName: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 4 },
-    planDate: { fontSize: 12, color: '#888' },
+    planName: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 2 },
+    agencyName: { fontSize: 12, color: '#666', marginBottom: 2 },
+    dateText: { fontSize: 12, color: '#888' },
     
+    statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+    statusText: { color: '#FFF', fontSize: 10, fontWeight: 'bold', textTransform: 'capitalize' },
+
     divider: { height: 1, backgroundColor: '#F0F0F0', marginBottom: 12 },
     
     cardFooter: { flexDirection: 'row', justifyContent: 'space-between' },

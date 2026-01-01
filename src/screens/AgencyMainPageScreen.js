@@ -1,30 +1,33 @@
 // src/screens/AgencyMainPageScreen.js
 
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+// 1. 引入 useFocusEffect (用于自动刷新)
+import { useFocusEffect, useRouter } from 'expo-router';
+// 2. 引入 useCallback (配合 useFocusEffect 使用)
+import React, { useCallback, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    Dimensions,
-    FlatList,
-    Image,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  FlatList,
+  Image,
+  Modal,
+  RefreshControl, // 3. 引入 RefreshControl (用于下拉刷新)
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // Service Imports
 import {
-    getCurrentUserData,
-    getEntertainmentList,
-    getFoodList,
-    getPlanList, // <--- UPDATED: Using getPlanList as requested
-    logoutUser
+  getCurrentUserData,
+  getEntertainmentList,
+  getFoodList,
+  getPlanList,
+  logoutUser
 } from '../services/AuthService';
 
 const { width } = Dimensions.get('window');
@@ -37,24 +40,23 @@ export default function AgencyMainPageScreen() {
   const [foods, setFoods] = useState([]);
   const [allPlans, setAllPlans] = useState([]); 
   const [agencyData, setAgencyData] = useState(null);
+  
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false); // 4. 新增刷新状态
 
   // --- SIDEBAR STATE ---
   const [isSidebarVisible, setSidebarVisible] = useState(false);
   const slideAnim = useRef(new Animated.Value(-width)).current; 
 
-  // --- FETCH DATA ---
-  useEffect(() => {
-    const fetchData = async () => {
+  // --- FETCH DATA FUNCTION (提取出来以便复用) ---
+  const fetchData = async () => {
       try {
-        setLoading(true);
-        
-        // Fetch all data
+        // 并行获取所有数据
         const [userData, entList, foodList, plans] = await Promise.all([
           getCurrentUserData(),
           getEntertainmentList(),
           getFoodList(),
-          getPlanList() // <--- UPDATED: Calling getPlanList
+          getPlanList()
         ]);
         
         // Process Lists
@@ -71,8 +73,22 @@ export default function AgencyMainPageScreen() {
         console.error("Failed to load data:", error);
       } finally {
         setLoading(false);
+        setRefreshing(false); // 停止下拉刷新动画
       }
-    };
+  };
+
+  // --- 5. 核心修改：使用 useFocusEffect 替代 useEffect ---
+  // 每次你从 Upload 页面返回这里，这个函数都会运行
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true); // 或者是保持之前的 loading 状态
+      fetchData();
+    }, [])
+  );
+
+  // --- 6. 手动下拉刷新逻辑 ---
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
     fetchData();
   }, []);
 
@@ -112,7 +128,14 @@ export default function AgencyMainPageScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        // 7. 绑定 RefreshControl 到 ScrollView
+        refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#648DDB']} />
+        }
+      >
         
         {/* HEADER */}
         <View style={styles.headerContainer}>
@@ -129,7 +152,7 @@ export default function AgencyMainPageScreen() {
             <Image source={getDisplayImage()} style={styles.profilePic} />
             <View>
                 <Text style={styles.welcomeLabel}>Welcome back,</Text>
-                <Text style={styles.welcomeText}>{loading ? '...' : getDisplayName()}</Text>
+                <Text style={styles.welcomeText}>{loading && !refreshing ? 'Loading...' : getDisplayName()}</Text>
             </View>
           </View>
           <TouchableOpacity onPress={() => router.push('/explore')} style={styles.iconButton}>
@@ -151,7 +174,7 @@ export default function AgencyMainPageScreen() {
                 <Ionicons name="musical-notes-outline" size={24} color="#648DDB" />
                 <Text style={styles.gridText}>Add Ent.</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.gridButton}>
+            <TouchableOpacity style={styles.gridButton} onPress={() => router.push('/orderSalesDashboard')}>
                 <Ionicons name="list-outline" size={24} color="#648DDB" />
                 <Text style={styles.gridText}>View Orders</Text>
             </TouchableOpacity>
@@ -159,7 +182,7 @@ export default function AgencyMainPageScreen() {
 
         {/* ENTERTAINMENT LIST */}
         <Text style={styles.sectionTitle}>Popular Entertainment</Text>
-        {loading ? <ActivityIndicator size="small" color="#648DDB" /> : (
+        {loading && !refreshing ? <ActivityIndicator size="small" color="#648DDB" /> : (
           <FlatList
             data={entertainments}
             renderItem={(item) => renderHorizontalCard({ ...item, isFood: false })}
@@ -173,7 +196,7 @@ export default function AgencyMainPageScreen() {
 
         {/* FOOD LIST */}
         <Text style={styles.sectionTitle}>Popular Food</Text>
-        {loading ? <ActivityIndicator size="small" color="#648DDB" /> : (
+        {loading && !refreshing ? <ActivityIndicator size="small" color="#648DDB" /> : (
             <FlatList
                 data={foods}
                 renderItem={({ item }) => renderHorizontalCard({ item, isFood: true })}
@@ -189,39 +212,41 @@ export default function AgencyMainPageScreen() {
         <View style={styles.divider} />
         <Text style={styles.sectionTitle}>All Market Plans</Text>
         
-        {allPlans.length === 0 ? (
-            <Text style={styles.emptyText}>No plans available.</Text>
-        ) : (
-            allPlans.map((plan) => (
-            <TouchableOpacity 
-                key={plan.id}
-                style={styles.planCard}
-                onPress={() => router.push({ pathname: '/agencyplanDetails', params: { id: plan.id } })} 
-            >
-                <View style={styles.planRow}>
-                    <Image source={{ uri: plan.imageUrl || 'https://via.placeholder.com/200' }} style={styles.planImage} />
-                    <View style={styles.planInfo}>
-                        <Text style={styles.planTitle}>{plan.title || plan.planName || "Untitled"}</Text>
-                        <Text style={styles.planDesc} numberOfLines={1}>{plan.description || "No description"}</Text>
-                        <View style={styles.ratingRow}>
-                            <Ionicons name="star" size={14} color="#FFD700" />
-                            <Text style={{fontSize:12, marginLeft:5, color:'#666'}}>{plan.rating || 5}.0</Text>
-                            {/* Optional: Highlight if it's YOUR plan */}
-                            {plan.userId === agencyData?.uid && (
-                                <Text style={{fontSize:12, marginLeft:10, color:'#648DDB', fontWeight:'bold'}}>(Yours)</Text>
-                            )}
+        {loading && !refreshing ? <ActivityIndicator size="small" color="#648DDB" style={{marginTop: 20}} /> : (
+            allPlans.length === 0 ? (
+                <Text style={styles.emptyText}>No plans available.</Text>
+            ) : (
+                allPlans.map((plan) => (
+                <TouchableOpacity 
+                    key={plan.id}
+                    style={styles.planCard}
+                    onPress={() => router.push({ pathname: '/agencyplanDetails', params: { id: plan.id } })} 
+                >
+                    <View style={styles.planRow}>
+                        <Image source={{ uri: plan.imageUrl || 'https://via.placeholder.com/200' }} style={styles.planImage} />
+                        <View style={styles.planInfo}>
+                            <Text style={styles.planTitle}>{plan.title || plan.planName || "Untitled"}</Text>
+                            <Text style={styles.planDesc} numberOfLines={1}>{plan.description || "No description"}</Text>
+                            <View style={styles.ratingRow}>
+                                <Ionicons name="star" size={14} color="#FFD700" />
+                                <Text style={{fontSize:12, marginLeft:5, color:'#666'}}>{plan.rating || 5}.0</Text>
+                                {/* Optional: Highlight if it's YOUR plan */}
+                                {plan.userId === agencyData?.uid && (
+                                    <Text style={{fontSize:12, marginLeft:10, color:'#648DDB', fontWeight:'bold'}}>(Yours)</Text>
+                                )}
+                            </View>
+                            <Text style={styles.priceText}> {plan.price || '0'}</Text>
                         </View>
-                        <Text style={styles.priceText}> {plan.price || '0'}</Text>
                     </View>
-                </View>
-            </TouchableOpacity>
-            ))
+                </TouchableOpacity>
+                ))
+            )
         )}
         
         <View style={{height: 40}} /> 
       </ScrollView>
 
-      {/* SIDEBAR MODAL */}
+      {/* SIDEBAR MODAL - 保持不变 */}
       <Modal visible={isSidebarVisible} transparent={true} animationType="none" onRequestClose={closeSidebar}>
           <View style={styles.modalOverlay}>
               <TouchableWithoutFeedback onPress={closeSidebar}><View style={styles.modalTransparentArea} /></TouchableWithoutFeedback>
@@ -257,6 +282,7 @@ export default function AgencyMainPageScreen() {
   );
 }
 
+// Styles 保持不变
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
   scrollContent: { paddingBottom: 20 },

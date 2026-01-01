@@ -3,26 +3,30 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router'; // <--- ADDED IMPORT
+import { useRouter } from 'expo-router';
 import { getAuth } from 'firebase/auth';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     Image,
     KeyboardAvoidingView,
+    LogBox,
     Platform,
     ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
+import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { addEntertainment } from '../services/AuthService';
 
+// Ignore nested list warnings
+LogBox.ignoreLogs(['VirtualizedLists should not be nested']);
 
 const generateEntertainmentId = () => {
     const timestamp = new Date().getTime().toString().slice(-10);
@@ -30,29 +34,39 @@ const generateEntertainmentId = () => {
     return `E${timestamp}${random}`;
 };
 
+// 🔴 REPLACE WITH YOUR ACTUAL API KEY
+const GOOGLE_PLACES_API_KEY = 'AIzaSyDIAZukJLwu4-KsDsZASQ8byWKAEPTos7g'; 
+
 export function AgencyUploadEntertainmentScreen() {
-    const router = useRouter(); // <--- INITIALIZE ROUTER
+    const router = useRouter();
     const auth = getAuth();
     const currentUser = auth.currentUser;
+    const locationRef = useRef();
 
     const [entertainmentId] = useState(generateEntertainmentId());
+    
+    // --- States ---
     const [title, setTitle] = useState('');
     const [ticketPrice, setTicketPrice] = useState('');
     const [transportType, setTransportType] = useState(''); 
     const [transportPrice, setTransportPrice] = useState(''); 
     const [description, setDescription] = useState('');
     const [totalExpenses, setTotalExpenses] = useState('');
+    
+    // Location States (Match Food Style)
+    const [location, setLocation] = useState(''); // Text address (Visual)
+    const [locationUrl, setLocationUrl] = useState(''); // Map Link (Logic)
+
     const [imageUri, setImageUri] = useState(null);
     const [loading, setLoading] = useState(false);
 
-   
+    // Calculations
     const tPrice = parseFloat(ticketPrice) || 0;
     const trPrice = parseFloat(transportPrice) || 0;
     const currentSum = tPrice + trPrice;
     
-    const totalPlaceholder = currentSum > 0 ? currentSum.toString() : "RM";
+    const totalPlaceholder = currentSum > 0 ? currentSum.toString() : "0.00";
 
-    
     const handleReset = () => {
         setTitle('');
         setTicketPrice('');
@@ -60,12 +74,15 @@ export function AgencyUploadEntertainmentScreen() {
         setTransportPrice('');
         setDescription('');
         setTotalExpenses('');
+        setLocation('');
+        setLocationUrl('');
         setImageUri(null); 
+        if (locationRef.current) {
+            locationRef.current.setAddressText('');
+        }
     };
 
-    
     const pickImage = async () => {
-       
         let result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images, 
             allowsEditing: true,
@@ -78,16 +95,15 @@ export function AgencyUploadEntertainmentScreen() {
         }
     };
 
-    
     const handleSave = async () => {
         if (!currentUser) {
             Alert.alert("Error", "You must be logged in to upload content.");
             return;
         }
 
-      
-        if (!title || !ticketPrice || !description || !imageUri) {
-            Alert.alert("Error", "Please fill in Entertainment Name, Ticket Price, Description, and upload a Picture.");
+        // Basic Validation
+        if (!title || !ticketPrice || !description || !imageUri || !locationUrl) {
+            Alert.alert("Error", "Please fill in Name, Ticket Price, Description, Location, and upload a Picture.");
             return;
         }
 
@@ -96,13 +112,24 @@ export function AgencyUploadEntertainmentScreen() {
             return;
         }
         
+        // Use user input for total, or auto-calculated sum if empty
+        const finalTotal = totalExpenses ? totalExpenses : (currentSum > 0 ? currentSum.toString() : '0');
+
+        // Append Location address to description for display consistency
+        // (Optional: You can remove this line if you don't want address in description)
+        const finalDescription = `${description}\n\nLocation: ${location}`;
+
         const entertainmentData = {
             title: title,
-            description: description,
+            description: finalDescription, 
             suggestedTransport: transportType || 'N/A', 
             transportCost: transportPrice || '0', 
-            estimatedTotalExpenses: totalExpenses || '0', 
+            estimatedTotalExpenses: finalTotal, 
             ticketPrice: ticketPrice, 
+            
+            // Location URL for the Map View
+            locationURL: locationUrl, 
+
             rating: 5, 
             referenceId: entertainmentId,
             agencyId: currentUser.uid 
@@ -110,10 +137,7 @@ export function AgencyUploadEntertainmentScreen() {
 
         setLoading(true);
         try {
-            await addEntertainment(
-                entertainmentData,
-                imageUri
-            );
+            await addEntertainment(entertainmentData, imageUri);
             
             Alert.alert("Success", "Entertainment Package Uploaded!");
             handleReset(); 
@@ -129,7 +153,6 @@ export function AgencyUploadEntertainmentScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.headerBar}>
-                {/* UPDATED BACK BUTTON */}
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={28} color="#333" /> 
                 </TouchableOpacity>
@@ -143,7 +166,10 @@ export function AgencyUploadEntertainmentScreen() {
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={{ flex: 1 }}
             >
-                <ScrollView contentContainerStyle={styles.scrollContainer}>
+                <ScrollView 
+                    contentContainerStyle={styles.scrollContainer}
+                    keyboardShouldPersistTaps="always"
+                >
                     
                     {/* ID Display */}
                     <Text style={styles.idText}>
@@ -180,7 +206,7 @@ export function AgencyUploadEntertainmentScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Form Inputs */}
+                    {/* Form Inputs (Green Container Style) */}
                     <View style={styles.formContainer}>
                         <Text style={styles.label}>Entertainment Name</Text>
                         <TextInput 
@@ -191,9 +217,10 @@ export function AgencyUploadEntertainmentScreen() {
                             onChangeText={setTitle} 
                         />
                         
+                        {/* Row 1: Ticket Price & Transport Type */}
                         <View style={styles.row}>
                             <View style={styles.col}>
-                                <Text style={styles.label}>Ticket Price</Text>
+                                <Text style={styles.label}>Ticket Price (RM)</Text>
                                 <TextInput 
                                     style={styles.inputField} 
                                     placeholder="e.g. 120" 
@@ -204,10 +231,10 @@ export function AgencyUploadEntertainmentScreen() {
                                 />
                             </View>
                             <View style={styles.col}>
-                                <Text style={styles.label}>Transport (Optional)</Text>
+                                <Text style={styles.label}>Transport Type</Text>
                                 <TextInput 
                                     style={styles.inputField} 
-                                    placeholder="e.g. Bus, Taxi" 
+                                    placeholder="e.g. Bus/Taxi" 
                                     placeholderTextColor="#888"
                                     value={transportType} 
                                     onChangeText={setTransportType} 
@@ -215,9 +242,10 @@ export function AgencyUploadEntertainmentScreen() {
                             </View>
                         </View>
 
+                        {/* Row 2: Transport Price & Total Expenses */}
                         <View style={styles.row}>
                             <View style={styles.col}>
-                                <Text style={styles.label}>Transport Price</Text>
+                                <Text style={styles.label}>Transport Cost</Text>
                                 <TextInput 
                                     style={styles.inputField} 
                                     placeholder="e.g. 50" 
@@ -228,7 +256,7 @@ export function AgencyUploadEntertainmentScreen() {
                                 />
                             </View>
                              <View style={styles.col}>
-                                <Text style={styles.label}>Total Expenses</Text>
+                                <Text style={styles.label}>Est. Total (RM)</Text>
                                 <TextInput 
                                     style={styles.inputField} 
                                     placeholder={totalPlaceholder}
@@ -237,12 +265,46 @@ export function AgencyUploadEntertainmentScreen() {
                                     value={totalExpenses} 
                                     onChangeText={setTotalExpenses} 
                                     onFocus={() => {
+                                        // Auto-fill sum if empty
                                         if (!totalExpenses && currentSum > 0) {
                                             setTotalExpenses(currentSum.toString());
                                         }
                                     }}
                                 />
                             </View>
+                        </View>
+
+                        {/* Google Places Search */}
+                        <Text style={styles.label}>Location Search</Text>
+                        <View style={{ zIndex: 9999, marginBottom: 15 }}>
+                            <GooglePlacesAutocomplete
+                                ref={locationRef}
+                                placeholder="Search Entertainment Location..."
+                                fetchDetails={true}
+                                onPress={(data, details = null) => {
+                                    // 1. Save Text Address
+                                    setLocation(data.description);
+                                    
+                                    // 2. Generate and Save URL (Same logic as Food Screen)
+                                    if (details?.url) {
+                                        setLocationUrl(details.url);
+                                    } else if (details?.geometry?.location) {
+                                        const { lat, lng } = details.geometry.location;
+                                        const generatedUrl = `http://googleusercontent.com/maps.google.com/?q=${lat},${lng}`;
+                                        setLocationUrl(generatedUrl);
+                                    }
+                                }}
+                                query={{
+                                    key: GOOGLE_PLACES_API_KEY,
+                                    language: 'en',
+                                }}
+                                styles={{
+                                    textInput: styles.searchInput,
+                                    listView: styles.searchListView,
+                                    container: { flex: 0 },
+                                }}
+                                enablePoweredByContainer={false}
+                            />
                         </View>
 
                         <Text style={styles.label}>Description</Text>
@@ -255,29 +317,29 @@ export function AgencyUploadEntertainmentScreen() {
                             value={description} 
                             onChangeText={setDescription} 
                         />
-                    </View>
 
-                    {/* Buttons */}
-                    <View style={styles.buttonRow}>
-                        <TouchableOpacity
-                            style={[styles.resetButton, loading && {opacity: 0.5}]}
-                            onPress={handleReset}
-                            disabled={loading}
-                        >
-                            <Text style={styles.resetButtonText}>Reset</Text>
-                        </TouchableOpacity>
+                        {/* Buttons inside container */}
+                        <View style={styles.buttonRow}>
+                            <TouchableOpacity
+                                style={[styles.resetButton, loading && {opacity: 0.5}]}
+                                onPress={handleReset}
+                                disabled={loading}
+                            >
+                                <Text style={styles.resetButtonText}>Reset</Text>
+                            </TouchableOpacity>
 
-                        <TouchableOpacity
-                            style={[styles.saveButton, !imageUri && {opacity: 0.5}]}
-                            onPress={handleSave}
-                            disabled={loading || !imageUri}
-                        >
-                            {loading ? (
-                                <ActivityIndicator color="#FFFFFF" />
-                            ) : (
-                                <Text style={styles.saveButtonText}>Save</Text>
-                            )}
-                        </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.saveButton, !imageUri && {opacity: 0.5}]}
+                                onPress={handleSave}
+                                disabled={loading || !imageUri}
+                            >
+                                {loading ? (
+                                    <ActivityIndicator color="#FFFFFF" />
+                                ) : (
+                                    <Text style={styles.saveButtonText}>Save</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
                 </ScrollView>
@@ -287,113 +349,54 @@ export function AgencyUploadEntertainmentScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#FFFFFF',
-    },
+    container: { flex: 1, backgroundColor: '#FFFFFF' },
     headerBar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        backgroundColor: '#FFFFFF',
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingHorizontal: 20, paddingVertical: 10, backgroundColor: '#FFFFFF',
     },
-    backButton: {
-        width: 40,
-        height: 40,
-        justifyContent: 'center',
-        alignItems: 'flex-start',
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#333',
-    },
+    backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
+    headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
     
-    scrollContainer: {
-        paddingHorizontal: 20,
-        paddingTop: 10,
-        paddingBottom: 40,
-    },
+    scrollContainer: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 100 },
     
-    idText: {
-        fontSize: 12,
-        color: '#888',
-        textAlign: 'center',
-        marginBottom: 20,
-    },
+    idText: { fontSize: 12, color: '#888', textAlign: 'center', marginBottom: 10, marginRight: 5 },
 
-    imageContainer: {
-        alignItems: 'center',
-        marginBottom: 25,
-    },
+    imageContainer: { alignItems: 'center', marginBottom: 25 },
     imageBox: {
-        width: 150,
-        height: 150,
-        borderRadius: 15,
-        backgroundColor: '#FFF',
-        borderWidth: 1,
-        borderColor: '#E1E1E1',
-        justifyContent: 'center',
-        alignItems: 'center',
-        overflow: 'hidden',
-        marginBottom: 10,
+        width: 150, height: 150, borderRadius: 15,
+        backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E1E1E1',
+        justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginBottom: 10,
     },
-    uploadedImage: {
-        width: '100%',
-        height: '100%',
-        resizeMode: 'cover',
-    },
-    uploadPlaceholder: {
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
+    uploadedImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+    uploadPlaceholder: { justifyContent: 'center', alignItems: 'center' },
     changePictureButtonContainer: {
-        borderRadius: 25, 
-        overflow: 'hidden', 
-        marginTop: 10,
-        shadowColor: "#28A745",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 5,
-        elevation: 8,
+        borderRadius: 25, overflow: 'hidden', marginTop: 10,
+        shadowColor: "#28A745", shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3, shadowRadius: 5, elevation: 8,
     },
-
     gradientButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 12,   
-        paddingHorizontal: 30, 
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        paddingVertical: 10, paddingHorizontal: 25,
     },
+    changePictureText: { marginLeft: 8, fontSize: 14, color: '#FFFFFF', fontWeight: 'bold' },
 
-    changePictureText: {
-        marginLeft: 8,
-        fontSize: 16,
-        color: '#FFFFFF',
-        fontWeight: 'bold',
-    },
-
+    // Form Styles (Matching Food Screen)
     formContainer: {
-        backgroundColor: '#F4FFF2', // 绿色主题背景
-        borderRadius: 15,
-        padding: 20,
-        marginBottom: 30,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 3,
+        backgroundColor: '#F4FFF2', 
+        borderRadius: 15, padding: 20, marginBottom: 30,
+        elevation: 2,
+        zIndex: 1, 
     },
-    label: {
-        fontSize: 14,
-        color: '#333',
-        marginBottom: 6,
-        fontWeight: '600',
-    },
+    label: { fontSize: 14, color: '#333', marginBottom: 6, fontWeight: '600' },
+    
     inputField: {
-        width: '100%',
+        width: '100%', height: 45, borderWidth: 1, borderColor: '#E1E1E1',
+        borderRadius: 8, paddingHorizontal: 12, backgroundColor: '#FFFFFF',
+        fontSize: 15, marginBottom: 15, color: '#333',
+    },
+
+    // Search Input Styles
+    searchInput: {
         height: 45,
         borderWidth: 1,
         borderColor: '#E1E1E1',
@@ -401,53 +404,34 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         backgroundColor: '#FFFFFF',
         fontSize: 15,
-        marginBottom: 20,
         color: '#333',
     },
+    searchListView: {
+        backgroundColor: 'white',
+        borderRadius: 5,
+        marginTop: 5,
+        borderWidth: 1,
+        borderColor: '#eee',
+        elevation: 3, 
+        zIndex: 9999, 
+    },
+    
     multilineInput: {
-        height: 100,
-        textAlignVertical: 'top',
-        paddingTop: 10,
+        height: 100, textAlignVertical: 'top', paddingTop: 10,
     },
-    row: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        width: '100%',
-    },
-    col: {
-        width: '48%', 
-    },
+    row: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
+    col: { width: '48%' },
 
-    buttonRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-        marginTop: 10,
-    },
+    buttonRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginTop: 10, zIndex: -1 },
     resetButton: {
-        flex: 1,
-        backgroundColor: '#EBEBEB',
-        paddingVertical: 15,
-        borderRadius: 10,
-        marginRight: 10,
-        alignItems: 'center',
+        flex: 1, backgroundColor: '#EBEBEB', paddingVertical: 12,
+        borderRadius: 8, marginRight: 10, alignItems: 'center',
     },
-    resetButtonText: {
-        color: '#333',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
+    resetButtonText: { color: '#666', fontSize: 16, fontWeight: '600' },
+    
     saveButton: {
-        flex: 1,
-        backgroundColor: '#648DDB',
-        paddingVertical: 15,
-        borderRadius: 10,
-        marginLeft: 10,
-        alignItems: 'center',
+        flex: 1, backgroundColor: '#648DDB', paddingVertical: 12,
+        borderRadius: 8, marginLeft: 10, alignItems: 'center',
     },
-    saveButtonText: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
+    saveButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
 });
