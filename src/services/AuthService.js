@@ -97,11 +97,15 @@ export const loginUser = async (email, password) => {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        // Fetch their role (Traveller or Agency?)
+        // Fetch user data from Firestore to get Role and Status
         const userDoc = await getDoc(doc(db, "users", user.uid));
-        const userData = userDoc.data();
+        const userData = userDoc.exists() ? userDoc.data() : {};
 
-        return { user, role: userData?.role };
+        return { 
+            user, 
+            role: userData.role, 
+            status: userData.status // Returns status (e.g., 'pending', 'approved') if it exists
+        };
     } catch (error) {
         throw error;
     }

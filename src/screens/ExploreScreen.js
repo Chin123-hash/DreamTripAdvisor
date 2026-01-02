@@ -85,9 +85,7 @@ export default function ExploreScreen() {
     // --- 3. Navigation ---
     const handlePressItem = (item) => {
         if (activeTab === 'food') {
-            // Future: Navigate to Food Details
-            // router.push({ pathname: '/food-details', params: { id: item.id } });
-            alert("Food Details coming soon!");
+            router.push({ pathname: '/food-details', params: { id: item.id } });
         } else {
             router.push({ pathname: '/entertainment-details', params: { id: item.id } });
         }

@@ -1,3 +1,5 @@
+// src/screens/AdminUserListScreen.js
+
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
@@ -20,7 +22,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// --- 1. 新增：引入 ImagePicker 和 Firebase Storage ---
 import * as ImagePicker from 'expo-image-picker';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { storage } from '../../firebaseConfig';
@@ -42,43 +43,60 @@ export default function AdminUserListScreen() {
     const [selectedUser, setSelectedUser] = useState(null);
     const [updating, setUpdating] = useState(false);
 
-    // --- 日历显示控制 ---
+    // --- Date Picker ---
     const [showDatePicker, setShowDatePicker] = useState(false);
 
-    // --- 编辑字段 State ---
+    // --- Edit Fields State ---
     const [editName, setEditName] = useState('');       
     const [editUsername, setEditUsername] = useState('');
     const [editDob, setEditDob] = useState('');
     const [editEmail, setEditEmail] = useState('');
     const [editPhone, setEditPhone] = useState('');
 
-    // --- Agency 专属字段 ---
+    // --- Agency Fields ---
     const [editLicenseNo, setEditLicenseNo] = useState('');
     const [editCompanyUrl, setEditCompanyUrl] = useState('');
-    const [editLogoUrl, setEditLogoUrl] = useState(''); // 存 Logo 图片路径 (本地或网络)
+    const [editLogoUrl, setEditLogoUrl] = useState(''); 
 
-    // --- 【新增】普通用户/Admin 专属头像 ---
-    const [editProfileImage, setEditProfileImage] = useState(''); // 存 Profile 图片路径
+    // --- User/Admin Avatar ---
+    const [editProfileImage, setEditProfileImage] = useState(''); 
 
-    // 1. 初始化
+    // 1. Initialize
     useEffect(() => {
         fetchUsers();
     }, []);
 
     const fetchUsers = async () => {
         setLoading(true);
-        const data = await getAllUsers();
-        const sortedData = data.sort((a, b) => {
-             const nameA = a.role === 'agency' ? (a.agencyName || '') : (a.fullName || '');
-             const nameB = b.role === 'agency' ? (b.agencyName || '') : (b.fullName || '');
-             return nameA.localeCompare(nameB);
-        });
-        setUsers(sortedData);
-        setFilteredUsers(sortedData);
-        setLoading(false);
+        try {
+            const data = await getAllUsers();
+            
+            // --- FILTER LOGIC ADDED HERE ---
+            // 1. If role is NOT agency, keep it (Admins, Travellers).
+            // 2. If role IS agency, only keep if status is 'approved'.
+            const approvedOnlyData = data.filter(user => {
+                if (user.role === 'agency') {
+                    return user.status === 'approved';
+                }
+                return true; 
+            });
+
+            const sortedData = approvedOnlyData.sort((a, b) => {
+                 const nameA = a.role === 'agency' ? (a.agencyName || '') : (a.fullName || '');
+                 const nameB = b.role === 'agency' ? (b.agencyName || '') : (b.fullName || '');
+                 return nameA.localeCompare(nameB);
+            });
+
+            setUsers(sortedData);
+            setFilteredUsers(sortedData);
+        } catch (error) {
+            console.error("Error fetching users:", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    // 2. 搜索逻辑
+    // 2. Search Logic
     const handleSearch = (text) => {
         setSearchText(text);
         if (text) {
@@ -97,29 +115,28 @@ export default function AdminUserListScreen() {
         }
     };
 
-    // 3. 打开弹窗
+    // 3. Open Modal
     const openUserModal = (user) => {
         setSelectedUser(user);
         setShowDatePicker(false);
 
-        // 先填充通用数据
+        // Fill Common Data
         setEditUsername(user.username || '');
         setEditDob(user.dob || '');
         setEditEmail(user.email || '');
         setEditPhone(user.phone || '');
 
         if (user.role === 'agency') {
-            // Agency 数据
+            // Agency Data
             setEditName(user.agencyName || ''); 
             setEditLicenseNo(user.licenseNo || '');
             setEditCompanyUrl(user.companyUrl || '');
-            setEditLogoUrl(user.logoUrl || ''); // 加载 Logo
-            setEditProfileImage(''); // 清空 Profile Image
+            setEditLogoUrl(user.logoUrl || ''); 
+            setEditProfileImage(''); 
         } else {
-            // User 数据
+            // User Data
             setEditName(user.fullName || '');   
-            setEditProfileImage(user.profileImage || ''); // 加载 Profile Image
-            // 清空 Agency 数据
+            setEditProfileImage(user.profileImage || ''); 
             setEditLicenseNo('');
             setEditCompanyUrl('');
             setEditLogoUrl('');
@@ -128,7 +145,7 @@ export default function AdminUserListScreen() {
         setModalVisible(true);
     };
 
-    // --- 【新增】选择图片 (智能判断改的是 Logo 还是 头像) ---
+    // --- Image Picker ---
     const pickImage = async () => {
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (permissionResult.granted === false) {
@@ -139,20 +156,20 @@ export default function AdminUserListScreen() {
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
-            aspect: [1, 1], // 正方形裁剪
+            aspect: [1, 1], 
             quality: 0.5,
         });
 
         if (!result.canceled) {
             if (selectedUser.role === 'agency') {
-                setEditLogoUrl(result.assets[0].uri); // 改 Agency Logo
+                setEditLogoUrl(result.assets[0].uri); 
             } else {
-                setEditProfileImage(result.assets[0].uri); // 改 User Avatar
+                setEditProfileImage(result.assets[0].uri); 
             }
         }
     };
 
-    // --- 【新增】上传图片逻辑 ---
+    // --- Upload Logic ---
     const uploadImageToFirebase = async (uri, folder) => {
         if (!uri) return null;
         try {
@@ -167,7 +184,7 @@ export default function AdminUserListScreen() {
         }
     };
 
-    // 4. 保存编辑 (包含上传逻辑)
+    // 4. Save Edits
     const handleSaveEdit = async () => {
         if (!selectedUser) return;
         setUpdating(true);
@@ -181,12 +198,11 @@ export default function AdminUserListScreen() {
             };
 
             if (selectedUser.role === 'agency') {
-                // --- Agency 保存 ---
+                // Agency Save
                 updateData.agencyName = editName;     
                 updateData.licenseNo = editLicenseNo;
                 updateData.companyUrl = editCompanyUrl;
                 
-                // 处理 Logo 上传
                 let finalLogoUrl = editLogoUrl;
                 if (editLogoUrl && !editLogoUrl.startsWith('http')) {
                     finalLogoUrl = await uploadImageToFirebase(editLogoUrl, 'logos');
@@ -194,10 +210,9 @@ export default function AdminUserListScreen() {
                 updateData.logoUrl = finalLogoUrl;
 
             } else {
-                // --- User 保存 ---
+                // User Save
                 updateData.fullName = editName;       
                 
-                // 处理 Profile Image 上传
                 let finalProfileUrl = editProfileImage;
                 if (editProfileImage && !editProfileImage.startsWith('http')) {
                     finalProfileUrl = await uploadImageToFirebase(editProfileImage, 'profile_images');
@@ -218,7 +233,7 @@ export default function AdminUserListScreen() {
         }
     };
 
-    // 5. 删除用户
+    // 5. Delete User
     const handleDeleteUser = () => {
         if (selectedUser?.role === 'admin') {
             Alert.alert("Action Denied", "Admin accounts cannot be deleted.");
@@ -255,7 +270,7 @@ export default function AdminUserListScreen() {
         );
     };
 
-    // --- 日历处理函数 ---
+    // --- Date Picker Handler ---
     const handleDateChange = (event, selectedDate) => {
         if (Platform.OS === 'android') {
             setShowDatePicker(false);
@@ -280,7 +295,6 @@ export default function AdminUserListScreen() {
     const renderItem = ({ item }) => {
         const isAgency = item.role === 'agency';
         const displayName = isAgency ? (item.agencyName || "Unnamed Agency") : (item.fullName || "Unnamed User");
-        // Agency 用 logoUrl, 别人用 profileImage
         const displayImage = isAgency ? item.logoUrl : item.profileImage;
         const role = item.role || 'user';
 
@@ -360,7 +374,6 @@ export default function AdminUserListScreen() {
                             />
                         </View>
 
-                        {/* --- 重点修改：Agency Logo 图片选择器 --- */}
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>Company Logo</Text>
                             <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
@@ -453,7 +466,6 @@ export default function AdminUserListScreen() {
                     )}
                 </View>
 
-                {/* --- 重点修改：普通用户/Admin 头像选择器 (放在最下面) --- */}
                 {!isAgency && (
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>Profile Image</Text>

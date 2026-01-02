@@ -12,6 +12,8 @@ import {
 
 
 
+
+
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -57,7 +59,7 @@ export default function LoginScreen() {
 
         else if (result.role === 'agency' && result.status === 'rejected' ) { 
         Alert.alert("Sorry Agency", "Your Account Application have been Rejected");
-      } else {
+      } else if (result.role === 'traveller'){
         router.replace('/customer-main'); // Traveller
         //Alert.alert("Welcome Traveller", "Login Successful!");
       }

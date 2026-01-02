@@ -6,7 +6,7 @@ export default function Page() {
   return (
     <>
       {/* This controls the top navigation bar */}
-      <Stack.Screen options={{ title: 'Register', headerBackTitle: 'Log In' }} />
+      <Stack.Screen options={{ headerShown: false }} />
       
       <RegisterScreen />
     </>
