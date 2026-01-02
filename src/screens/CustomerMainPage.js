@@ -1,8 +1,8 @@
 // src/screens/CustomerMainPage.js
 
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router'; // ADDED: useFocusEffect
-import React, { useCallback, useRef, useState } from 'react'; // ADDED: useCallback
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,7 +11,7 @@ import {
   FlatList,
   Image,
   Modal,
-  RefreshControl, // ADDED: RefreshControl
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -34,7 +34,7 @@ export default function CustomerMainPage() {
   const [foodList, setFoodList] = useState([]);
   const [planList, setPlanList] = useState([]); 
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false); // ADDED: Refreshing state
+  const [refreshing, setRefreshing] = useState(false);
   const [userData, setUserData] = useState(null);
 
   // --- SIDEBAR STATE ---
@@ -42,22 +42,18 @@ export default function CustomerMainPage() {
   const slideAnim = useRef(new Animated.Value(-width)).current; 
 
   // --- FETCH DATA FUNCTION ---
-  // We extracted this logic so it can be reused by Focus and Pull-to-Refresh
   const fetchData = async () => {
       try {
-        // 1. Fetch Entertainment
         const entData = await getEntertainmentList();
         const validEnt = entData.filter(item => item.title && item.imageUrl);
         setEntertainmentList(validEnt.map(item => ({ ...item, image: item.imageUrl })));
 
-        // 2. Fetch Food
         const foodData = await getFoodList();
         const validFood = foodData
             .filter(item => item.title && item.imageUrl)
             .map(item => ({ ...item, image: item.imageUrl }));
         setFoodList(validFood);
 
-        // 3. Fetch Plans
         const pData = await getPlanList();
         const formattedPlans = pData.map(item => ({
             id: item.id,
@@ -69,7 +65,6 @@ export default function CustomerMainPage() {
         }));
         setPlanList(formattedPlans);
 
-        // 4. Fetch User
         const user = await getCurrentUserData();
         setUserData(user);
 
@@ -79,14 +74,11 @@ export default function CustomerMainPage() {
   };
 
   // --- AUTO REFRESH ON FOCUS ---
-  // This runs every time the screen becomes active/visible
   useFocusEffect(
     useCallback(() => {
       const loadOnFocus = async () => {
-        // We do NOT set global loading=true here to prevent full screen flash
-        // We just fetch data in the background
         await fetchData();
-        setLoading(false); // Ensure loading is off after first fetch
+        setLoading(false);
       };
       
       loadOnFocus();
@@ -147,7 +139,6 @@ export default function CustomerMainPage() {
       <ScrollView 
         contentContainerStyle={styles.scrollContent} 
         showsVerticalScrollIndicator={false}
-        // ADDED: Refresh Control here
         refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#648DDB']} />
         }
@@ -219,7 +210,7 @@ export default function CustomerMainPage() {
                       />
               )}
 
-        {/* PLAN LIST (UPDATED) */}
+        {/* PLAN LIST */}
         <View style={styles.divider} />
         <Text style={styles.sectionTitle}>Recommended Plan</Text>
         
@@ -233,7 +224,6 @@ export default function CustomerMainPage() {
                 key={plan.id} 
                 style={styles.planCard}
                 onPress={() => {
-                    // Navigate to Plan Details (ensure this route exists later)
                     router.push({ pathname: '/planDetails', params: { id: plan.id } });
                 }}
             >
@@ -257,8 +247,19 @@ export default function CustomerMainPage() {
             ))
         )}
         
-        <View style={{height: 40}} /> 
+        {/* Added padding at bottom so scroll doesn't get hidden behind the new button */}
+        <View style={{height: 100}} /> 
       </ScrollView>
+
+      {/* --- FLOATING CHATBOT BUTTON (Moved outside ScrollView) --- */}
+      <TouchableOpacity 
+        style={styles.floatingButton}
+        onPress={() => router.push('/chatbot')}
+        activeOpacity={0.8}
+      >
+        {/* Used filled icon for better visibility and white color for contrast */}
+        <Ionicons name="chatbubble-ellipses" size={28} color="#FFFFFF" />
+      </TouchableOpacity>
 
       {/* SIDEBAR MODAL */}
       <Modal
@@ -362,6 +363,27 @@ const styles = StyleSheet.create({
   ratingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   ratingLabel: { fontSize: 10, color: '#888', marginRight: 5 },
   priceText: { fontSize: 12, fontWeight: 'bold', marginTop: 4, textAlign: 'right', color: '#333' },
+
+  // --- FLOATING BUTTON STYLE (NEW) ---
+  floatingButton: {
+    position: 'absolute', // Locks it to the screen
+    bottom: 30,           // Distance from the bottom
+    right: 20,            // Distance from the right
+    width: 60,            // Button width
+    height: 60,           // Button height
+    borderRadius: 30,     // Makes it circular (half of width)
+    backgroundColor: '#648DDB', // Matches your App's blue theme
+    justifyContent: 'center',
+    alignItems: 'center',
+    // Shadow for iOS
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    // Shadow for Android
+    elevation: 8,
+    zIndex: 999, // Ensures it sits on top of everything
+  },
 
   // Sidebar Styles
   modalOverlay: { flex: 1, flexDirection: 'row' },

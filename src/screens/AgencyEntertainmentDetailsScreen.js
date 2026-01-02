@@ -56,7 +56,11 @@ const AgencyEntertainmentDetailsScreen = () => {
             Alert.alert('No Location', 'No location link provided.');
         }
     };
-
+    const getLocalizedMapUrl = (url) => {
+        if (!url) return null;
+        const separator = url.includes('?') ? '&' : '?';
+        return `${url}${separator}hl=en`; 
+    };
     // =================================================================
     // 🧹 AGGRESSIVE CLEANING SCRIPT 🧹
     // Removes Google Search Bars, Bottom Cards, and Headers
@@ -158,8 +162,7 @@ const AgencyEntertainmentDetailsScreen = () => {
                             <View style={styles.mapContainer}>
                                 {item.locationURL ? (
                                     <WebView
-                                        source={{ uri: item.locationURL }}
-                                        style={styles.mapWebView}
+                                        source={{ uri: getLocalizedMapUrl(item.locationURL) }}                                        style={styles.mapWebView}
                                         nestedScrollEnabled={true}
                                         showsUserLocation={false}
                                         // Hardware acceleration for Android
