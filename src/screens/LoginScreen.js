@@ -11,6 +11,7 @@ import {
 
 
 
+
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -48,9 +49,14 @@ export default function LoginScreen() {
       if (result.role === 'admin') {
          router.replace('/admin-main');
         
-      } else if (result.role === 'agency') {
-        router.replace('/agency-main');
-        //Alert.alert("Welcome Agency", "Login Successful!");
+      } else if (result.role === 'agency' && result.status === 'approved') {
+        router.replace('/agency-main'); }
+
+        else if (result.role === 'agency' && result.status === 'pending' ) { 
+        Alert.alert("Welcome Agency", "Please Wait for Your Account Application be Approved"); }
+
+        else if (result.role === 'agency' && result.status === 'rejected' ) { 
+        Alert.alert("Sorry Agency", "Your Account Application have been Rejected");
       } else {
         router.replace('/customer-main'); // Traveller
         //Alert.alert("Welcome Traveller", "Login Successful!");
