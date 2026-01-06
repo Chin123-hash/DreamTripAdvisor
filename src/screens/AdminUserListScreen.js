@@ -37,6 +37,11 @@ export default function AdminUserListScreen() {
     const [loading, setLoading] = useState(true);
     const [searchText, setSearchText] = useState('');
 
+    // --- 【新增】筛选相关 State ---
+    const [selectedRole, setSelectedRole] = useState('All'); 
+    const [roleModalVisible, setRoleModalVisible] = useState(false);
+    const roles = ['All', 'Admin', 'Agency', 'Traveller'];
+
     // --- Modal State ---
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
@@ -55,15 +60,40 @@ export default function AdminUserListScreen() {
     // --- Agency 专属字段 ---
     const [editLicenseNo, setEditLicenseNo] = useState('');
     const [editCompanyUrl, setEditCompanyUrl] = useState('');
-    const [editLogoUrl, setEditLogoUrl] = useState(''); // 存 Logo 图片路径 (本地或网络)
+    const [editLogoUrl, setEditLogoUrl] = useState(''); 
 
     // --- 【新增】普通用户/Admin 专属头像 ---
-    const [editProfileImage, setEditProfileImage] = useState(''); // 存 Profile 图片路径
+    const [editProfileImage, setEditProfileImage] = useState(''); 
 
     // 1. 初始化
     useEffect(() => {
         fetchUsers();
     }, []);
+
+    // --- 【新增】核心过滤逻辑：同时处理 搜索文字 和 角色筛选 ---
+    useEffect(() => {
+        let result = users;
+
+        // 按角色过滤
+        if (selectedRole !== 'All') {
+            result = result.filter(u => u.role?.toLowerCase() === selectedRole.toLowerCase());
+        }
+
+        // 按文字搜索过滤
+        if (searchText) {
+            const lowerText = searchText.toLowerCase();
+            result = result.filter((user) => {
+                const name = user.role === 'agency' ? (user.agencyName || '') : (user.fullName || '');
+                const email = user.email || '';
+                const license = user.licenseNo || ''; 
+                return name.toLowerCase().includes(lowerText) || 
+                       email.toLowerCase().includes(lowerText) ||
+                       license.toLowerCase().includes(lowerText);
+            });
+        }
+
+        setFilteredUsers(result);
+    }, [searchText, selectedRole, users]);
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -78,81 +108,59 @@ export default function AdminUserListScreen() {
         setLoading(false);
     };
 
-    // 2. 搜索逻辑
+    // 修改搜索 handle，仅更新文字，过滤交给 useEffect
     const handleSearch = (text) => {
         setSearchText(text);
-        if (text) {
-            const lowerText = text.toLowerCase();
-            const newData = users.filter((user) => {
-                const name = user.role === 'agency' ? (user.agencyName || '') : (user.fullName || '');
-                const email = user.email || '';
-                const license = user.licenseNo || ''; 
-                return name.toLowerCase().includes(lowerText) || 
-                       email.toLowerCase().includes(lowerText) ||
-                       license.toLowerCase().includes(lowerText);
-            });
-            setFilteredUsers(newData);
-        } else {
-            setFilteredUsers(users);
-        }
     };
 
-    // 3. 打开弹窗
+    // 3. 打开编辑弹窗 (保持原样)
     const openUserModal = (user) => {
         setSelectedUser(user);
         setShowDatePicker(false);
-
-        // 先填充通用数据
         setEditUsername(user.username || '');
         setEditDob(user.dob || '');
         setEditEmail(user.email || '');
         setEditPhone(user.phone || '');
 
         if (user.role === 'agency') {
-            // Agency 数据
             setEditName(user.agencyName || ''); 
             setEditLicenseNo(user.licenseNo || '');
             setEditCompanyUrl(user.companyUrl || '');
-            setEditLogoUrl(user.logoUrl || ''); // 加载 Logo
-            setEditProfileImage(''); // 清空 Profile Image
+            setEditLogoUrl(user.logoUrl || ''); 
+            setEditProfileImage(''); 
         } else {
-            // User 数据
             setEditName(user.fullName || '');   
-            setEditProfileImage(user.profileImage || ''); // 加载 Profile Image
-            // 清空 Agency 数据
+            setEditProfileImage(user.profileImage || ''); 
             setEditLicenseNo('');
             setEditCompanyUrl('');
             setEditLogoUrl('');
         }
-
         setModalVisible(true);
     };
 
-    // --- 【新增】选择图片 (智能判断改的是 Logo 还是 头像) ---
+    // 选择图片逻辑 (保持原样)
     const pickImage = async () => {
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (permissionResult.granted === false) {
             Alert.alert("Permission Required", "Need gallery access to change photo.");
             return;
         }
-
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
-            aspect: [1, 1], // 正方形裁剪
+            aspect: [1, 1],
             quality: 0.5,
         });
-
         if (!result.canceled) {
             if (selectedUser.role === 'agency') {
-                setEditLogoUrl(result.assets[0].uri); // 改 Agency Logo
+                setEditLogoUrl(result.assets[0].uri);
             } else {
-                setEditProfileImage(result.assets[0].uri); // 改 User Avatar
+                setEditProfileImage(result.assets[0].uri);
             }
         }
     };
 
-    // --- 【新增】上传图片逻辑 ---
+    // 上传图片逻辑 (保持原样)
     const uploadImageToFirebase = async (uri, folder) => {
         if (!uri) return null;
         try {
@@ -167,11 +175,10 @@ export default function AdminUserListScreen() {
         }
     };
 
-    // 4. 保存编辑 (包含上传逻辑)
+    // 保存编辑 (保持原样)
     const handleSaveEdit = async () => {
         if (!selectedUser) return;
         setUpdating(true);
-
         try {
             const updateData = {
                 username: editUsername,
@@ -179,34 +186,24 @@ export default function AdminUserListScreen() {
                 email: editEmail,
                 phone: editPhone
             };
-
             if (selectedUser.role === 'agency') {
-                // --- Agency 保存 ---
                 updateData.agencyName = editName;     
                 updateData.licenseNo = editLicenseNo;
                 updateData.companyUrl = editCompanyUrl;
-                
-                // 处理 Logo 上传
                 let finalLogoUrl = editLogoUrl;
                 if (editLogoUrl && !editLogoUrl.startsWith('http')) {
                     finalLogoUrl = await uploadImageToFirebase(editLogoUrl, 'logos');
                 }
                 updateData.logoUrl = finalLogoUrl;
-
             } else {
-                // --- User 保存 ---
                 updateData.fullName = editName;       
-                
-                // 处理 Profile Image 上传
                 let finalProfileUrl = editProfileImage;
                 if (editProfileImage && !editProfileImage.startsWith('http')) {
                     finalProfileUrl = await uploadImageToFirebase(editProfileImage, 'profile_images');
                 }
                 updateData.profileImage = finalProfileUrl;
             }
-            
             await adminUpdateUser(selectedUser.id, updateData);
-            
             Alert.alert("Success", "User details updated successfully.");
             setModalVisible(false);
             fetchUsers(); 
@@ -218,13 +215,12 @@ export default function AdminUserListScreen() {
         }
     };
 
-    // 5. 删除用户
+    // 删除用户 (保持原样)
     const handleDeleteUser = () => {
         if (selectedUser?.role === 'admin') {
             Alert.alert("Action Denied", "Admin accounts cannot be deleted.");
             return;
         }
-
         Alert.alert(
             "Confirm Delete",
             `Are you sure you want to remove ${editName}?`,
@@ -237,11 +233,9 @@ export default function AdminUserListScreen() {
                         try {
                             setUpdating(true);
                             await deleteUserFromFirestore(selectedUser.id);
-                            
                             const newList = users.filter(u => u.id !== selectedUser.id);
                             setUsers(newList);
                             setFilteredUsers(newList); 
-                            
                             setModalVisible(false);
                             Alert.alert("Deleted", "User has been removed.");
                         } catch (error) {
@@ -255,11 +249,9 @@ export default function AdminUserListScreen() {
         );
     };
 
-    // --- 日历处理函数 ---
+    // 日历处理 (保持原样)
     const handleDateChange = (event, selectedDate) => {
-        if (Platform.OS === 'android') {
-            setShowDatePicker(false);
-        }
+        if (Platform.OS === 'android') { setShowDatePicker(false); }
         if (selectedDate) {
             const year = selectedDate.getFullYear();
             const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
@@ -280,7 +272,6 @@ export default function AdminUserListScreen() {
     const renderItem = ({ item }) => {
         const isAgency = item.role === 'agency';
         const displayName = isAgency ? (item.agencyName || "Unnamed Agency") : (item.fullName || "Unnamed User");
-        // Agency 用 logoUrl, 别人用 profileImage
         const displayImage = isAgency ? item.logoUrl : item.profileImage;
         const role = item.role || 'user';
 
@@ -317,63 +308,36 @@ export default function AdminUserListScreen() {
         );
     };
 
+    // 这里是你的 Edit 界面 (保持原样)
     const renderFormFields = () => {
         const isAgency = selectedUser?.role === 'agency';
-
         return (
             <>
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>User ID (Read-Only)</Text>
+                    <Text style={styles.label}>User ID</Text>
                     <Text style={styles.readOnlyValue}>{selectedUser?.id}</Text>
                 </View>
-
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>{isAgency ? "Agency Name" : "Full Name"}</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={editName}
-                        onChangeText={setEditName}
-                        placeholder={isAgency ? "Enter Agency Name" : "Enter Full Name"}
-                    />
+                    <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholder={isAgency ? "Enter Agency Name" : "Enter Full Name"} />
                 </View>
-
                 {isAgency && (
                     <>
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>SSM License No.</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={editLicenseNo}
-                                onChangeText={setEditLicenseNo}
-                                placeholder="e.g. 202401000123"
-                            />
+                            <TextInput style={styles.input} value={editLicenseNo} onChangeText={setEditLicenseNo} placeholder="e.g. 202401000123" />
                         </View>
-
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>Company Website URL</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={editCompanyUrl}
-                                onChangeText={setEditCompanyUrl}
-                                placeholder="https://..."
-                                autoCapitalize="none"
-                            />
+                            <TextInput style={styles.input} value={editCompanyUrl} onChangeText={setEditCompanyUrl} placeholder="https://..." autoCapitalize="none" />
                         </View>
-
-                        {/* --- 重点修改：Agency Logo 图片选择器 --- */}
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>Company Logo</Text>
                             <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
                                 {editLogoUrl ? (
                                     <View style={{width: '100%', height: '100%'}}>
-                                        <Image 
-                                            source={{ uri: editLogoUrl }} 
-                                            style={styles.uploadedImage} 
-                                            resizeMode="cover" 
-                                        />
-                                        <View style={styles.editIconOverlay}>
-                                            <Ionicons name="pencil" size={12} color="#FFF" />
-                                        </View>
+                                        <Image source={{ uri: editLogoUrl }} style={styles.uploadedImage} resizeMode="cover" />
+                                        <View style={styles.editIconOverlay}><Ionicons name="pencil" size={12} color="#FFF" /></View>
                                     </View>
                                 ) : (
                                     <View style={styles.uploadPlaceholder}>
@@ -385,89 +349,36 @@ export default function AdminUserListScreen() {
                         </View>
                     </>
                 )}
-
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>Username</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={editUsername}
-                        onChangeText={setEditUsername}
-                        placeholder="Enter Username"
-                    />
+                    <TextInput style={styles.input} value={editUsername} onChangeText={setEditUsername} placeholder="Enter Username" />
                 </View>
-
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>Email Address</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={editEmail}
-                        onChangeText={setEditEmail}
-                        placeholder="Enter Email"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                    />
+                    <TextInput style={styles.input} value={editEmail} onChangeText={setEditEmail} placeholder="Enter Email" keyboardType="email-address" autoCapitalize="none" />
                 </View>
-
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>Phone Number</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={editPhone}
-                        onChangeText={setEditPhone}
-                        placeholder="Enter Phone No"
-                        keyboardType="phone-pad"
-                    />
+                    <TextInput style={styles.input} value={editPhone} onChangeText={setEditPhone} placeholder="Enter Phone No" keyboardType="phone-pad" />
                 </View>
-
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>Date of Birth</Text>
-                    
-                    <TouchableOpacity 
-                        style={[styles.input, { justifyContent: 'center' }]} 
-                        onPress={() => setShowDatePicker(!showDatePicker)}
-                    >
-                        <Text style={{ color: editDob ? '#333' : '#999', fontSize: 16 }}>
-                            {editDob || "YYYY-MM-DD"}
-                        </Text>
-                        <Ionicons 
-                            name={showDatePicker ? "chevron-up" : "calendar-outline"} 
-                            size={20} 
-                            color="#666" 
-                            style={{ position: 'absolute', right: 12 }} 
-                        />
+                    <TouchableOpacity style={[styles.input, { justifyContent: 'center' }]} onPress={() => setShowDatePicker(!showDatePicker)}>
+                        <Text style={{ color: editDob ? '#333' : '#999', fontSize: 16 }}>{editDob || "YYYY-MM-DD"}</Text>
+                        <Ionicons name={showDatePicker ? "chevron-up" : "calendar-outline"} size={20} color="#666" style={{ position: 'absolute', right: 12 }} />
                     </TouchableOpacity>
-
                     {showDatePicker && (
-                        <DateTimePicker
-                            value={getDobDateObject()}
-                            mode="date"
-                            display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                            onChange={handleDateChange}
-                            maximumDate={new Date()}
-                            themeVariant={colorScheme} 
-                            textColor={colorScheme === 'dark' ? '#FFFFFF' : '#000000'}
-                            style={{ 
-                                backgroundColor: colorScheme === 'dark' ? '#202020' : '#FFFFFF',
-                            }}
-                        />
+                        <DateTimePicker value={getDobDateObject()} mode="date" display={Platform.OS === 'ios' ? 'inline' : 'default'} onChange={handleDateChange} maximumDate={new Date()} themeVariant={colorScheme} />
                     )}
                 </View>
-
-                {/* --- 重点修改：普通用户/Admin 头像选择器 (放在最下面) --- */}
                 {!isAgency && (
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>Profile Image</Text>
                         <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
                             {editProfileImage ? (
                                 <View style={{width: '100%', height: '100%'}}>
-                                    <Image 
-                                        source={{ uri: editProfileImage }} 
-                                        style={styles.uploadedImage} 
-                                        resizeMode="cover" 
-                                    />
-                                    <View style={styles.editIconOverlay}>
-                                        <Ionicons name="pencil" size={12} color="#FFF" />
-                                    </View>
+                                    <Image source={{ uri: editProfileImage }} style={styles.uploadedImage} resizeMode="cover" />
+                                    <View style={styles.editIconOverlay}><Ionicons name="pencil" size={12} color="#FFF" /></View>
                                 </View>
                             ) : (
                                 <View style={styles.uploadPlaceholder}>
@@ -493,18 +404,50 @@ export default function AdminUserListScreen() {
                 <View style={{ width: 24 }} />
             </View>
 
-            {/* Search */}
-            <View style={styles.searchContainer}>
-                <Ionicons name="search" size={20} color="#999" style={{ marginRight: 8 }} />
-                <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search Name, SSM or Email..."
-                    placeholderTextColor="#999"
-                    value={searchText}
-                    onChangeText={handleSearch}
-                    autoCapitalize="none"
-                />
+            {/* --- 【修改】Search Row：包含搜索框和漏斗图标 --- */}
+            <View style={styles.searchRow}>
+                <View style={styles.searchContainer}>
+                    <Ionicons name="search" size={20} color="#999" style={{ marginRight: 8 }} />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search Name, Email..."
+                        placeholderTextColor="#999"
+                        value={searchText}
+                        onChangeText={handleSearch}
+                        autoCapitalize="none"
+                    />
+                </View>
+                <TouchableOpacity 
+                    style={[styles.filterIconButton, selectedRole !== 'All' && styles.filterIconButtonActive]} 
+                    onPress={() => setRoleModalVisible(true)}
+                >
+                    <Ionicons name="funnel-outline" size={22} color={selectedRole !== 'All' ? "#FFF" : "#648DDB"} />
+                </TouchableOpacity>
             </View>
+
+            {/* --- 【新增】角色选择弹窗 (Role Picker) --- */}
+            <Modal
+                transparent={true}
+                visible={roleModalVisible}
+                animationType="fade"
+                onRequestClose={() => setRoleModalVisible(false)}
+            >
+                <TouchableOpacity style={styles.roleModalOverlay} activeOpacity={1} onPress={() => setRoleModalVisible(false)}>
+                    <View style={styles.roleModalContent}>
+                        <Text style={styles.roleModalTitle}>Filter by Role</Text>
+                        {roles.map((r) => (
+                            <TouchableOpacity 
+                                key={r} 
+                                style={[styles.roleOption, selectedRole === r && styles.roleOptionActive]}
+                                onPress={() => { setSelectedRole(r); setRoleModalVisible(false); }}
+                            >
+                                <Text style={[styles.roleOptionText, selectedRole === r && styles.roleOptionTextActive]}>{r}</Text>
+                                {selectedRole === r && <Ionicons name="checkmark-circle" size={20} color="#648DDB" />}
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </TouchableOpacity>
+            </Modal>
 
             {/* List */}
             {loading ? (
@@ -523,32 +466,16 @@ export default function AdminUserListScreen() {
                 />
             )}
 
-            {/* Modal */}
-            <Modal
-                animationType="fade"
-                transparent={true}
-                visible={modalVisible}
-                onRequestClose={() => setModalVisible(false)}
-            >
-                <KeyboardAvoidingView 
-                    behavior={Platform.OS === "ios" ? "padding" : "height"}
-                    style={styles.modalOverlay}
-                >
+            {/* Edit Modal (保持原样) */}
+            <Modal animationType="fade" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
+                <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>
-                                {selectedUser?.role === 'agency' ? 'Edit Agency' : 'Edit User'}
-                            </Text>
-                            <TouchableOpacity onPress={() => setModalVisible(false)}>
-                                <Ionicons name="close" size={24} color="#333" />
-                            </TouchableOpacity>
+                            <Text style={styles.modalTitle}>{selectedUser?.role === 'agency' ? 'Edit Agency' : 'Edit User'}</Text>
+                            <TouchableOpacity onPress={() => setModalVisible(false)}><Ionicons name="close" size={24} color="#333" /></TouchableOpacity>
                         </View>
-
                         <ScrollView showsVerticalScrollIndicator={false}>
-                            
                             {renderFormFields()}
-
-                            {/* Buttons */}
                             {updating ? (
                                 <ActivityIndicator size="small" color="#648DDB" style={{ marginVertical: 20 }} />
                             ) : (
@@ -556,7 +483,6 @@ export default function AdminUserListScreen() {
                                     <TouchableOpacity style={styles.saveButton} onPress={handleSaveEdit}>
                                         <Text style={styles.saveButtonText}>Save Changes</Text>
                                     </TouchableOpacity>
-
                                     {selectedUser?.role !== 'admin' ? (
                                         <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteUser}>
                                             <Ionicons name="trash-outline" size={18} color="#D32F2F" style={{marginRight: 8}}/>
@@ -564,8 +490,7 @@ export default function AdminUserListScreen() {
                                         </TouchableOpacity>
                                     ) : (
                                         <View style={styles.adminNote}>
-                                            <Ionicons name="shield-checkmark" size={16} color="#666" />
-                                            <Text style={styles.adminNoteText}>Admin accounts cannot be deleted.</Text>
+                                            <Ionicons name="shield-checkmark" size={16} color="#666" /><Text style={styles.adminNoteText}>Admin accounts cannot be deleted.</Text>
                                         </View>
                                     )}
                                 </>
@@ -584,83 +509,57 @@ const styles = StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 15, backgroundColor: '#FFF' },
     headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
     
-    searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', margin: 15, paddingHorizontal: 15, borderRadius: 12, height: 50, borderWidth: 1, borderColor: '#EEE' },
+    // --- 修改：Search Row 样式 ---
+    searchRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginVertical: 10 },
+    searchContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 15, borderRadius: 12, height: 50, borderWidth: 1, borderColor: '#EEE' },
     searchInput: { flex: 1, height: '100%', fontSize: 16 },
+    filterIconButton: { marginLeft: 10, width: 50, height: 50, backgroundColor: '#FFF', borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#EEE' },
+    filterIconButtonActive: { backgroundColor: '#648DDB', borderColor: '#648DDB' },
+
+    // --- 新增：角色筛选弹窗样式 ---
+    roleModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' },
+    roleModalContent: { width: '80%', backgroundColor: '#FFF', borderRadius: 20, padding: 20, elevation: 5 },
+    roleModalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center', color: '#333' },
+    roleOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+    roleOptionActive: { backgroundColor: '#F0F7FF' },
+    roleOptionText: { fontSize: 16, color: '#444' },
+    roleOptionTextActive: { color: '#648DDB', fontWeight: 'bold' },
 
     listContent: { paddingBottom: 30 },
     userCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', marginHorizontal: 15, marginBottom: 10, padding: 15, borderRadius: 16, elevation: 2 },
-    
     avatarContainer: { marginRight: 15 },
     avatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#EEE' },
     placeholderAvatar: { backgroundColor: '#E3F2FD', justifyContent: 'center', alignItems: 'center' },
     avatarText: { fontSize: 20, fontWeight: 'bold', color: '#648DDB' },
-    
     userInfo: { flex: 1, marginRight: 10 },
     userName: { fontSize: 16, fontWeight: 'bold', color: '#333' },
     userEmail: { fontSize: 13, color: '#888', marginTop: 2 },
-    
     roleBadge: { marginTop: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 6 },
     badgeAgency: { backgroundColor: '#E8F5E9' },
     badgeTraveller: { backgroundColor: '#E3F2FD' },
     badgeAdmin: { backgroundColor: '#F3E5F5' },
-    
     roleText: { fontSize: 10, fontWeight: 'bold' },
     textAgency: { color: '#2E7D32' },
     textTraveller: { color: '#1565C0' },
     textAdmin: { color: '#7B1FA2' },
-
     emptyContainer: { alignItems: 'center', marginTop: 80 },
     emptyText: { color: '#999', fontSize: 16 },
-
-    // Modal Styles
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
     modalContent: { width: '90%', maxHeight: '85%', backgroundColor: '#FFF', borderRadius: 24, padding: 25, elevation: 5 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
     modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-    
     inputGroup: { marginBottom: 12 },
     label: { fontSize: 12, color: '#666', marginBottom: 5, fontWeight: '600' },
     readOnlyValue: { fontSize: 14, color: '#888', backgroundColor: '#F0F0F0', padding: 12, borderRadius: 10 },
     input: { borderWidth: 1, borderColor: '#DDD', borderRadius: 10, padding: 12, fontSize: 16, color: '#333', backgroundColor: '#FFF' },
-    
-    // --- Upload Box Styles (Square & Clean) ---
-    uploadBox: {
-        width: 120, 
-        height: 120,
-        backgroundColor: '#F9F9F9',
-        borderWidth: 1,
-        borderColor: '#E0E0E0',
-        borderRadius: 16,
-        borderStyle: 'dashed',
-        justifyContent: 'center',
-        alignItems: 'center',
-        overflow: 'hidden',
-        marginTop: 5,
-    },
-    uploadedImage: {
-        width: '100%',
-        height: '100%',
-    },
-    uploadPlaceholder: {
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 10,
-    },
-    editIconOverlay: {
-        position: 'absolute',
-        bottom: 5,
-        right: 5,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        borderRadius: 10,
-        padding: 4,
-    },
-
+    uploadBox: { width: 120, height: 120, backgroundColor: '#F9F9F9', borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 16, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginTop: 5 },
+    uploadedImage: { width: '100%', height: '100%' },
+    uploadPlaceholder: { justifyContent: 'center', alignItems: 'center', padding: 10 },
+    editIconOverlay: { position: 'absolute', bottom: 5, right: 5, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 10, padding: 4 },
     saveButton: { backgroundColor: '#648DDB', padding: 15, borderRadius: 12, alignItems: 'center', marginTop: 10 },
     saveButtonText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
-    
     deleteButton: { flexDirection: 'row', justifyContent: 'center', backgroundColor: '#FFEBEE', padding: 15, borderRadius: 12, alignItems: 'center', marginTop: 15 },
     deleteButtonText: { color: '#D32F2F', fontWeight: 'bold', fontSize: 16 },
-
     adminNote: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 20, backgroundColor: '#F5F5F5', padding: 10, borderRadius: 8 },
     adminNoteText: { fontSize: 12, color: '#666', marginLeft: 6, fontStyle: 'italic' }
 });
