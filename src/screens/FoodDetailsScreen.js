@@ -9,8 +9,10 @@ import {
     Dimensions,
     FlatList,
     Image,
-    Linking, // <--- Added for Navigation
+    Linking,
     Modal,
+    Platform // <--- Added Platform
+    ,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -19,7 +21,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { WebView } from 'react-native-webview'; // <--- Added for Map
+import { WebView } from 'react-native-webview';
 
 import { addItemToPlan, createNewPlan, getFoodById, getUserPlans } from '../services/AuthService';
 
@@ -72,6 +74,9 @@ const FoodDetailsScreen = () => {
             style.type = 'text/css';
             style.appendChild(document.createTextNode(css));
             head.appendChild(style);
+            
+            var bottomCards = document.querySelectorAll('div[role="dialog"], div[aria-label^="Place"], #bottom-pane');
+            bottomCards.forEach(el => el.style.display = 'none');
         }
         hideJunk();
         setInterval(hideJunk, 500);
@@ -79,14 +84,72 @@ const FoodDetailsScreen = () => {
       true;
     `;
 
-    const openNavigationApp = () => {
-        if (data?.locationURL) {
-            Linking.openURL(data.locationURL).catch(() => {
-                Alert.alert('Error', 'Could not open map application.');
-            });
-        } else {
-            Alert.alert('No Location', 'No location link provided.');
+    // --- HELPER: CONVERT SAVED URL TO WEBVIEW URL ---
+    const getPreviewUrl = (savedUrl) => {
+        if (!savedUrl) return null;
+        // Convert "q=lat,lng" to "maps.google.com/1{lat,lng}" for the WebView
+        if (savedUrl.includes('q=')) {
+            const match = savedUrl.match(/[?&]q=([^&]+)/);
+            if (match && match[1]) {
+                return `https://www.google.com/maps/search/?api=1&query=${match[1]}`;
+            }
         }
+        return savedUrl;
+    };
+
+    // --- NAVIGATION HANDLER (Deep Link with Custom Label) ---
+    const openNavigationApp = () => {
+        const url = data?.locationURL;
+        if (!url) {
+            Alert.alert('No Location', 'No location link provided.');
+            return;
+        }
+
+        // 1. Extract coordinates
+        let latLng = null;
+        if (url.includes('q=')) {
+            const match = url.match(/[?&]q=([^&]+)/);
+            if (match && match[1]) {
+                latLng = match[1]; 
+            }
+        }
+
+        // 2. Construct Deep Link WITH Label (As requested)
+        let targetUrl = url;
+
+        if (latLng) {
+            const label = encodeURIComponent(data.title || 'Food Spot');
+            if (Platform.OS === 'ios') {
+                // iOS Scheme: maps:0,0?q=Label@lat,lng
+                targetUrl = `maps:0,0?q=${label}@${latLng}`;
+            } else {
+                // Android Geo Scheme: geo:0,0?q=lat,lng(Label)
+                targetUrl = `geo:0,0?q=${latLng}(${label})`;
+            }
+        } else {
+            // Fallback: Search by title
+            const query = encodeURIComponent(data.title || '');
+            if (Platform.OS === 'ios') {
+                targetUrl = `maps:0,0?q=${query}`;
+            } else {
+                targetUrl = `geo:0,0?q=${query}`;
+            }
+        }
+
+        // 3. Open
+        Linking.canOpenURL(targetUrl)
+            .then((supported) => {
+                if (supported) {
+                    Linking.openURL(targetUrl);
+                } else {
+                    console.log("Deep link not supported, opening web URL");
+                    Linking.openURL(url);
+                }
+            })
+            .catch((err) => {
+                console.error("Map Error:", err);
+                Linking.openURL(url);
+            });
     };
 
     // --- ACTION: Open Modal & Fetch Plans ---
@@ -123,9 +186,11 @@ const FoodDetailsScreen = () => {
             const itemToSave = {
                 id: data.id,
                 title: data.title,
+                // Using estimatedTotalExpenses logic
                 price: parseFloat(data.estimatedTotalExpenses) || parseFloat(data.price) || 0, 
                 imageUrl: data.imageUrl,
-                type: 'food' 
+                type: 'food',
+                locationURL: data.locationURL || "" 
             };
 
             await addItemToPlan(plan.id, itemToSave);
@@ -156,6 +221,9 @@ const FoodDetailsScreen = () => {
     const transportPrice = parseFloat(data.transportCost) || 0;
     const estimatedExp = parseFloat(data.estimatedTotalExpenses) || 0;
     const rating = data.rating || 4.5;
+
+    // Get Clean Preview URL for WebView
+    const previewUrl = getPreviewUrl(data.locationURL);
 
     return (
         <View style={styles.container}>
@@ -195,12 +263,12 @@ const FoodDetailsScreen = () => {
 
                     <View style={styles.divider} />
 
-                    {/* === MAP SECTION ADDED HERE === */}
+                    {/* === MAP SECTION === */}
                     <Text style={styles.sectionTitle}>Location Preview</Text>
                     <View style={styles.mapContainer}>
-                        {data.locationURL ? (
+                        {previewUrl ? (
                             <WebView
-                                source={{ uri: data.locationURL }}
+                                source={{ uri: previewUrl }}
                                 style={styles.mapWebView}
                                 nestedScrollEnabled={true}
                                 showsUserLocation={false}
@@ -354,7 +422,7 @@ const styles = StyleSheet.create({
     // === MAP STYLES ===
     mapContainer: {
         width: '100%',
-        height: 450, // <--- Set to 450 as requested
+        height: 450, 
         borderRadius: 20,
         overflow: 'hidden',
         marginBottom: 10,
@@ -372,7 +440,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 10,
         right: 10,
-        backgroundColor: '#FF7C5E', // Matched theme color
+        backgroundColor: '#FF7C5E', 
         flexDirection: 'row',
         paddingVertical: 8,
         paddingHorizontal: 12,

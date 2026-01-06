@@ -11,7 +11,7 @@ import {
     Alert,
     Image,
     KeyboardAvoidingView,
-    LogBox, // <--- Ensure this is imported
+    LogBox,
     Platform,
     ScrollView,
     StyleSheet,
@@ -25,7 +25,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { addFood } from '../services/AuthService';
 
-// [FIXED] Updated the text to match the actual React Native warning exactly
 LogBox.ignoreLogs(['VirtualizedLists should never be nested']);
 
 const generateFoodId = () => {
@@ -37,13 +36,12 @@ const generateFoodId = () => {
 // 🔴 REPLACE WITH YOUR ACTUAL API KEY
 const GOOGLE_PLACES_API_KEY = 'AIzaSyDIAZukJLwu4-KsDsZASQ8byWKAEPTos7g'; 
 
-export default function AgencyUploadFoodScreen() { // Added export default
+export default function AgencyUploadFoodScreen() {
     const router = useRouter();
     const auth = getAuth();
     const currentUser = auth.currentUser;
     const locationRef = useRef(); 
 
-    // ... (Your State Variables remain the same)
     const [foodId] = useState(generateFoodId());
     const [foodName, setFoodName] = useState('');
     const [priceRange, setPriceRange] = useState('');
@@ -134,7 +132,7 @@ export default function AgencyUploadFoodScreen() { // Added export default
                 <ScrollView 
                     contentContainerStyle={styles.scrollContainer}
                     keyboardShouldPersistTaps="always"
-                    nestedScrollEnabled={true} // [FIXED] Helps Android handle nested scrolling better
+                    nestedScrollEnabled={true}
                 >
                     
                     <Text style={styles.idText}>
@@ -209,32 +207,37 @@ export default function AgencyUploadFoodScreen() { // Added export default
                         <View style={{ zIndex: 9999, marginBottom: 15 }}>
                             <GooglePlacesAutocomplete
                                 ref={locationRef}
-                                // 1. ADD THIS: Delays the API call slightly (300ms) so it doesn't freeze while typing
                                 debounce={300} 
-                                
-                                // 2. ADD THIS: Improves text input responsiveness
                                 textInputProps={{
-                                    onChangeText: (text) => { console.log(text); }, // Optional: for debugging
-                                    autoCorrect: false, // Disabling auto-correct speeds up typing
+                                    onChangeText: (text) => { console.log(text); },
+                                    autoCorrect: false,
                                 }}
                                 placeholder="Search Restaurant Location..."
                                 fetchDetails={true}
+                                // --- [FIX START] ---
                                 onPress={(data, details = null) => {
                                     setLocation(data.description);
                                     
-                                    if (details?.url) {
-                                        setLocationUrl(details.url);
-                                    } else if (details?.geometry?.location) {
+                                    // 1. Prefer Coordinates (Most accurate for routing)
+                                    if (details?.geometry?.location) {
                                         const { lat, lng } = details.geometry.location;
-                                        // [FIXED] Correct URL string interpolation
-                                        const generatedUrl = `http://googleusercontent.com/maps.google.com/maps?q=${lat},${lng}`;
-                                        setLocationUrl(generatedUrl);
+                                        
+                                        // We use the Standard Google Maps Search URL.
+                                        // This is clean, safe, and works with the routing logic we fixed earlier.
+                                        const cleanUrl = `http://googleusercontent.com/maps.google.com/maps?q=${lat},${lng}`;
+                                        
+                                        setLocationUrl(cleanUrl);
+                                        console.log("Saved Clean URL:", cleanUrl);
+                                    } 
+                                    // 2. Fallback to Google's provided URL if coordinates fail (Rare)
+                                    else if (details?.url) {
+                                        setLocationUrl(details.url);
                                     }
                                 }}
+                                // --- [FIX END] ---
                                 query={{
                                     key: GOOGLE_PLACES_API_KEY,
                                     language: 'en',
-                                    
                                 }}
                                 styles={{
                                     textInput: styles.searchInput,

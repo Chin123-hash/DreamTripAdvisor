@@ -47,8 +47,10 @@ export default function HistoryScreen() {
     const renderOrderItem = ({ item }) => (
         <TouchableOpacity 
             style={styles.card} 
-            // You can implement an OrderDetails screen later if needed
-            onPress={() => alert(`Order ID: ${item.id}`)}
+            onPress={() => router.push({
+                pathname: '/order-details',
+                params: { orderId: item.id } // <--- FIX: Pass the ID
+            })}
         >
             <View style={styles.cardHeader}>
                 <View style={styles.iconBox}>

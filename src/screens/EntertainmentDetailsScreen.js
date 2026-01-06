@@ -11,6 +11,7 @@ import {
     Image,
     Linking,
     Modal,
+    Platform,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -54,22 +55,13 @@ const EntertainmentDetailsScreen = () => {
     }, [id]);
 
     // --- NUCLEAR OPTION CLEANING SCRIPT ---
-    // This script runs every 300ms to constantly hide unwanted elements
-    // even if they load late.
     const mobileCleanScript = `
       (function() {
         function hideJunk() {
             var css = \`
-                /* Hide Top Bar & Search */
                 .app-view-header, header, .ml-searchbox-landing-omnibox-container, .searchbox-hamburger-container { display: none !important; opacity: 0 !important; }
-                
-                /* Hide Bottom White Card & Footer */
                 .place-card-large, .place-card, .bottom-panel, .scene-footer, .QU77pf, .k69vge, .bJzME, .h169D { display: none !important; opacity: 0 !important; }
-                
-                /* Hide "Open App" Button */
                 .ml-promotion-container, .mobile-promotion-container, .promotional-footer, .upsell-container { display: none !important; opacity: 0 !important; }
-                
-                /* Hide Google Login/Account Icons */
                 .gb_gd, .gb_T, .gb_zd { display: none !important; opacity: 0 !important; }
             \`;
             
@@ -79,7 +71,6 @@ const EntertainmentDetailsScreen = () => {
             style.appendChild(document.createTextNode(css));
             head.appendChild(style);
 
-            // Bruteforce hide specific generic elements by ID/Class if CSS fails
             var bottomCards = document.querySelectorAll('div[role="dialog"], div[aria-label^="Place"], #bottom-pane');
             bottomCards.forEach(el => el.style.display = 'none');
             
@@ -88,24 +79,80 @@ const EntertainmentDetailsScreen = () => {
                 if(el.closest('div')) el.closest('div').style.display = 'none';
             });
         }
-
-        // Run immediately
         hideJunk();
-
-        // Run repeatedly every 500ms to catch late-loading elements
         setInterval(hideJunk, 500);
       })();
       true;
     `;
 
-    const openNavigationApp = () => {
-        if (data?.locationURL) {
-            Linking.openURL(data.locationURL).catch(() => {
-                Alert.alert('Error', 'Could not open map application.');
-            });
-        } else {
-            Alert.alert('No Location', 'No location link provided.');
+    // --- HELPER: CONVERT SAVED URL TO WEBVIEW URL ---
+    const getPreviewUrl = (savedUrl) => {
+        if (!savedUrl) return null;
+        if (savedUrl.includes('q=')) {
+            const match = savedUrl.match(/[?&]q=([^&]+)/);
+            if (match && match[1]) {
+                return `https://www.google.com/maps/search/?api=1&query=${match[1]}`;
+            }
         }
+        return savedUrl;
+    };
+
+    // --- UPDATED NAVIGATION HANDLER (Deep Linking) ---
+    const openNavigationApp = () => {
+        const url = data?.locationURL;
+        if (!url) {
+            Alert.alert('No Location', 'No location link provided.');
+            return;
+        }
+
+        // 1. Try to extract coordinates from our specific format
+        // Input: ...?q=3.123,101.456
+        let latLng = null;
+        if (url.includes('q=')) {
+            const match = url.match(/[?&]q=([^&]+)/);
+            if (match && match[1]) {
+                latLng = match[1]; // "3.123,101.456"
+            }
+        }
+
+        // 2. Construct Platform-Specific Deep Link
+        // These schemes FORCE the OS to open a Map App, not a Browser.
+        let targetUrl = url; // Default fallback
+
+        if (latLng) {
+            const label = encodeURIComponent(data.title || 'Destination');
+            if (Platform.OS === 'ios') {
+                // iOS Apple Maps Scheme
+                targetUrl = `maps:0,0?q=${label}@${latLng}`;
+            } else {
+                // Android Geo Scheme (Universal)
+                targetUrl = `geo:0,0?q=${latLng}(${label})`;
+            }
+        } else {
+            // Fallback: Search by Title if coordinates parsing fails
+            const query = encodeURIComponent(data.title || '');
+            if (Platform.OS === 'ios') {
+                targetUrl = `maps:0,0?q=${query}`;
+            } else {
+                targetUrl = `geo:0,0?q=${query}`;
+            }
+        }
+
+        // 3. Attempt to Open
+        Linking.canOpenURL(targetUrl)
+            .then((supported) => {
+                if (supported) {
+                    Linking.openURL(targetUrl);
+                } else {
+                    // If the specific app scheme fails (e.g. Simulator), open the web link
+                    console.log("Deep link not supported, opening web URL");
+                    Linking.openURL(url);
+                }
+            })
+            .catch((err) => {
+                console.error("Map Error:", err);
+                Linking.openURL(url); // Final Safety Net
+            });
     };
 
     // --- ACTIONS ---
@@ -140,8 +187,10 @@ const EntertainmentDetailsScreen = () => {
             const itemToSave = {
                 id: data.id,
                 title: data.title,
-                price: totalExpenses,
-                imageUrl: data.imageUrl
+                price: totalExpenses, 
+                imageUrl: data.imageUrl,
+                type: 'entertainment', 
+                locationURL: data.locationURL || "" 
             };
 
             await addItemToPlan(plan.id, itemToSave);
@@ -159,12 +208,18 @@ const EntertainmentDetailsScreen = () => {
     if (loading) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#5A8AE4" /></View>;
     if (!data) return <View style={styles.loadingContainer}><Text>Not Found</Text></View>;
 
-    // Calculations
+    // --- CALCULATIONS ---
     const bgImage = data.imageUrl || 'https://via.placeholder.com/400';
-    const ticketPrice = parseFloat(data.ticketCost) || 0;
+    const ticketPrice = parseFloat(data.ticketPrice || data.ticketCost) || 0;
     const transportPrice = parseFloat(data.transportCost) || 0;
-    const totalExpenses = (ticketPrice + transportPrice).toFixed(2);
-    const rating = data.rating || 4.5;
+    
+    const totalExpenses = data.estimatedTotalExpenses 
+        ? parseFloat(data.estimatedTotalExpenses).toFixed(2)
+        : (ticketPrice + transportPrice).toFixed(2);
+
+    const rating = data.rating || 5.0;
+    
+    const previewUrl = getPreviewUrl(data.locationURL);
 
     return (
         <View style={styles.container}>
@@ -207,9 +262,9 @@ const EntertainmentDetailsScreen = () => {
                     {/* === MAP SECTION === */}
                     <Text style={styles.sectionTitle}>Location Preview</Text>
                     <View style={styles.mapContainer}>
-                        {data.locationURL ? (
+                        {previewUrl ? (
                             <WebView
-                                source={{ uri: data.locationURL }}
+                                source={{ uri: previewUrl }} 
                                 style={styles.mapWebView}
                                 nestedScrollEnabled={true}
                                 showsUserLocation={false}

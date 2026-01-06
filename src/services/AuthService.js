@@ -232,24 +232,25 @@ export const createNewPlan = async (planName) => {
 
 // 3. Add Item to a Specific Plan
 // 1. UPDATE: Add a unique 'cartId' when adding items
+// In src/services/AuthService.js
+
 export const addItemToPlan = async (planId, itemData) => {
     const user = auth.currentUser;
     if (!user) throw new Error("User not authenticated");
 
     try {
         const planRef = doc(db, "users", user.uid, "plans", planId);
-
-        // Generate a unique ID for this specific instance
         const newCartId = Date.now().toString() + Math.floor(Math.random() * 1000).toString();
 
         await updateDoc(planRef, {
             items: arrayUnion({
                 itemId: itemData.id, 
-                cartId: newCartId, // <--- NEW UNIQUE ID
+                cartId: newCartId,
                 title: itemData.title,
                 price: parseFloat(itemData.price), 
                 image: itemData.imageUrl,
-                type: itemData.type || 'entertainment', 
+                type: itemData.type || 'entertainment',
+                locationURL: itemData.locationURL || "", // <--- ADD THIS LINE
                 addedAt: new Date().toISOString()
             })
         });
