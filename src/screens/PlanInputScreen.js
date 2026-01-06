@@ -8,7 +8,6 @@ import {
     Image,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -18,6 +17,7 @@ import {
 } from 'react-native';
 import RNPickerSelect from 'react-native-picker-select';
 // Import Firebase functions (We will define these in AuthService next)
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { addPlan, fetchEntertainmentList, fetchFoodList } from '../services/AuthService';
 
 export default function PlanInputScreen() {

@@ -10,7 +10,6 @@ import {
     Image,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -20,6 +19,7 @@ import {
 } from 'react-native';
 
 // Import the food service method
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { addFood } from '../services/AuthService';
 
 export default function FoodInputScreen() {

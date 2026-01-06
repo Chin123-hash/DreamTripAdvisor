@@ -2,18 +2,7 @@ import { Ionicons } from '@expo/vector-icons'; // Added for the Eye Icon
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Alert // Added Alert for better popups
-  ,
-
-
-
-
-
-
-
-
-
-
+  Alert, // Added Alert for better popups
   KeyboardAvoidingView,
   Platform,
   StyleSheet,

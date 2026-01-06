@@ -10,7 +10,6 @@ import {
     Image,
     ImageBackground,
     Linking,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -18,6 +17,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 import { getEntertainmentById } from '../services/AuthService';
