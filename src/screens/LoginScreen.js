@@ -45,7 +45,7 @@ export default function LoginScreen() {
   
       // 2. Check Role & Navigate
       if (result.role === 'admin') {
-        router.replace('/admin-user-list');
+         router.replace('/admin-main');
         Alert.alert("Welcome Admin", "Login Successful!");
       } else if (result.role === 'agency') {
         router.replace('/agency-main');
