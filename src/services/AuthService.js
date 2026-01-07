@@ -447,7 +447,7 @@ export const addFood = async (data, imageUri) => {
             title: data.title,
             description: data.description,
             locationURL: data.locationURL || "",
-            priceRange: data.priceRange, // e.g., "RM 10 - RM 30"
+            priceRange: parseFloat(data.priceRange) || 0, // e.g., "RM 10 - RM 30"
             suggestedTransport: data.suggestedTransport,
             transportCost: parseFloat(data.transportCost) || 0,
             estimatedTotalExpenses: parseFloat(data.estimatedTotalExpenses) || 0,
@@ -596,8 +596,7 @@ export const getCartPlanDetails = async (planId) => {
 
 export const getAgencies = async () => {
     try {
-        // Determine the correct collection based on your logic (users or agencies)
-        // Assuming agencies are stored in 'users' collection with role 'agency'
+        // Query users where role is 'agency'
         const q = query(collection(db, "users"), where("role", "==", "agency"));
         const querySnapshot = await getDocs(q);
 
@@ -606,7 +605,8 @@ export const getAgencies = async () => {
             const data = doc.data();
             agencies.push({
                 id: doc.id,
-                name: data.agencyName || data.fullName || "Unnamed Agency", // Fallback names
+                name: data.agencyName || data.fullName || "Unnamed Agency",
+                status: data.status, // <--- CRITICAL FIX: Now retrieving status
             });
         });
         return agencies;
@@ -869,4 +869,104 @@ export const getTopSellingItems = (orders, limit = 5) => {
     return Object.entries(map)
         .sort((a, b) => b[1].qty - a[1].qty)
         .slice(0, limit);
+export const toggleFavorite = async (item) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    const favRef = doc(db, "users", user.uid, "favorites", item.id);
+    const docSnap = await getDoc(favRef);
+
+    if (docSnap.exists()) {
+        // Remove if already exists
+        await deleteDoc(favRef);
+        return false; // Not favorite anymore
+    } else {
+        // Add to favorites
+        await setDoc(favRef, {
+            id: item.id,
+            title: item.title,
+            // Handle different image field names
+            image: item.imageUrl || item.image || 'https://via.placeholder.com/150',
+            price: parseFloat(item.price) || 0,
+            type: item.type, // 'food', 'entertainment', 'plan'
+            rating: item.rating || 0,
+            locationURL: item.locationURL || "",
+            createdAt: new Date().toISOString()
+        });
+        return true; // Is now favorite
+    }
+};
+
+// 2. Check if Item is Favorite
+export const checkFavoriteStatus = async (itemId) => {
+    const user = auth.currentUser;
+    if (!user) return false;
+
+    try {
+        const favRef = doc(db, "users", user.uid, "favorites", itemId);
+        const docSnap = await getDoc(favRef);
+        return docSnap.exists();
+    } catch (error) {
+        console.error("Error checking favorite:", error);
+        return false;
+    }
+};
+
+// 3. Get All Favorites
+export const getFavorites = async () => {
+    const user = auth.currentUser;
+    if (!user) return [];
+
+    try {
+        const querySnapshot = await getDocs(collection(db, "users", user.uid, "favorites"));
+        const list = [];
+        querySnapshot.forEach((doc) => {
+            list.push(doc.data());
+        });
+        return list;
+    } catch (error) {
+        console.error("Error fetching favorites:", error);
+        return [];
+    }
+};
+
+export const submitItemRating = async (type, itemId, userRating) => {
+    try {
+        // 1. Determine Collection Name based on type
+        // The type usually comes as 'food' or 'entertainment' (singular)
+        // But your collections are 'foods' and 'entertainments' (plural)
+        const collectionName = type === 'food' ? 'foods' : 'entertainments';
+        
+        const docRef = doc(db, collectionName, itemId);
+        const docSnap = await getDoc(docRef);
+
+        if (!docSnap.exists()) {
+            throw new Error("Item not found");
+        }
+
+        const data = docSnap.data();
+
+        // 2. Get existing stats. 
+        // If 'ratingCount' doesn't exist yet, we initialize logic:
+        // - If current rating > 0, assume count is 1.
+        // - If current rating is 0, assume count is 0.
+        let currentRating = parseFloat(data.rating) || 0;
+        let currentCount = parseInt(data.ratingCount) || (currentRating > 0 ? 1 : 0);
+
+        // 3. Calculate New Average
+        // Formula: (OldAvg * OldCount + NewRating) / (OldCount + 1)
+        const newCount = currentCount + 1;
+        const newAverage = ((currentRating * currentCount) + userRating) / newCount;
+
+        // 4. Update Firestore
+        await updateDoc(docRef, {
+            rating: parseFloat(newAverage.toFixed(2)), // Keep 2 decimal places
+            ratingCount: newCount
+        });
+
+        return true;
+    } catch (error) {
+        console.error("Error submitting rating:", error);
+        throw error;
+    }
 };

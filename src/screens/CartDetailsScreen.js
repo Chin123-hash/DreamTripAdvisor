@@ -84,9 +84,21 @@ export default function PlanDetailsScreen() {
     }, [pax]);
 
     const fetchAgencies = async () => {
-        const agencies = await getAgencies();
-        setAgencyList(agencies);
-        if (agencies.length > 0) setSelectedAgency(agencies[0]);
+        try {
+            const agencies = await getAgencies();
+            
+            // [FIXED] Filter to show only 'approved' agencies
+            const approvedAgencies = agencies.filter(agency => agency.status === 'approved');
+            
+            setAgencyList(approvedAgencies);
+            
+            // Set the first approved agency as default if available
+            if (approvedAgencies.length > 0) {
+                setSelectedAgency(approvedAgencies[0]);
+            }
+        } catch (err) {
+            console.log("Error fetching agencies:", err);
+        }
     };
 
     const loadPlanData = async (id) => {

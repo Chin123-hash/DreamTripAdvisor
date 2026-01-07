@@ -117,9 +117,11 @@ export default function ExploreScreen() {
                     {item.description || t('noDesc')}
                 </Text>
                 <Text style={styles.cardPrice}>
-                    {activeTab === 'food' 
-                        ? `RM ${item.priceRange || '15-30'}` 
-                        : `RM ${(parseFloat(item.ticketCost || 0) + parseFloat(item.transportCost || 0)).toFixed(2)}`
+                    {activeTab === 'food'
+                        ? `RM ${(parseFloat(item.estimatedTotalExpenses || '0.00')).toFixed(2)}`
+                        : activeTab === 'entertainment'
+                            ? `RM ${(parseFloat(item.estimatedTotalExpenses || '0.00')).toFixed(2)}`
+                            : `RM ${(parseFloat(item.ticketCost || 0) + parseFloat(item.transportCost || 0)).toFixed(2)}`
                     }
                 </Text>
             </View>

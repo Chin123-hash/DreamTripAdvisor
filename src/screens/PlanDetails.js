@@ -20,9 +20,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // Service imports
 import {
     addPlanToCart,
+    checkFavoriteStatus,
     getAgencies,
     getCurrentUserData,
-    getPlanDetails
+    getPlanDetails,
+    toggleFavorite
 } from '../services/AuthService';
 // 1. Import Hook
 import { useLanguage } from '../context/LanguageContext';
@@ -39,7 +41,6 @@ const parsePrice = (priceVal) => {
 export default function PlanDetailsScreen() {
     const router = useRouter();
     const params = useLocalSearchParams(); 
-    // 2. Destructure Hook
     const { t } = useLanguage();
     
     // Handle cases where param might be 'id' or 'planId'
@@ -65,6 +66,9 @@ export default function PlanDetailsScreen() {
     const [showPicker, setShowPicker] = useState(false);
     const [pickerMode, setPickerMode] = useState('from'); 
 
+    // Favorite State
+    const [isFavorite, setIsFavorite] = useState(false);
+
     // --- 1. FETCH DATA ---
     useEffect(() => {
         const init = async () => {
@@ -73,6 +77,9 @@ export default function PlanDetailsScreen() {
             
             if (planId) {
                 await loadPlanData(planId);
+                // Check Favorite
+                const status = await checkFavoriteStatus(planId);
+                setIsFavorite(status);
             } else {
                 Alert.alert(t('alertErrorTitle'), t('alertNoPlanSelected'));
             }
@@ -95,6 +102,29 @@ export default function PlanDetailsScreen() {
             if (agencies.length > 0) setSelectedAgency(agencies[0]);
         } catch (err) {
             console.log("Error fetching agencies:", err);
+        }
+    };
+
+    // --- TOGGLE FAVORITE ---
+    const handleToggleFavorite = async () => {
+        const itemToSave = {
+            id: planId,
+            title: planName,
+            // Plans usually have one main image, or use placeholder
+            image: 'https://via.placeholder.com/300', 
+            // Use 1 pax price estimate for the favorite list display
+            price: totalExpense / (parseInt(pax) || 1), 
+            type: 'plan',
+            rating: 5, // Default or fetch real rating
+            locationURL: "" // Plans might not have a single location
+        };
+
+        try {
+            const newStatus = await toggleFavorite(itemToSave);
+            setIsFavorite(newStatus);
+        } catch (error) {
+            console.error("Error toggling favorite:", error);
+            Alert.alert(t('alertErrorTitle'), "Please login to save favorites.");
         }
     };
 
@@ -310,7 +340,15 @@ export default function PlanDetailsScreen() {
                 {/* HEADER */}
                 <View style={styles.header}>
                     <Text style={styles.headerTitle}>{planName || t('tripDetails')}</Text>
-                    <View style={{width: 24}} /> 
+                    
+                    {/* FAVORITE TOGGLE */}
+                    <TouchableOpacity onPress={handleToggleFavorite}>
+                        <Ionicons 
+                            name={isFavorite ? "heart" : "heart-outline"} 
+                            size={28} 
+                            color={isFavorite ? "#FF3B30" : "#333"} 
+                        />
+                    </TouchableOpacity>
                 </View>
 
                 {/* TIMELINE (VIEW ONLY) */}

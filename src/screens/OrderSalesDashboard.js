@@ -13,14 +13,12 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-// CHANGED: Import getUserProfile
-import { getAgencyOrders, getUserProfile } from '../services/AuthService';
-// 1. Import Hook
+// Import services
 import { useLanguage } from '../context/LanguageContext';
+import { getAgencyOrders, getUserProfile } from '../services/AuthService';
 
 export default function AgencyOrdersScreen() {
     const router = useRouter();
-    // 2. Destructure Hook
     const { t } = useLanguage();
 
     const [orders, setOrders] = useState([]);
@@ -29,7 +27,6 @@ export default function AgencyOrdersScreen() {
     const [refreshing, setRefreshing] = useState(false); 
     const [selectedFilter, setSelectedFilter] = useState('all');
 
-    // --- Dynamic Filters based on Language ---
     const FILTER_OPTIONS = [
         { label: t('all'), value: 'all' },
         { label: t('last3Days'), value: 3 },
@@ -40,34 +37,25 @@ export default function AgencyOrdersScreen() {
 
     const loadData = async () => {
         try {
-            // 1. Fetch Orders
             const orderData = await getAgencyOrders();
-
-            // 2. Extract Unique Customer IDs
             const uniqueCustomerIds = [...new Set(orderData.map(o => o.customerId).filter(id => id))];
 
-            // 3. Fetch Profiles for these IDs
             const profilesMap = {};
             await Promise.all(uniqueCustomerIds.map(async (uid) => {
                 const profile = await getUserProfile(uid);
-                if (profile) {
-                    profilesMap[uid] = profile;
-                }
+                if (profile) profilesMap[uid] = profile;
             }));
 
-            // 4. Merge Profile Data into Orders
             const enrichedData = orderData.map(order => {
                 const profile = profilesMap[order.customerId];
                 return {
                     ...order,
-                    // Prefer profile data, fallback to order data, fallback to defaults
                     customerName: profile?.fullName || profile?.username || order.customerName || t('guest'),
                     customerEmail: profile?.email || order.customerEmail || 'No Email',
                     customerPhone: profile?.phone || order.customerPhone || 'No Phone'
                 };
             });
 
-            // 5. Sort by latest first (descending)
             const sortedData = enrichedData.sort((a, b) => {
                 const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
                 const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
@@ -76,7 +64,6 @@ export default function AgencyOrdersScreen() {
 
             setOrders(sortedData);
 
-            // Calculate Summary Data
             const totalRevenue = sortedData.reduce((sum, order) => sum + (parseFloat(order.totalAmount) || 0), 0);
             const uniqueCustomers = new Set(sortedData.map(o => o.customerId)).size;
 
@@ -99,23 +86,15 @@ export default function AgencyOrdersScreen() {
 
     const filteredOrders = useMemo(() => {
         if (selectedFilter === 'all') return orders;
-
         const now = new Date();
-        const filterDate = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate()
-        );
+        const filterDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         filterDate.setDate(filterDate.getDate() - (selectedFilter - 1));
 
         return orders.filter(order => {
-            const orderDate = order.createdAt?.toDate
-                ? order.createdAt.toDate()
-                : new Date(order.createdAt);
+            const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
             return orderDate >= filterDate;
         });
     }, [orders, selectedFilter]);
-
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -167,14 +146,7 @@ export default function AgencyOrdersScreen() {
     const renderOrderItem = ({ item }) => (
         <TouchableOpacity
             style={styles.orderCard}
-            onPress={() =>
-                router.push({
-                    pathname: '/order-details',
-                    params: {
-                        orderData: JSON.stringify(item),
-                    },
-                })
-            }
+            onPress={() => router.push({ pathname: '/order-details', params: { orderData: JSON.stringify(item) } })}
         >
             <View style={styles.cardHeader}>
                 <View style={styles.customerAvatar}>
@@ -182,7 +154,6 @@ export default function AgencyOrdersScreen() {
                 </View>
                 <View style={styles.headerInfo}>
                     <Text style={styles.customerName}>{item.customerName || t('guest')}</Text>
-                    {/* Added Email for better context since we fetched it */}
                     <Text style={{fontSize: 10, color: '#999'}}>{item.customerEmail}</Text> 
                     <Text style={styles.planName}>{item.items?.[0]?.title || t('packageFee')}</Text>
                 </View>
@@ -208,12 +179,13 @@ export default function AgencyOrdersScreen() {
                 </TouchableOpacity>
 
                 <Text style={styles.headerTitle}>{t('orderSales')}</Text>
-
-                <TouchableOpacity
+                
+                {/* --- ADDED: ANALYTICS BUTTON --- */}
+                <TouchableOpacity 
+                    style={styles.analyticsBtn}
                     onPress={() => router.push('/agency-analytic')}
-                    style={styles.analyticsButton}
                 >
-                    <Ionicons name="analytics-outline" size={26} color="#333" />
+                    <Ionicons name="stats-chart" size={24} color="#648DDB" />
                 </TouchableOpacity>
             </View>
 
@@ -246,47 +218,28 @@ const styles = StyleSheet.create({
     headerBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 10 },
     headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
     backButton: { width: 40, height: 40, justifyContent: 'center' },
+    
+    // New Style for Analytics Button
+    analyticsBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F0F8FF', borderRadius: 20 },
 
     listContent: { paddingHorizontal: 20, paddingBottom: 40 },
-
     summaryContainer: { marginBottom: 15, marginTop: 10 },
     mainStatCard: { borderRadius: 15, padding: 20, marginBottom: 15, overflow: 'hidden' },
     statLabel: { color: '#FFF', fontSize: 14, opacity: 0.9 },
     statValue: { color: '#FFF', fontSize: 28, fontWeight: 'bold', marginTop: 5 },
     statIcon: { position: 'absolute', right: 20, bottom: 10 },
-
     row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
     miniStatCard: { width: '48%', borderRadius: 12, padding: 15, alignItems: 'center' },
     miniLabel: { fontSize: 12, color: '#666', marginBottom: 5 },
     miniValue: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-
     sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 12 },
-
-    // Filter Styles
     filterWrapper: { marginBottom: 10 },
     filterScroll: { paddingRight: 20 },
-    filterChip: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-        backgroundColor: '#F0F0F0',
-        marginRight: 10,
-        borderWidth: 1,
-        borderColor: '#EEE'
-    },
+    filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F0F0F0', marginRight: 10, borderWidth: 1, borderColor: '#EEE' },
     activeFilterChip: { backgroundColor: '#648DDB', borderColor: '#648DDB' },
     filterChipText: { fontSize: 13, color: '#666' },
     activeFilterChipText: { color: '#FFF', fontWeight: 'bold' },
-
-    // Order Card Styles
-    orderCard: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 12,
-        padding: 15,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: '#EEE',
-    },
+    orderCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 15, marginBottom: 12, borderWidth: 1, borderColor: '#EEE' },
     cardHeader: { flexDirection: 'row', alignItems: 'center' },
     customerAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#E8F0FE', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
     avatarText: { color: '#648DDB', fontWeight: 'bold' },
@@ -296,7 +249,6 @@ const styles = StyleSheet.create({
     amountContainer: { alignItems: 'flex-end' },
     amountText: { fontSize: 15, fontWeight: 'bold', color: '#28A745' },
     dateText: { fontSize: 10, color: '#BBB', marginTop: 4 },
-
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     emptyContainer: { alignItems: 'center', marginTop: 50 },
     emptyText: { color: '#999', marginTop: 10 },
