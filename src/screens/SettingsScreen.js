@@ -1,6 +1,7 @@
 // src/screens/SettingsScreen.js
 
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -12,15 +13,20 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-// 1. Import SafeAreaView (Already present in your code)
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import * as FileSystem from 'expo-file-system/legacy';
+import { useLanguage } from '../context/LanguageContext'; // <--- Import
 
 export default function SettingsScreen() {
     const router = useRouter();
 
     const [isDarkMode, setIsDarkMode] = useState(false);
+    
+    // 1. Get t() and language state from context
+    const { language, setLanguage, t } = useLanguage(); 
+
+    const toggleLanguage = (value) => {
+        setLanguage(value ? 'ms' : 'en'); // Switch between Malay and English
+    };
 
     const handleDarkMode = (value) => {
         setIsDarkMode(value);
@@ -32,12 +38,12 @@ export default function SettingsScreen() {
 
     const handleClearCache = () => {
         Alert.alert(
-            "Clear Cache",
+            t('clearCache'), // Translated Title
             "Are you sure you want to delete all cached data?",
             [
-                { text: "Cancel", style: "cancel" },
+                { text: t('cancel'), style: "cancel" }, // Translated Button
                 { 
-                    text: "Clear", 
+                    text: t('clear'), // Translated Button
                     style: "destructive",
                     onPress: async () => {
                         try {
@@ -87,49 +93,62 @@ export default function SettingsScreen() {
     );
 
     return (
-        // 2. Wrap everything in SafeAreaView
-        // We move the container style here so the background color fills the "notches" too
         <SafeAreaView style={[styles.container, isDarkMode && styles.darkContainer]}>
             
             <ScrollView showsVerticalScrollIndicator={false}>
 
-                <Text style={styles.sectionHeader}>ACCOUNT</Text>
+                {/* --- ACCOUNT SECTION --- */}
+                <Text style={styles.sectionHeader}>{t('account')}</Text> 
                 <View style={[styles.section, isDarkMode && styles.darkSection]}>
                     <SettingItem 
                         icon="person" 
                         color="#5A8AE4" 
-                        title="Edit Profile" 
+                        title={t('editProfile')} // <--- Translated
                         onPress={() => router.push('/profile')}
                     />
                     <View style={[styles.divider, isDarkMode && styles.darkDivider]} />
                     <SettingItem 
                         icon="lock-closed" 
                         color="#FF3B30" 
-                        title="Change Password" 
+                        title={t('changePass')} // <--- Translated
                         onPress={() => router.push('/forgot-password')}
                     />
                 </View>
 
-                <Text style={styles.sectionHeader}>SUPPORT & INFO</Text>
+                {/* --- LANGUAGE SECTION (NEW) --- */}
+                <Text style={styles.sectionHeader}>{t('language')}</Text>
+                <View style={[styles.section, isDarkMode && styles.darkSection]}>
+                    <SettingItem 
+                        icon="language" 
+                        color="#FF9500" 
+                        title="Bahasa Melayu" 
+                        isSwitch={true}
+                        value={language === 'ms'} // Check if current language is Malay
+                        onPress={toggleLanguage}
+                    />
+                </View>
+
+                {/* --- SUPPORT SECTION --- */}
+                <Text style={styles.sectionHeader}>{t('support')}</Text>
                 <View style={[styles.section, isDarkMode && styles.darkSection]}>
                     <SettingItem 
                         icon="trash" 
                         color="#8E8E93" 
-                        title="Clear Cache" 
+                        title={t('clearCache')} // <--- Translated
                         onPress={handleClearCache}
                     />
                     <View style={[styles.divider, isDarkMode && styles.darkDivider]} />
                     <SettingItem 
                         icon="document-text" 
                         color="#34C759" 
-                        title="Terms of Service" 
+                        title={t('terms')} // <--- Translated
                         onPress={() => Alert.alert("Info", "Terms of Service placeholder.")}
                     />
                     <View style={[styles.divider, isDarkMode && styles.darkDivider]} />
                     <SettingItem 
                         icon="information-circle" 
                         color="#007AFF" 
-                        title="About App" 
+                        title={t('about')} // <--- Translated
                         onPress={() => Alert.alert("Dream Trip Advisor", "Version 1.0.0\nDeveloped for MPU32013.")}
                     />
                 </View>
@@ -151,7 +170,7 @@ const styles = StyleSheet.create({
         color: '#6D6D72',
         fontWeight: '600',
         marginBottom: 8,
-        marginTop: 30, // SafeAreaView handles the top notch, so this margin is just for visual spacing now
+        marginTop: 30, 
         marginLeft: 20,
         textTransform: 'uppercase'
     },

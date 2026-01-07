@@ -1,5 +1,3 @@
-// src/screens/AdminMainPageScreen.js
-
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -20,11 +18,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Service Imports
 import { getCurrentUserData, logoutUser } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 const { width } = Dimensions.get('window');
 
 export default function AdminMainPageScreen() {
     const router = useRouter();
+    // 2. Destructure Hook
+    const { t } = useLanguage();
 
     // --- STATE ---
     const [adminData, setAdminData] = useState(null);
@@ -90,16 +92,17 @@ export default function AdminMainPageScreen() {
         <SafeAreaView style={styles.safeArea}>
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 
-                {/* HEADER (Matched Customer Style) */}
+                {/* HEADER */}
                 <View style={styles.headerContainer}>
                     <TouchableOpacity onPress={openSidebar}>
                         <Ionicons name="menu" size={30} color="#333" />
                     </TouchableOpacity>
+                    {/* APP NAME UNTRANSLATED */}
                     <Text style={styles.appTitle}>Dream Trip Advisor</Text>
                     <View style={{ width: 30 }} />
                 </View>
 
-                {/* PROFILE SECTION (Matched Customer Style) */}
+                {/* PROFILE SECTION */}
                 <View style={styles.profileSection}>
                     <View style={styles.profileRow}>
                         <Image 
@@ -107,9 +110,9 @@ export default function AdminMainPageScreen() {
                             style={styles.profilePic} 
                         />
                         <View>
-                            <Text style={styles.welcomeLabel}>Admin Dashboard</Text>
+                            <Text style={styles.welcomeLabel}>{t('adminDashboard')}</Text>
                             <Text style={styles.welcomeText}>
-                                {adminData?.fullName ? adminData.fullName.split(' ')[0] : 'Admin'}
+                                {adminData?.fullName ? adminData.fullName.split(' ')[0] : t('admin')}
                             </Text>
                         </View>
                     </View>
@@ -121,9 +124,9 @@ export default function AdminMainPageScreen() {
                     </View>
                 </View>
 
-                {/* --- ORIGINAL BUTTON STYLE (KEPT AS REQUESTED) --- */}
+                {/* --- MANAGEMENT BUTTONS --- */}
                 <View style={styles.divider} />
-                <Text style={styles.sectionTitle}>Management</Text>
+                <Text style={styles.sectionTitle}>{t('management')}</Text>
 
                 <View style={styles.mainButtonContainer}>
                     
@@ -136,8 +139,8 @@ export default function AdminMainPageScreen() {
                             <Ionicons name="people-sharp" size={42} color="#1976D2" />
                         </View>
                         <View style={styles.buttonTextContainer}>
-                            <Text style={styles.bigButtonText}>Users</Text>
-                            <Text style={styles.subText}>Manage customer accounts</Text>
+                            <Text style={styles.bigButtonText}>{t('users')}</Text>
+                            <Text style={styles.subText}>{t('manageUsers')}</Text>
                         </View>
                         <Ionicons name="chevron-forward" size={24} color="#1976D2" />
                     </TouchableOpacity>
@@ -151,8 +154,8 @@ export default function AdminMainPageScreen() {
                             <Ionicons name="business-sharp" size={42} color="#7B1FA2" />
                         </View>
                         <View style={styles.buttonTextContainer}>
-                            <Text style={styles.bigButtonText}>Travel Agents</Text>
-                            <Text style={styles.subText}>Verify agency partners</Text>
+                            <Text style={styles.bigButtonText}>{t('travelAgents')}</Text>
+                            <Text style={styles.subText}>{t('verifyAgents')}</Text>
                         </View>
                         <Ionicons name="chevron-forward" size={24} color="#7B1FA2" />
                     </TouchableOpacity>
@@ -166,24 +169,24 @@ export default function AdminMainPageScreen() {
                             <Ionicons name="receipt-sharp" size={42} color="#388E3C" />
                         </View>
                         <View style={styles.buttonTextContainer}>
-                            <Text style={styles.bigButtonText}>Orders</Text>
-                            <Text style={styles.subText}>Orders & Sales Report</Text>
+                            <Text style={styles.bigButtonText}>{t('orders')}</Text>
+                            <Text style={styles.subText}>{t('ordersReport')}</Text>
                         </View>
                         <Ionicons name="chevron-forward" size={24} color="#388E3C" />
                     </TouchableOpacity>
 
                 </View>
 
-                {/* SYSTEM STATS (Mini Card) */}
+                {/* SYSTEM STATS */}
                 <View style={styles.statsCard}>
                     <Ionicons name="server-outline" size={20} color="#666" />
-                    <Text style={styles.statsText}>System Status: Online & Secured</Text>
+                    <Text style={styles.statsText}>{t('systemStatus')}</Text>
                 </View>
 
                 <View style={{height: 40}} /> 
             </ScrollView>
 
-            {/* SIDEBAR MODAL (Exact match to Customer Page) */}
+            {/* SIDEBAR MODAL */}
             <Modal
                 visible={isSidebarVisible}
                 transparent={true}
@@ -204,7 +207,7 @@ export default function AdminMainPageScreen() {
                                     style={styles.sidebarProfilePic} 
                                 />
                             </TouchableOpacity>
-                            <Text style={styles.sidebarName}>{adminData?.fullName || "Administrator"}</Text>
+                            <Text style={styles.sidebarName}>{adminData?.fullName || t('admin')}</Text>
                             <Text style={styles.sidebarEmail}>{adminData?.email || "admin@system.com"}</Text>
                         </View>
 
@@ -212,26 +215,26 @@ export default function AdminMainPageScreen() {
                         <View style={styles.menuContainer}>
                             <TouchableOpacity style={styles.menuItem} onPress={() => { closeSidebar(); router.push('/profile'); }}>
                                 <Ionicons name="person-outline" size={24} color="#333" />
-                                <Text style={styles.menuText}>My Profile</Text>
+                                <Text style={styles.menuText}>{t('myProfile')}</Text>
                             </TouchableOpacity>
                             
                             <TouchableOpacity style={styles.menuItem} onPress={() => { closeSidebar(); router.push('/settings'); }}>
                                 <Ionicons name="settings-outline" size={24} color="#333" />
-                                <Text style={styles.menuText}>System Settings</Text>
+                                <Text style={styles.menuText}>{t('systemSettings')}</Text>
                             </TouchableOpacity>
                             
                             <View style={styles.menuDivider} />
                             
-                            <TouchableOpacity style={styles.menuItem} onPress={() => alert("Support coming soon")}>
+                            <TouchableOpacity style={styles.menuItem} onPress={() => alert(t('alertSupport'))}>
                                 <Ionicons name="help-circle-outline" size={24} color="#333" />
-                                <Text style={styles.menuText}>Help & Support</Text>
+                                <Text style={styles.menuText}>{t('menuHelp')}</Text>
                             </TouchableOpacity>
                         </View>
 
                         {/* LOGOUT */}
                         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
                             <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
-                            <Text style={styles.logoutText}>Log Out</Text>
+                            <Text style={styles.logoutText}>{t('logout')}</Text>
                         </TouchableOpacity>
                     </Animated.View>
                 </View>
@@ -263,7 +266,7 @@ const styles = StyleSheet.create({
     sectionTitle: { fontSize: 18, fontWeight: 'bold', marginLeft: 20, marginBottom: 10, marginTop: 10, color: '#333' },
     divider: { height: 1, backgroundColor: '#E0E0E0', marginHorizontal: 20, marginVertical: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: '#ccc' },
     
-    // --- BIG BUTTONS STYLES (Restored) ---
+    // --- BIG BUTTONS STYLES ---
     mainButtonContainer: { paddingHorizontal: 20, gap: 15 },
     bigButton: {
         width: '100%',
@@ -292,7 +295,7 @@ const styles = StyleSheet.create({
     statsCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 30, padding: 15, backgroundColor: '#F5F5F5', marginHorizontal: 20, borderRadius: 12 },
     statsText: { marginLeft: 10, color: '#666', fontSize: 13, fontWeight: '500' },
 
-    // Sidebar Styles (Exact Match)
+    // Sidebar Styles
     modalOverlay: { flex: 1, flexDirection: 'row' },
     modalTransparentArea: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
     sidebarContainer: { position: 'absolute', left: 0, top: 0, bottom: 0, width: width * 0.75, backgroundColor: '#FFF', shadowColor: "#000", shadowOffset: { width: 2, height: 0 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5, paddingTop: 50, paddingHorizontal: 20, justifyContent: 'space-between' },

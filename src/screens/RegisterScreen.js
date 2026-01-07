@@ -1,14 +1,11 @@
-import { Ionicons } from '@expo/vector-icons'; // Built-in icons for the Calendar
+import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
-  ScrollView // We need this because the form is long!
-  ,
-
-
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -18,10 +15,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { registerTraveller } from '../services/AuthService';
+// IMPORT LANGUAGE HOOK
+import { useLanguage } from '../context/LanguageContext';
 
 export default function RegisterScreen() {
+  // USE HOOK
+  const { t } = useLanguage();
+
   // 1. Form State
-  const [role, setRole] = useState('traveller'); // Default to Traveller
+  const [role, setRole] = useState('traveller'); 
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -29,29 +31,28 @@ export default function RegisterScreen() {
   const [dob, setDob] = useState('');
   const [phone, setPhone] = useState('');
   const [isPasswordVisible, setPasswordVisible] = useState(false);
-// Add these new states
-const [date, setDate] = useState(new Date()); // The actual date object
-const [showPicker, setShowPicker] = useState(false); // Controls if calendar is visible
 
-// Add this function to handle the selection
-const onChangeDate = (event, selectedDate) => {
-  const currentDate = selectedDate || date;
-  setShowPicker(Platform.OS === 'ios'); // On iOS keep it open, on Android close it
-  setDate(currentDate);
-  
-  // Format the date to DD/MM/YYYY for the text box
-  let tempDate = new Date(currentDate);
-  let fDate = tempDate.getDate() + '/' + (tempDate.getMonth() + 1) + '/' + tempDate.getFullYear();
-  setDob(fDate);
-  
-  if (Platform.OS === 'android') {
-    setShowPicker(false);
-  }
-};
+  // Date Picker State
+  const [date, setDate] = useState(new Date()); 
+  const [showPicker, setShowPicker] = useState(false); 
+
+  const onChangeDate = (event, selectedDate) => {
+    const currentDate = selectedDate || date;
+    setShowPicker(Platform.OS === 'ios'); 
+    setDate(currentDate);
+    
+    // Format the date to DD/MM/YYYY
+    let tempDate = new Date(currentDate);
+    let fDate = tempDate.getDate() + '/' + (tempDate.getMonth() + 1) + '/' + tempDate.getFullYear();
+    setDob(fDate);
+    
+    if (Platform.OS === 'android') {
+      setShowPicker(false);
+    }
+  };
+
   // 2. Handle Button Logic
-  // Inside RegisterScreen.js
   const phoneDigits = phone.replace(/\D/g, '');
-  // Malaysian mobile: 011 + 8 digits (11 total) or 01X + 7 digits (10 total) where X != 1
   const malaysiaPhoneRegex = /^(011\d{8}|01[02-9]\d{7})$/;
   const isPhoneValid = malaysiaPhoneRegex.test(phoneDigits);
 
@@ -74,16 +75,16 @@ const onChangeDate = (event, selectedDate) => {
       !dob.trim() ||
       !phone.trim()
     ) {
-      alert('Please fill in all required fields.');
+      alert(t('alertFillFields'));
       return;
     }
     if (password.length < 6) {
-      alert("Password is too short.\nIt must be at least 6 characters.");
-      return; // <--- STOPS here. Firebase is never called.
+      alert(t('alertPassShort'));
+      return; 
     }
     
     if (!isPhoneValid) {
-      alert('Please enter a valid Malaysian phone (e.g., 011xxxxxxxx or 012xxxxxxx).');
+      alert(t('alertPhoneInvalid'));
       return;
     }
 
@@ -102,7 +103,7 @@ const onChangeDate = (event, selectedDate) => {
           phone: phone.trim(),
           dob: dob.trim()
         });
-        alert("Account Created!");
+        alert(t('alertAccountCreated'));
         router.replace('/');
       } catch (error) {
         alert(error.message);
@@ -122,41 +123,51 @@ const onChangeDate = (event, selectedDate) => {
           <View style={styles.tabContainer}>
             <TouchableOpacity 
               style={styles.inactiveTab} 
-              onPress={() => router.push('/')} // Go back to Login
+              onPress={() => router.push('/')} 
             >
-              <Text style={styles.inactiveTabText}>Log in</Text>
+              <Text style={styles.inactiveTabText}>{t('login')}</Text>
             </TouchableOpacity>
 
             <View style={styles.activeTabBorder}>
-              <Text style={styles.activeTabText}>Sign up</Text>
+              <Text style={styles.activeTabText}>{t('signup')}</Text>
             </View>
           </View>
 
           {/* FORM INPUTS */}
           
-          <Text style={styles.label}>Full Name</Text>
-          <TextInput style={styles.inputField} placeholder="e.g. Shane Lee" value={fullName} onChangeText={setFullName} />
-
-          <Text style={styles.label}>User Name</Text>
-          <TextInput style={styles.inputField} placeholder="e.g. XXXX" value={username} onChangeText={setUsername} />
-
-          <Text style={styles.label}>Your Email</Text>
+          <Text style={styles.label}>{t('fullName')}</Text>
           <TextInput 
             style={styles.inputField} 
-            placeholder="contact@dscodetech.com" 
+            placeholder={t('placeholderName')} 
+            value={fullName} 
+            onChangeText={setFullName} 
+          />
+
+          <Text style={styles.label}>{t('username')}</Text>
+          <TextInput 
+            style={styles.inputField} 
+            placeholder={t('placeholderUsername')} 
+            value={username} 
+            onChangeText={setUsername} 
+          />
+
+          <Text style={styles.label}>{t('email')}</Text>
+          <TextInput 
+            style={styles.inputField} 
+            placeholder={t('placeholderEmail')} 
             value={email} 
             onChangeText={setEmail} 
             keyboardType="email-address"
             autoCapitalize="none"
           />
 
-          <Text style={styles.label}>Password</Text>
+          <Text style={styles.label}>{t('password')}</Text>
           
           {/* ENHANCED PASSWORD FIELD WITH ICON */}
           <View style={styles.passwordContainer}>
             <TextInput
               style={styles.passwordInput}
-              placeholder="Password"
+              placeholder={t('password')}
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!isPasswordVisible}
@@ -173,21 +184,21 @@ const onChangeDate = (event, selectedDate) => {
             </TouchableOpacity>
           </View>
 
-        <Text style={styles.label}>Date of Birth</Text>
+        <Text style={styles.label}>{t('dob')}</Text>
         <TouchableOpacity onPress={() => setShowPicker(true)} style={styles.dateContainer}>
-        {/* We make the TextInput "pointerEvents='none'" so clicking it opens the calendar instead of the keyboard */}
+        {/* Pointer events none makes the TextInput clickable via the parent TouchableOpacity */}
         <View pointerEvents="none">
             <TextInput 
             style={[styles.inputField, {marginBottom: 0}]} 
-            placeholder="DD/MM/YYYY" 
+            placeholder={t('placeholderDob')} 
             value={dob} 
-            editable={false} // User cannot type manually, must use calendar
+            editable={false} 
             />
         </View>
         <Ionicons name="calendar-outline" size={24} color="#BDBDBD" style={styles.calendarIcon} />
         </TouchableOpacity>
 
-        {/* The Actual Calendar Component (Hidden until clicked) */}
+        {/* The Actual Calendar Component */}
         {showPicker && (
         <DateTimePicker
             testID="dateTimePicker"
@@ -199,17 +210,17 @@ const onChangeDate = (event, selectedDate) => {
         />
         )}
 
-          <Text style={styles.label}>Phone Number</Text>
+          <Text style={styles.label}>{t('phone')}</Text>
           <TextInput 
             style={styles.inputField} 
-            placeholder="0193140197" 
+            placeholder={t('placeholderPhone')} 
             value={phone} 
             onChangeText={setPhone} 
             keyboardType="phone-pad"
           />
 
           {/* ROLE SELECTION (Radio Buttons) */}
-          <Text style={styles.questionLabel}>Are you a traveller/ travel agency?</Text>
+          <Text style={styles.questionLabel}>{t('roleQuestion')}</Text>
           
           <View style={styles.radioGroup}>
             {/* Option 1: Traveller */}
@@ -217,7 +228,7 @@ const onChangeDate = (event, selectedDate) => {
               <View style={[styles.radioOuter, role === 'traveller' && styles.radioSelected]}>
                 {role === 'traveller' && <View style={styles.radioInner} />}
               </View>
-              <Text style={styles.radioText}>Traveller</Text>
+              <Text style={styles.radioText}>{t('traveller')}</Text>
             </TouchableOpacity>
 
             {/* Option 2: Travel Agency */}
@@ -225,7 +236,7 @@ const onChangeDate = (event, selectedDate) => {
               <View style={[styles.radioOuter, role === 'agency' && styles.radioSelected]}>
                 {role === 'agency' && <View style={styles.radioInner} />}
               </View>
-              <Text style={styles.radioText}>Travel Agency</Text>
+              <Text style={styles.radioText}>{t('agency')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -236,14 +247,14 @@ const onChangeDate = (event, selectedDate) => {
             disabled={!isFormValid}
           >
             <Text style={styles.mainButtonText}>
-              {role === 'agency' ? 'Continue' : 'Sign Up'}
+              {role === 'agency' ? t('continue') : t('signup')}
             </Text>
           </TouchableOpacity>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Already have an account? </Text>
+            <Text style={styles.footerText}>{t('haveAccount')} </Text>
             <TouchableOpacity onPress={() => router.push('/')}>
-              <Text style={styles.linkText}>Sign in</Text>
+              <Text style={styles.linkText}>{t('login')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -261,16 +272,15 @@ const styles = StyleSheet.create({
   scrollContainer: {
     paddingHorizontal: 27,
     paddingTop: 20,
-    paddingBottom: 50, // Extra padding at bottom for scrolling
+    paddingBottom: 50, 
   },
   
-  // === TAB BAR (Reused) ===
+  // === TAB BAR ===
   tabContainer: {
     flexDirection: 'row',
     marginBottom: 30,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
-    //justifyContent: 'center', // Center the tabs
   },
   activeTabBorder: {
     borderBottomWidth: 3,
@@ -305,7 +315,7 @@ const styles = StyleSheet.create({
   },
   inputField: {
     width: '100%',
-    height: 50, // Slightly shorter than login to fit everything
+    height: 50, 
     borderWidth: 1.5,
     borderColor: '#E1E1E1',
     borderRadius: 12,
@@ -346,7 +356,7 @@ const styles = StyleSheet.create({
   calendarIcon: {
     position: 'absolute',
     right: 16,
-    top: 13, // Center it vertically
+    top: 13, 
   },
 
   // === RADIO BUTTONS ===
@@ -377,13 +387,13 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   radioSelected: {
-    borderColor: '#648DDB', // Blue border when selected
+    borderColor: '#648DDB', 
   },
   radioInner: {
     height: 12,
     width: 12,
     borderRadius: 6,
-    backgroundColor: '#648DDB', // Blue dot
+    backgroundColor: '#648DDB', 
   },
   radioText: {
     fontSize: 15,

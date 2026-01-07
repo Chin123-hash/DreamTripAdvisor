@@ -1,17 +1,15 @@
-// src/screens/AgencyUploadFoodScreen.js
-
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { getAuth } from 'firebase/auth';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react'; // 🔥 1. Added useEffect
 import {
     ActivityIndicator,
     Alert,
     Image,
     KeyboardAvoidingView,
-    LogBox, // <--- Ensure this is imported
+    LogBox,
     Platform,
     ScrollView,
     StyleSheet,
@@ -23,9 +21,9 @@ import {
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useLanguage } from '../context/LanguageContext';
 import { addFood } from '../services/AuthService';
 
-// [FIXED] Updated the text to match the actual React Native warning exactly
 LogBox.ignoreLogs(['VirtualizedLists should never be nested']);
 
 const generateFoodId = () => {
@@ -37,28 +35,55 @@ const generateFoodId = () => {
 // 🔴 REPLACE WITH YOUR ACTUAL API KEY
 const GOOGLE_PLACES_API_KEY = 'AIzaSyDIAZukJLwu4-KsDsZASQ8byWKAEPTos7g'; 
 
-export default function AgencyUploadFoodScreen() { // Added export default
+export default function AgencyUploadFoodScreen() {
     const router = useRouter();
     const auth = getAuth();
     const currentUser = auth.currentUser;
     const locationRef = useRef(); 
+    const { t } = useLanguage();
 
-    // ... (Your State Variables remain the same)
     const [foodId] = useState(generateFoodId());
+    
+    // --- States ---
     const [foodName, setFoodName] = useState('');
-    const [priceRange, setPriceRange] = useState('');
+    const [priceRange, setPriceRange] = useState(''); // This acts as "Price" for calculation
     const [cuisineType, setCuisineType] = useState('');
     
+    // New Fields
+    const [transportType, setTransportType] = useState('');
+    const [transportCost, setTransportCost] = useState('');
+    const [estimatedTotal, setEstimatedTotal] = useState('');
+    const [description, setDescription] = useState('');
+
     const [location, setLocation] = useState(''); 
     const [locationUrl, setLocationUrl] = useState(''); 
     
     const [imageUri, setImageUri] = useState(null);
     const [loading, setLoading] = useState(false);
 
+    // 🔥 2. AUTO-CALCULATION LOGIC 🔥
+    // Whenever priceRange or transportCost changes, this runs automatically.
+    useEffect(() => {
+        const price = parseFloat(priceRange) || 0;
+        const transport = parseFloat(transportCost) || 0;
+        const total = price + transport;
+
+        // Only update if we have a valid total > 0
+        if (total > 0) {
+            setEstimatedTotal(total.toString());
+        } else {
+            setEstimatedTotal('');
+        }
+    }, [priceRange, transportCost]);
+
     const handleReset = () => {
         setFoodName('');
         setPriceRange('');
         setCuisineType('');
+        setTransportType('');
+        setTransportCost('');
+        setEstimatedTotal('');
+        setDescription('');
         setLocation('');
         setLocationUrl(''); 
         setImageUri(null);
@@ -82,36 +107,39 @@ export default function AgencyUploadFoodScreen() { // Added export default
 
     const handleSave = async () => {
         if (!currentUser) {
-            Alert.alert("Error", "You must be logged in.");
+            Alert.alert(t('alertErrorTitle'), t('alertLoginUpload'));
             return;
         }
 
-        if (!foodName || !priceRange || !cuisineType || !location || !imageUri) {
-            Alert.alert("Missing Info", "Please fill in all fields and upload a picture.");
+        // Basic Validation
+        if (!foodName || !priceRange || !cuisineType || !locationUrl || !imageUri) {
+            Alert.alert(t('alertErrorTitle'), t('alertFillAllFood'));
             return;
         }
-
-        const finalDescription = `Cuisine: ${cuisineType}\nLocation: ${location}`;
 
         const foodData = {
             title: foodName,              
             priceRange: priceRange,       
-            description: finalDescription,
+            cuisineType: cuisineType,
+            description: description || `Cuisine: ${cuisineType}`, 
             locationURL: locationUrl, 
-            suggestedTransport: 'N/A',
-            transportCost: 0,
-            estimatedTotalExpenses: parseFloat(priceRange) || 0,
-            rating: 5,
+            
+            suggestedTransport: transportType || 'N/A',
+            transportCost: parseFloat(transportCost) || 0,
+            estimatedTotalExpenses: parseFloat(estimatedTotal) || 0, // Uses the auto-calculated value
+            
+            rating: 5, 
+            agencyId: currentUser.uid
         };
 
         setLoading(true);
         try {
             await addFood(foodData, imageUri);
-            Alert.alert("Success", "Food Item Uploaded!");
+            Alert.alert(t('alertSuccessTitle'), t('alertFoodUploaded'));
             handleReset(); 
         } catch (error) {
             console.error("Upload Error:", error);
-            Alert.alert("Upload Failed", error.message || "Error occurred.");
+            Alert.alert(t('alertUploadFailed'), error.message || t('alertUnknownError'));
         } finally {
             setLoading(false);
         }
@@ -123,7 +151,7 @@ export default function AgencyUploadFoodScreen() { // Added export default
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={28} color="#333" /> 
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Upload Food</Text>
+                <Text style={styles.headerTitle}>{t('uploadFoodTitle')}</Text>
                 <View style={{ width: 33 }} />
             </View>
 
@@ -134,13 +162,14 @@ export default function AgencyUploadFoodScreen() { // Added export default
                 <ScrollView 
                     contentContainerStyle={styles.scrollContainer}
                     keyboardShouldPersistTaps="always"
-                    nestedScrollEnabled={true} // [FIXED] Helps Android handle nested scrolling better
+                    nestedScrollEnabled={true}
                 >
                     
                     <Text style={styles.idText}>
-                        Food ID: <Text style={{ fontWeight: '600' }}>{foodId}</Text>
+                        {t('foodId')} <Text style={{ fontWeight: '600' }}>{foodId}</Text>
                     </Text>
 
+                    {/* Image Section */}
                     <View style={styles.imageContainer}>
                         <View style={styles.imageBox}>
                             {imageUri ? (
@@ -164,7 +193,7 @@ export default function AgencyUploadFoodScreen() { // Added export default
                             >
                                 <Ionicons name="cloud-upload-outline" size={20} color="#FFF" />
                                 <Text style={styles.changePictureText}>
-                                    {imageUri ? "Change Picture" : "Upload Picture"}
+                                    {imageUri ? t('changePic') : t('uploadPic')}
                                 </Text>
                             </LinearGradient>
                         </TouchableOpacity>
@@ -172,10 +201,10 @@ export default function AgencyUploadFoodScreen() { // Added export default
 
                     <View style={styles.formContainer}>
                         
-                        <Text style={styles.label}>Food Name</Text>
+                        <Text style={styles.label}>{t('foodName')}</Text>
                         <TextInput 
                             style={styles.inputField} 
-                            placeholder="e.g. Taiyaki"
+                            placeholder={t('placeholderFoodName')}
                             placeholderTextColor="#888"
                             value={foodName} 
                             onChangeText={setFoodName} 
@@ -183,21 +212,21 @@ export default function AgencyUploadFoodScreen() { // Added export default
                         
                         <View style={styles.row}>
                             <View style={styles.col}>
-                                <Text style={styles.label}>Price Range (RM)</Text>
+                                <Text style={styles.label}>{t('approxPrice') || "Approximate Price"}</Text>
                                 <TextInput 
                                     style={styles.inputField} 
-                                    placeholder="10.00" 
+                                    placeholder={t('placeholderApproxPrice')}
                                     placeholderTextColor="#888"
-                                    keyboardType="numeric"
+                                    keyboardType="numeric" // Added numeric keyboard for better calc
                                     value={priceRange} 
                                     onChangeText={setPriceRange} 
                                 />
                             </View>
                             <View style={styles.col}>
-                                <Text style={styles.label}>Cuisine Type</Text>
+                                <Text style={styles.label}>{t('cuisineType')}</Text>
                                 <TextInput 
                                     style={styles.inputField} 
-                                    placeholder="Japanese cuisine" 
+                                    placeholder={t('placeholderCuisine')}
                                     placeholderTextColor="#888"
                                     value={cuisineType} 
                                     onChangeText={setCuisineType} 
@@ -205,36 +234,73 @@ export default function AgencyUploadFoodScreen() { // Added export default
                             </View>
                         </View>
 
-                        <Text style={styles.label}>Location Search</Text>
+                        {/* --- NEW FIELDS: Transport & Cost --- */}
+                        <View style={styles.row}>
+                            <View style={styles.col}>
+                                <Text style={styles.label}>{t('transportType') || "Transport"}</Text>
+                                <TextInput 
+                                    style={styles.inputField} 
+                                    placeholder="e.g. Grab"
+                                    placeholderTextColor="#888"
+                                    value={transportType} 
+                                    onChangeText={setTransportType} 
+                                />
+                            </View>
+                            <View style={styles.col}>
+                                <Text style={styles.label}>{t('transportCost') || "Trans. Cost"}</Text>
+                                <TextInput 
+                                    style={styles.inputField} 
+                                    placeholder="e.g. 10"
+                                    placeholderTextColor="#888"
+                                    keyboardType="numeric"
+                                    value={transportCost} 
+                                    onChangeText={setTransportCost} 
+                                />
+                            </View>
+                        </View>
+
+                        {/* --- Estimated Total (Auto-Calculated) --- */}
+                        <Text style={styles.label}>{t('estTotalRM') || "Estimated Total (RM)"}</Text>
+                        <TextInput 
+                            style={styles.inputField} // Optional: Grey out slightly
+                            placeholder="e.g. 25"
+                            placeholderTextColor="#888"
+                            keyboardType="numeric"
+                            value={estimatedTotal} 
+                            onChangeText={setEstimatedTotal} 
+                            editable={true} // Users can still edit if they really want to
+                        />
+
+                        {/* --- LOCATION SEARCH (Fixed URL Logic) --- */}
+                        <Text style={styles.label}>{t('locationSearch')}</Text>
                         <View style={{ zIndex: 9999, marginBottom: 15 }}>
                             <GooglePlacesAutocomplete
                                 ref={locationRef}
-                                // 1. ADD THIS: Delays the API call slightly (300ms) so it doesn't freeze while typing
                                 debounce={300} 
-                                
-                                // 2. ADD THIS: Improves text input responsiveness
                                 textInputProps={{
-                                    onChangeText: (text) => { console.log(text); }, // Optional: for debugging
-                                    autoCorrect: false, // Disabling auto-correct speeds up typing
+                                    onChangeText: (text) => { console.log(text); },
+                                    autoCorrect: false,
                                 }}
-                                placeholder="Search Restaurant Location..."
+                                placeholder={t('placeholderRestSearch')}
                                 fetchDetails={true}
                                 onPress={(data, details = null) => {
                                     setLocation(data.description);
                                     
-                                    if (details?.url) {
-                                        setLocationUrl(details.url);
-                                    } else if (details?.geometry?.location) {
+                                    if (details?.geometry?.location) {
                                         const { lat, lng } = details.geometry.location;
-                                        // [FIXED] Correct URL string interpolation
-                                        const generatedUrl = `http://googleusercontent.com/maps.google.com/maps?q=${lat},${lng}`;
-                                        setLocationUrl(generatedUrl);
+                                        // Standard Google Maps URL
+                                        const cleanUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+                                        
+                                        setLocationUrl(cleanUrl);
+                                        console.log("Saved Clean URL:", cleanUrl);
+                                    } 
+                                    else if (details?.url) {
+                                        setLocationUrl(details.url);
                                     }
                                 }}
                                 query={{
                                     key: GOOGLE_PLACES_API_KEY,
                                     language: 'en',
-                                    
                                 }}
                                 styles={{
                                     textInput: styles.searchInput,
@@ -245,13 +311,25 @@ export default function AgencyUploadFoodScreen() { // Added export default
                             />
                         </View>
 
+                        {/* --- NEW FIELD: Description --- */}
+                        <Text style={styles.label}>{t('labelDescription') || "Description"}</Text>
+                        <TextInput 
+                            style={[styles.inputField, styles.multilineInput]} 
+                            placeholder="Enter food details..."
+                            placeholderTextColor="#888"
+                            multiline
+                            numberOfLines={4}
+                            value={description} 
+                            onChangeText={setDescription} 
+                        />
+
                         <View style={styles.buttonRow}>
                             <TouchableOpacity
                                 style={[styles.resetButton, loading && {opacity: 0.5}]}
                                 onPress={handleReset}
                                 disabled={loading}
                             >
-                                <Text style={styles.resetButtonText}>Reset</Text>
+                                <Text style={styles.resetButtonText}>{t('reset')}</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -262,7 +340,7 @@ export default function AgencyUploadFoodScreen() { // Added export default
                                 {loading ? (
                                     <ActivityIndicator color="#FFFFFF" />
                                 ) : (
-                                    <Text style={styles.saveButtonText}>Save</Text>
+                                    <Text style={styles.saveButtonText}>{t('save')}</Text>
                                 )}
                             </TouchableOpacity>
                         </View>
@@ -283,7 +361,7 @@ const styles = StyleSheet.create({
     backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
     headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
     
-    scrollContainer: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 100 }, 
+    scrollContainer: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 100 },
     
     idText: { fontSize: 12, color: '#888', textAlign: 'center', marginBottom: 10, marginRight: 5 },
 
@@ -319,7 +397,11 @@ const styles = StyleSheet.create({
         borderRadius: 8, paddingHorizontal: 12, backgroundColor: '#FFFFFF',
         fontSize: 15, marginBottom: 15, color: '#333',
     },
-    
+
+    multilineInput: {
+        height: 100, textAlignVertical: 'top', paddingTop: 10,
+    },
+
     searchInput: {
         height: 45,
         borderWidth: 1,
@@ -339,7 +421,7 @@ const styles = StyleSheet.create({
         elevation: 3, 
         zIndex: 9999, 
     },
-
+    
     row: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
     col: { width: '48%' },
 

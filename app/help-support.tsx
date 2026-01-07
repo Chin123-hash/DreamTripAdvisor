@@ -1,12 +1,12 @@
 import { Stack } from 'expo-router';
 import React from 'react';
-import AgencyUploadPlanScreen from '../src/screens/AgencyUploadPlanScreen';
+import HelpSupportScreen from '../src/screens/HelpSupportScreen';
 
-export default function Page() {
+export default function HelpSupportPage() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <AgencyUploadPlanScreen />
+      <HelpSupportScreen />
     </>
   );
 }

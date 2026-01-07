@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useRouter } from 'expo-router'; // Import Stack
+import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     Alert,
@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createNewPlan, deletePlan, getUserPlans } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 export default function CartScreen() {
     const [plans, setPlans] = useState([]);
@@ -20,6 +22,8 @@ export default function CartScreen() {
     const [modalVisible, setModalVisible] = useState(false);
     const [newPlanName, setNewPlanName] = useState('');
     const router = useRouter();
+    // 2. Destructure Hook
+    const { t } = useLanguage();
 
     useEffect(() => {
         fetchPlans();
@@ -38,7 +42,7 @@ export default function CartScreen() {
 
     const handleCreatePlan = async () => {
         if (!newPlanName.trim()) {
-            Alert.alert("Required", "Please enter a plan name.");
+            Alert.alert(t('alertRequiredTitle'), t('alertPlanNameReq'));
             return;
         }
         try {
@@ -48,24 +52,24 @@ export default function CartScreen() {
             setModalVisible(false);
             await fetchPlans(); // Refresh list
         } catch (error) {
-            Alert.alert("Error", "Failed to create plan.");
+            Alert.alert(t('alertErrorTitle'), t('alertCreateFail'));
         } finally {
             setLoading(false);
         }
     };
 
     const handleDeletePlan = (planId) => {
-        Alert.alert("Delete Plan", "Are you sure?", [
-            { text: "Cancel", style: "cancel" },
+        Alert.alert(t('deletePlanTitle'), t('deletePlanMsg'), [
+            { text: t('cancel'), style: "cancel" },
             {
-                text: "Delete",
+                text: t('delete'),
                 style: "destructive",
                 onPress: async () => {
                     try {
                         await deletePlan(planId);
                         fetchPlans();
                     } catch (error) {
-                        alert("Failed to delete.");
+                        alert(t('alertDeleteFail'));
                     }
                 },
             },
@@ -74,12 +78,10 @@ export default function CartScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            {/* This inserts the button into the Native Header 
-               It will appear on the same line as the "Cart" title 
-            */}
+            {/* This inserts the button into the Native Header */}
             <Stack.Screen
                 options={{
-                    title: 'My Cart', // Sets the header title
+                    title: t('myCart'), // Localized Header Title
                     headerRight: () => (
                         // Only show the top '+' button if there are plans
                         plans.length > 0 ? (
@@ -95,15 +97,15 @@ export default function CartScreen() {
                 /* EMPTY STATE */
                 <View style={styles.emptyContainer}>
                     <Ionicons name="cart-outline" size={90} color="#BDBDBD" />
-                    <Text style={styles.emptyTitle}>Your cart is empty</Text>
+                    <Text style={styles.emptyTitle}>{t('emptyCartTitle')}</Text>
                     <Text style={styles.emptySubtitle}>
-                        Create a plan to start adding entertainments and foods.
+                        {t('emptyCartSub')}
                     </Text>
                     <TouchableOpacity
                         style={styles.mainButton}
                         onPress={() => setModalVisible(true)}
                     >
-                        <Text style={styles.mainButtonText}>Add a new plan</Text>
+                        <Text style={styles.mainButtonText}>{t('addNewPlan')}</Text>
                     </TouchableOpacity>
                 </View>
             ) : (
@@ -126,13 +128,13 @@ export default function CartScreen() {
                             <View style={{ flex: 1 }}>
                                 <Text style={styles.planTitle}>{item.planName}</Text>
                                 <Text style={styles.planSubtitle}>
-                                    {item.items?.length || 0} items
+                                    {item.items?.length || 0} {t('itemsCount')}
                                 </Text>
                             </View>
                             <TouchableOpacity
                                 onPress={(e) => {
                                     e.stopPropagation();
-                                    handleDeletePlan(item.id, item.items[0].id);
+                                    handleDeletePlan(item.id, item.items?.[0]?.id);
                                 }}
                             >
                                 <Ionicons name="trash-outline" size={22} color="#9DB7E8" />
@@ -152,20 +154,20 @@ export default function CartScreen() {
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>New Trip Name</Text>
+                            <Text style={styles.modalTitle}>{t('newTripName')}</Text>
                             <TouchableOpacity onPress={() => setModalVisible(false)}>
                                 <Ionicons name="close" size={24} color="#999" />
                             </TouchableOpacity>
                         </View>
                         <TextInput
                             style={styles.input}
-                            placeholder="e.g. Penang Food Hunt"
+                            placeholder={t('placeholderPlanName')}
                             value={newPlanName}
                             onChangeText={setNewPlanName}
                             autoFocus
                         />
                         <TouchableOpacity style={styles.modalBtn} onPress={handleCreatePlan}>
-                            <Text style={styles.modalBtnText}>Create Plan</Text>
+                            <Text style={styles.modalBtnText}>{t('createPlan')}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -179,7 +181,6 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#FFF',
     },
-    // Custom header styles removed as we now use Stack.Screen
     emptyContainer: {
         flex: 1,
         justifyContent: 'center',

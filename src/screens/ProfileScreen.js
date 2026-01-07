@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { Stack, useRouter } from 'expo-router'; // Make sure Stack is imported from expo-router
+import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -18,10 +18,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Import services
-import { getCurrentUserData, updateUserProfile } from '../services/AuthService'; //
+import { getCurrentUserData, updateUserProfile } from '../services/AuthService';
+// IMPORT LANGUAGE HOOK
+import { useLanguage } from '../context/LanguageContext';
 
 export default function ProfileScreen() {
     const router = useRouter();
+    // USE HOOK
+    const { t } = useLanguage();
 
     // --- STATE MANAGEMENT ---
     const [isEditing, setIsEditing] = useState(false); // Default: View Mode (False)
@@ -47,7 +51,8 @@ export default function ProfileScreen() {
                     setFullName(user.fullName || user.agencyName || '');
                     setPhone(user.phone || '');
                     setEmail(user.email || 'No Email');
-                    setRole(user.role || 'Traveller');
+                    // Store the raw role (e.g. "traveller" or "agency")
+                    setRole(user.role || 'traveller');
                     setProfileImage(user.profileImage || user.logoUrl || null);
                 }
             } catch (error) {
@@ -63,7 +68,7 @@ export default function ProfileScreen() {
     const pickImage = async () => {
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (permissionResult.granted === false) {
-            Alert.alert("Permission Required", "Allow access to photos to change your profile picture.");
+            Alert.alert(t('alertPermissionTitle'), t('alertPermissionMsg'));
             return;
         }
 
@@ -82,7 +87,7 @@ export default function ProfileScreen() {
     // --- 3. SAVE ACTION ---
     const handleSave = async () => {
         if (!fullName.trim() || !phone.trim()) {
-            Alert.alert("Required", "Please enter your Name and Phone.");
+            Alert.alert(t('alertRequiredTitle'), t('alertRequiredMsg'));
             return;
         }
 
@@ -93,7 +98,7 @@ export default function ProfileScreen() {
                 { fullName, phone },
                 newImageUri 
             );
-            Alert.alert("Success", "Profile updated!");
+            Alert.alert(t('alertSuccessTitle'), t('alertProfileUpdated'));
             
             // Update local state to show new image in View Mode
             if (newImageUri) {
@@ -103,7 +108,7 @@ export default function ProfileScreen() {
             
             setIsEditing(false); // Switch back to View Mode
         } catch (error) {
-            Alert.alert("Error", "Could not update profile.");
+            Alert.alert(t('alertErrorTitle'), t('alertUpdateFail'));
         } finally {
             setSaving(false);
         }
@@ -134,15 +139,15 @@ export default function ProfileScreen() {
         // Edges: we remove 'top' padding because the native header handles it
         <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.container}>
             
-            {/* FORCE NATIVE HEADER & BACK BUTTON */}
+            {/* FORCE NATIVE HEADER & BACK BUTTON with TRANSLATED TITLE */}
             <Stack.Screen 
                 options={{
-                    headerShown: true,             // 1. Force header to show
-                    headerBackVisible: true,       // 2. Force back button to be visible
-                    headerTitle: isEditing ? "Edit Profile" : "My Profile",
-                    headerTintColor: '#333',       // 3. Color of the back arrow
+                    headerShown: true,             
+                    headerBackVisible: true,       
+                    headerTitle: isEditing ? t('editProfile') : t('myProfile'),
+                    headerTintColor: '#333',       
                     headerStyle: { backgroundColor: '#FFF' },
-                    headerShadowVisible: false,    // Clean look without shadow line
+                    headerShadowVisible: false,    
                 }} 
             />
 
@@ -160,16 +165,18 @@ export default function ProfileScreen() {
                                 <Image source={displayImage} style={styles.avatarLarge} />
                             </View>
 
-                            {/* Name & Role */}
-                            <Text style={styles.viewName}>{fullName || "Traveller"}</Text>
-                            <Text style={styles.viewRole}>{role.toUpperCase()}</Text>
+                            {/* Name & Role (Localized Role) */}
+                            <Text style={styles.viewName}>{fullName || t('traveller')}</Text>
+                            <Text style={styles.viewRole}>
+                                {role === 'agency' ? t('agency').toUpperCase() : t('traveller').toUpperCase()}
+                            </Text>
 
                             {/* Info Card */}
                             <View style={styles.detailsCard}>
                                 <View style={styles.detailRow}>
                                     <Ionicons name="mail-outline" size={20} color="#648DDB" />
                                     <View style={styles.detailTextContainer}>
-                                        <Text style={styles.detailLabel}>Email</Text>
+                                        <Text style={styles.detailLabel}>{t('email')}</Text>
                                         <Text style={styles.detailValue}>{email}</Text>
                                     </View>
                                 </View>
@@ -177,15 +184,15 @@ export default function ProfileScreen() {
                                 <View style={styles.detailRow}>
                                     <Ionicons name="call-outline" size={20} color="#648DDB" />
                                     <View style={styles.detailTextContainer}>
-                                        <Text style={styles.detailLabel}>Phone</Text>
-                                        <Text style={styles.detailValue}>{phone || "Not set"}</Text>
+                                        <Text style={styles.detailLabel}>{t('phone')}</Text>
+                                        <Text style={styles.detailValue}>{phone || t('notSet')}</Text>
                                     </View>
                                 </View>
                             </View>
 
                             {/* Go to Edit Mode Button */}
                             <TouchableOpacity style={styles.editButton} onPress={() => setIsEditing(true)}>
-                                <Text style={styles.editButtonText}>Edit Profile</Text>
+                                <Text style={styles.editButtonText}>{t('editProfile')}</Text>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -202,29 +209,29 @@ export default function ProfileScreen() {
                                         <Ionicons name="camera" size={18} color="#FFF" />
                                     </View>
                                 </TouchableOpacity>
-                                <Text style={styles.changePhotoText}>Tap to change</Text>
+                                <Text style={styles.changePhotoText}>{t('changePhoto')}</Text>
                             </View>
 
                             {/* Input Fields */}
-                            <Text style={styles.label}>Full Name</Text>
+                            <Text style={styles.label}>{t('fullName')}</Text>
                             <TextInput
                                 style={styles.input}
                                 value={fullName}
                                 onChangeText={setFullName}
-                                placeholder="e.g. John Doe"
+                                placeholder={t('placeholderName')}
                             />
 
-                            <Text style={styles.label}>Phone Number</Text>
+                            <Text style={styles.label}>{t('phone')}</Text>
                             <TextInput
                                 style={styles.input}
                                 value={phone}
                                 onChangeText={setPhone}
-                                placeholder="e.g. 0123456789"
+                                placeholder={t('placeholderPhone')}
                                 keyboardType="phone-pad"
                             />
 
                             {/* Read-Only Fields */}
-                            <Text style={styles.label}>Email (Read-only)</Text>
+                            <Text style={styles.label}>{t('emailReadOnly')}</Text>
                             <View style={[styles.input, styles.readOnlyInput]}>
                                 <Text style={{color: '#999'}}>{email}</Text>
                                 <Ionicons name="lock-closed" size={16} color="#CCC" />
@@ -237,7 +244,7 @@ export default function ProfileScreen() {
                                     onPress={handleCancel}
                                     disabled={saving}
                                 >
-                                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                                    <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity 
@@ -248,7 +255,7 @@ export default function ProfileScreen() {
                                     {saving ? (
                                         <ActivityIndicator color="#FFF" />
                                     ) : (
-                                        <Text style={styles.saveButtonText}>Save</Text>
+                                        <Text style={styles.saveButtonText}>{t('save')}</Text>
                                     )}
                                 </TouchableOpacity>
                             </View>

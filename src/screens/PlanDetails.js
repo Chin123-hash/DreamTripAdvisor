@@ -1,5 +1,3 @@
-// src/screens/PlanDetailsScreen.js
-
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -19,12 +17,18 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// Service imports
+// 1. Add Firestore Imports
+import { collection, getDocs, limit, query } from 'firebase/firestore';
+import { db } from '../../firebaseConfig';
+
+import { useLanguage } from '../context/LanguageContext';
 import {
-    addPlanToCart, // <--- Ensure this is imported
+    addPlanToCart,
+    checkFavoriteStatus,
     getAgencies,
     getCurrentUserData,
-    getPlanDetails
+    getPlanDetails,
+    toggleFavorite
 } from '../services/AuthService';
 
 const { width } = Dimensions.get('window');
@@ -39,8 +43,8 @@ const parsePrice = (priceVal) => {
 export default function PlanDetailsScreen() {
     const router = useRouter();
     const params = useLocalSearchParams(); 
+    const { t } = useLanguage();
     
-    // Handle cases where param might be 'id' or 'planId'
     const planId = params.id || params.planId; 
     
     // --- STATE ---
@@ -63,6 +67,8 @@ export default function PlanDetailsScreen() {
     const [showPicker, setShowPicker] = useState(false);
     const [pickerMode, setPickerMode] = useState('from'); 
 
+    const [isFavorite, setIsFavorite] = useState(false);
+
     // --- 1. FETCH DATA ---
     useEffect(() => {
         const init = async () => {
@@ -71,8 +77,10 @@ export default function PlanDetailsScreen() {
             
             if (planId) {
                 await loadPlanData(planId);
+                const status = await checkFavoriteStatus(planId);
+                setIsFavorite(status);
             } else {
-                Alert.alert("Error", "No plan selected.");
+                Alert.alert(t('alertErrorTitle'), t('alertNoPlanSelected'));
             }
 
             await fetchAgencies();
@@ -81,7 +89,6 @@ export default function PlanDetailsScreen() {
         init();
     }, [planId]);
 
-    // Recalculate total when pax or items change
     useEffect(() => {
         if (rawItems.length > 0) calculateTotal(rawItems);
     }, [pax, rawItems]);
@@ -96,54 +103,99 @@ export default function PlanDetailsScreen() {
         }
     };
 
-    // --- LOAD DATA (FIXED FOR PIE CHART) ---
+    const handleToggleFavorite = async () => {
+        const itemToSave = {
+            id: planId,
+            title: planName,
+            image: 'https://via.placeholder.com/300', 
+            price: totalExpense / (parseInt(pax) || 1), 
+            type: 'plan',
+            rating: 5, 
+            locationURL: "" 
+        };
+
+        try {
+            const newStatus = await toggleFavorite(itemToSave);
+            setIsFavorite(newStatus);
+        } catch (error) {
+            console.error("Error toggling favorite:", error);
+            Alert.alert(t('alertErrorTitle'), "Please login to save favorites.");
+        }
+    };
+
+    // --- LOAD DATA (REFACTORED) ---
     const loadPlanData = async (id) => {
         try {
             const planData = await getPlanDetails(id);
             
             if (planData) {
-                setPlanName(planData.title || planData.planName || "Trip Plan");
+                setPlanName(planData.title || planData.planName || t('tripDetails'));
 
                 let itemsToUse = [];
 
-                // 1. If DB has specific items list, use it
+                // 1. Priority: Use items specifically saved in the plan
                 if (planData.items && planData.items.length > 0) {
                     itemsToUse = planData.items.map(item => ({
                         ...item,
                         price: parsePrice(item.price) 
                     }));
                 } 
-                // 2. If no items, try to find Ticket & Transport fees specifically
-                else if (planData.ticketPrice || planData.transportFee || planData.price) {
-                    const ticket = parsePrice(planData.ticketPrice);
-                    const transport = parsePrice(planData.transportFee);
-                    const basePrice = parsePrice(planData.price);
-
-                    if (ticket > 0) {
-                        itemsToUse.push({ title: 'Ticket / Entry Fee', type: 'Entertainment', price: ticket });
-                    }
-                    if (transport > 0) {
-                        itemsToUse.push({ title: 'Transport Fee', type: 'Transport', price: transport });
-                    }
-                    
-                    // If neither ticket nor transport found, but there is a base price, use that
-                    if (itemsToUse.length === 0 && basePrice > 0) {
-                        itemsToUse.push({ title: 'Package Fee', type: 'Entertainment', price: basePrice });
-                    }
-                }
-                // 3. Last Resort
+                // 2. Fallback: If no items, fetch RANDOM real items from DB
                 else {
-                    itemsToUse = [{ title: 'Estimated Cost', type: 'Entertainment', price: 300 }];
+                    // Fetch 5 random foods (grabbing more than needed to shuffle)
+                    const foodQuery = query(collection(db, 'foods'), limit(10)); 
+                    const entQuery = query(collection(db, 'entertainments'), limit(10));
+
+                    const [foodSnapshot, entSnapshot] = await Promise.all([
+                        getDocs(foodQuery),
+                        getDocs(entQuery)
+                    ]);
+
+                    const allFoods = foodSnapshot.docs.map(doc => {
+                        const d = doc.data();
+                        return {
+                            id: doc.id,
+                            title: d.title,
+                            type: 'Food',
+                            price: parsePrice(d.estimatedTotalExpenses || d.priceRange || 20),
+                            imageUrl: d.imageUrl
+                        };
+                    });
+
+                    const allEnts = entSnapshot.docs.map(doc => {
+                        const d = doc.data();
+                        return {
+                            id: doc.id,
+                            title: d.title,
+                            type: 'Entertainment',
+                            price: parsePrice(d.estimatedTotalExpenses || d.ticketPrice || 50),
+                            imageUrl: d.imageUrl
+                        };
+                    });
+
+                    // Shuffle and pick 2 Foods and 2 Entertainments
+                    const shuffledFoods = allFoods.sort(() => 0.5 - Math.random()).slice(0, 2);
+                    const shuffledEnts = allEnts.sort(() => 0.5 - Math.random()).slice(0, 2);
+
+                    itemsToUse = [...shuffledEnts, ...shuffledFoods];
+
+                    // If DB is empty, THEN fallback to generic transport/ticket fee (Safety net)
+                    if (itemsToUse.length === 0) {
+                        const ticket = parsePrice(planData.ticketPrice);
+                        const transport = parsePrice(planData.transportFee);
+                        if (ticket > 0) itemsToUse.push({ title: t('ticketEntry'), type: 'Entertainment', price: ticket });
+                        if (transport > 0) itemsToUse.push({ title: t('transportFee'), type: 'Transport', price: transport });
+                    }
                 }
 
                 setRawItems(itemsToUse);
                 generateSchedule(itemsToUse);
             } else {
-                Alert.alert("Error", "Plan not found.");
+                Alert.alert(t('alertErrorTitle'), t('alertPlanNotFound'));
             }
         } catch (error) {
             console.log("Error loading plan:", error);
-            Alert.alert("Error", "Could not load plan details");
+            Alert.alert(t('alertErrorTitle'), t('alertLoadFail'));
         }
     };
 
@@ -170,16 +222,18 @@ export default function PlanDetailsScreen() {
         for (let hour = 9; hour <= 18; hour++) {
             let item = null;
             if (hour === 13) {
-                item = food.length > 0 ? food.shift() : { title: 'Lunch Break', type: 'Food', price: 0, isPlaceholder: true };
+                // Lunch Time: Prioritize food
+                item = food.length > 0 ? food.shift() : { title: t('lunchBreak'), type: 'Food', price: 0, isPlaceholder: true };
                 entCount = 0; 
             } else {
                 if (entCount < 2) {
                     if (entertainment.length > 0) { item = entertainment.shift(); entCount++; } 
-                    else { item = { title: 'Free & Easy', type: 'Entertainment', price: 0, isPlaceholder: true }; }
+                    else { item = { title: t('freeEasy'), type: 'Entertainment', price: 0, isPlaceholder: true }; }
                 } else {
+                    // If ran out of entertainment, try food or rest
                     if (food.length > 0) { item = food.shift(); } 
                     else if (entertainment.length > 0) { item = entertainment.shift(); } 
-                    else { item = { title: 'Rest Time', type: 'Entertainment', price: 0, isPlaceholder: true }; }
+                    else { item = { title: t('restTime'), type: 'Entertainment', price: 0, isPlaceholder: true }; }
                     entCount = 0; 
                 }
             }
@@ -187,7 +241,7 @@ export default function PlanDetailsScreen() {
                 time: fmtTime(hour), 
                 ...item, 
                 price: item.price || 0, 
-                title: item.title || "Activity" 
+                title: item.title || t('activity') 
             });
         }
         setSchedule(generated);
@@ -196,39 +250,38 @@ export default function PlanDetailsScreen() {
     // --- ADD TO CART LOGIC ---
     const handleAddToCart = async () => {
         if (!userData || !userData.uid) {
-            Alert.alert("Error", "You must be logged in to add items to cart.");
+            Alert.alert(t('alertErrorTitle'), t('alertLoginCart'));
             return;
         }
 
         if (!selectedAgency) {
-            Alert.alert("Required", "Please select a Travel Agency.");
+            Alert.alert(t('alertRequiredTitle'), t('alertSelectAgency'));
             return;
         }
 
         setLoading(true);
         try {
-            // Prepare the data packet
             const finalPlanData = {
                 originalPlanId: planId,
                 planName: planName,
                 pax: parseInt(pax) || 1,
-                startDate: fromDate, // Firestore stores dates well
+                startDate: fromDate, 
                 endDate: toDate,
                 agencyId: selectedAgency.id,
                 agencyName: selectedAgency.name,
                 totalPrice: totalExpense,
-                items: rawItems, // Clean items (only ticket/transport)
+                items: rawItems, 
                 schedule: schedule
             };
 
             await addPlanToCart(userData.uid, finalPlanData);
             
-            Alert.alert("Success", "Plan added to your cart!", [
+            Alert.alert(t('alertSuccessTitle'), t('alertCartSuccess'), [
                 { text: "OK", onPress: () => router.back() } 
             ]);
         } catch (error) {
             console.error("Add to cart failed:", error);
-            Alert.alert("Error", "Failed to add plan to cart.");
+            Alert.alert(t('alertErrorTitle'), t('alertCartFail'));
         } finally {
             setLoading(false);
         }
@@ -237,7 +290,6 @@ export default function PlanDetailsScreen() {
     // --- CHART LOGIC ---
     const renderPieChart = () => {
         const paxNum = parseInt(pax) || 1;
-        // Helper to sum by type
         const getSum = (type) => rawItems
             .filter(i => i.type?.toLowerCase() === type)
             .reduce((a, b) => a + (b.price || 0), 0) * paxNum;
@@ -265,15 +317,15 @@ export default function PlanDetailsScreen() {
 
                     <View style={styles.chartOverlay}>
                         <Text style={styles.chartTotalText}>RM {(grandTotal === 1 ? 0 : grandTotal).toFixed(0)}</Text>
-                        <Text style={styles.chartTotalLabel}>Total</Text>
+                        <Text style={styles.chartTotalLabel}>{t('total')}</Text>
                     </View>
                 </View>
 
                 <View style={styles.legendContainer}>
-                    {foodPct > 0 && <LegendItem color="#81C784" label="Food" />}
-                    {entPct > 0 && <LegendItem color="#FF8A65" label="Entertainment" />}
-                    {hotelPct > 0 && <LegendItem color="#64B5F6" label="Hotel" />}
-                    {transPct > 0 && <LegendItem color="#FFD54F" label="Transport" />}
+                    {foodPct > 0 && <LegendItem color="#81C784" label={t('legendFood')} />}
+                    {entPct > 0 && <LegendItem color="#FF8A65" label={t('legendEnt')} />}
+                    {hotelPct > 0 && <LegendItem color="#64B5F6" label={t('legendHotel')} />}
+                    {transPct > 0 && <LegendItem color="#FFD54F" label={t('legendTransport')} />}
                 </View>
             </View>
         );
@@ -286,7 +338,6 @@ export default function PlanDetailsScreen() {
         </View>
     );
 
-    // --- UTILS ---
     const onDateChange = (event, selectedDate) => {
         setShowPicker(false);
         if (selectedDate) {
@@ -307,14 +358,17 @@ export default function PlanDetailsScreen() {
                 
                 {/* HEADER */}
                 <View style={styles.header}>
-                    {/* <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                        <Ionicons name="arrow-back" size={24} color="#333" />
-                    </TouchableOpacity> */}
-                    <Text style={styles.headerTitle}>{planName || "Trip Details"}</Text>
-                    <View style={{width: 24}} /> 
+                    <Text style={styles.headerTitle}>{planName || t('tripDetails')}</Text>
+                    <TouchableOpacity onPress={handleToggleFavorite}>
+                        <Ionicons 
+                            name={isFavorite ? "heart" : "heart-outline"} 
+                            size={28} 
+                            color={isFavorite ? "#FF3B30" : "#333"} 
+                        />
+                    </TouchableOpacity>
                 </View>
 
-                {/* TIMELINE (VIEW ONLY) */}
+                {/* TIMELINE */}
                 <View style={styles.timelineCard}>
                     {schedule.map((item, index) => (
                         <View key={index} style={styles.timelineRow}>
@@ -330,32 +384,32 @@ export default function PlanDetailsScreen() {
                             </View>
                         </View>
                     ))}
-                    {schedule.length === 0 && <Text style={{fontStyle:'italic', color:'#999'}}>No schedule available.</Text>}
+                    {schedule.length === 0 && <Text style={{fontStyle:'italic', color:'#999'}}>{t('noSchedule')}</Text>}
                 </View>
 
-                {/* CONFIGURATION FORM */}
+                {/* FORM */}
                 <View style={styles.formSection}>
                     <View style={styles.bellHeader}>
                         <Ionicons name="settings-outline" size={24} color="#555" />
-                        <Text style={{marginLeft: 10, color: '#555', fontWeight:'bold'}}>Customize your Trip</Text>
+                        <Text style={{marginLeft: 10, color: '#555', fontWeight:'bold'}}>{t('customizeTrip')}</Text>
                     </View>
 
                     <View style={styles.formRow}>
-                        <Text style={styles.label}>From:</Text>
+                        <Text style={styles.label}>{t('from')}</Text>
                         <TouchableOpacity onPress={() => openDatePicker('from')} style={styles.dateInput}>
                             <Text>{fromDate.toLocaleDateString()}</Text>
                         </TouchableOpacity>
                     </View>
 
                     <View style={styles.formRow}>
-                        <Text style={styles.label}>To:</Text>
+                        <Text style={styles.label}>{t('to')}</Text>
                         <TouchableOpacity onPress={() => openDatePicker('to')} style={styles.dateInput}>
                             <Text>{toDate.toLocaleDateString()}</Text>
                         </TouchableOpacity>
                     </View>
 
                     <View style={styles.formRow}>
-                        <Text style={styles.label}>No of Pax:</Text>
+                        <Text style={styles.label}>{t('noOfPax')}</Text>
                         <TextInput 
                             style={styles.paxInput} 
                             value={pax} 
@@ -364,40 +418,38 @@ export default function PlanDetailsScreen() {
                         />
                     </View>
 
-                    <Text style={[styles.label, {marginTop: 10, width:'100%'}]}>Travel Agency:</Text>
+                    <Text style={[styles.label, {marginTop: 10, width:'100%'}]}>{t('travelAgencyLabel')}</Text>
                     <TouchableOpacity 
                         style={styles.dropdown}
                         onPress={() => setShowAgencyModal(true)}
                     >
                         <Text style={styles.dropdownText}>
-                            {selectedAgency ? selectedAgency.name : "Select Agency..."}
+                            {selectedAgency ? selectedAgency.name : t('selectAgencyPlaceholder')}
                         </Text>
                         <Ionicons name="chevron-down" size={20} color="#333" />
                     </TouchableOpacity>
 
                     <View style={styles.totalRow}>
-                        <Text style={styles.totalLabel}>Total Expenses</Text>
+                        <Text style={styles.totalLabel}>{t('totalExpenses')}</Text>
                         <Text style={styles.totalValue}>RM {totalExpense.toFixed(2)}</Text>
                     </View>
                 </View>
 
-                <Text style={styles.handwrittenTitle}>Estimated Expenses</Text>
+                <Text style={styles.handwrittenTitle}>{t('estimatedExpenses')}</Text>
                 {renderPieChart()}
 
-                {/* ADD TO CART BUTTON */}
                 <TouchableOpacity style={styles.addToCartBtn} onPress={handleAddToCart}>
                     <Ionicons name="cart" size={24} color="#FFF" style={{marginRight: 10}} />
-                    <Text style={styles.addToCartText}>Add to Cart</Text>
+                    <Text style={styles.addToCartText}>{t('addToCart')}</Text>
                 </TouchableOpacity>
 
                 <View style={{height: 40}} />
             </ScrollView>
 
-            {/* AGENCY MODAL */}
             <Modal visible={showAgencyModal} transparent={true} animationType="slide">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
-                        <Text style={styles.modalTitle}>Select Agency</Text>
+                        <Text style={styles.modalTitle}>{t('selectAgencyTitle')}</Text>
                         <ScrollView>
                             {agencyList.map((agency) => (
                                 <TouchableOpacity 
@@ -412,16 +464,15 @@ export default function PlanDetailsScreen() {
                                     {selectedAgency?.id === agency.id && <Ionicons name="checkmark" size={20} color="green" />}
                                 </TouchableOpacity>
                             ))}
-                            {agencyList.length === 0 && <Text style={{padding:20, textAlign:'center'}}>No agencies found.</Text>}
+                            {agencyList.length === 0 && <Text style={{padding:20, textAlign:'center'}}>{t('noAgencies')}</Text>}
                         </ScrollView>
                         <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowAgencyModal(false)}>
-                            <Text style={{color:'#FFF'}}>Close</Text>
+                            <Text style={{color:'#FFF'}}>{t('close')}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
 
-            {/* DATE PICKER */}
             {showPicker && (
                 <DateTimePicker
                     value={pickerMode === 'from' ? fromDate : toDate}
@@ -440,7 +491,6 @@ const styles = StyleSheet.create({
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
     headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#000' },
     
-    // Timeline Styles
     timelineCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, marginBottom: 25, borderWidth: 1, borderColor: '#DDD', shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
     timelineRow: { flexDirection: 'row', marginBottom: 20, alignItems: 'flex-start' },
     timeCol: { width: 75, alignItems: 'center' },
@@ -451,7 +501,6 @@ const styles = StyleSheet.create({
     contentTitle: { fontSize: 16, fontWeight: '600', color: '#333' }, 
     contentDesc: { fontSize: 13, color: '#666', marginTop: 2 },
 
-    // Form Styles
     formSection: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, marginBottom: 20, borderWidth: 1, borderColor: '#DDD' },
     bellHeader: { flexDirection:'row', alignItems:'center', marginBottom: 15, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#EEE' },
     formRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
@@ -465,7 +514,6 @@ const styles = StyleSheet.create({
     totalLabel: { fontSize: 18, fontWeight: 'bold', color: '#333' },
     totalValue: { fontSize: 18, fontWeight: 'bold', color: '#648DDB' },
 
-    // Chart Styles
     handwrittenTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20, color: '#000', marginTop: 10 },
     chartContainer: { alignItems: 'center', marginBottom: 30 },
     pieCircle: { width: 150, height: 150, borderRadius: 75, overflow: 'hidden', flexDirection: 'row', position: 'relative', marginBottom: 20 },
@@ -479,11 +527,9 @@ const styles = StyleSheet.create({
     legendDot: { width: 12, height: 12, borderRadius: 6, marginRight: 5 },
     legendText: { fontSize: 12, color: '#555' },
 
-    // Add to Cart Button
     addToCartBtn: { flexDirection: 'row', backgroundColor: '#648DDB', paddingVertical: 16, borderRadius: 30, alignItems: 'center', justifyContent: 'center', marginHorizontal: 20, shadowColor: "#648DDB", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4.65, elevation: 8 },
     addToCartText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
 
-    // Modal Styles
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
     modalContainer: { width: '85%', backgroundColor: '#FFF', borderRadius: 16, padding: 20, maxHeight: '60%' },
     modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center' },

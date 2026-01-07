@@ -16,6 +16,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { db } from "../../firebaseConfig";
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === "android") {
@@ -26,6 +28,9 @@ if (Platform.OS === "android") {
 
 const ManageAgencyScreen = () => {
   const router = useRouter();
+  // 2. Destructure Hook
+  const { t } = useLanguage();
+
   const [agencies, setAgencies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
@@ -56,7 +61,7 @@ const ManageAgencyScreen = () => {
       result.sort((a, b) => (a.status === 'pending' ? -1 : 1));
       setAgencies(result);
     } catch {
-      Alert.alert("Error", "Failed to fetch agencies.");
+      Alert.alert(t('alertErrorTitle'), t('alertFetchFail'));
     } finally {
       setLoading(false);
     }
@@ -75,7 +80,7 @@ const ManageAgencyScreen = () => {
       await updateDoc(doc(db, "users", id), { status: "approved" });
       updateStatusLocal(id, "approved");
     } catch {
-      Alert.alert("Error", "Unable to approve agency.");
+      Alert.alert(t('alertErrorTitle'), t('alertApproveFail'));
     } finally {
       setActionLoading(null);
     }
@@ -87,7 +92,7 @@ const ManageAgencyScreen = () => {
       await updateDoc(doc(db, "users", id), { status: "rejected" });
       updateStatusLocal(id, "rejected");
     } catch {
-      Alert.alert("Error", "Unable to reject agency.");
+      Alert.alert(t('alertErrorTitle'), t('alertRejectFail'));
     } finally {
       setActionLoading(null);
     }
@@ -98,22 +103,22 @@ const ManageAgencyScreen = () => {
     setExpandedId((prev) => (prev === id ? null : id));
   };
 
-  // Helper for Badge Styles
+  // Helper for Badge Styles & Localization
   const getStatusStyle = (status) => {
     switch (status) {
       case "approved":
-        return { bg: "#E8F5E9", text: "#2E7D32" }; // Green
+        return { bg: "#E8F5E9", text: "#2E7D32", label: t('statusApproved') }; 
       case "rejected":
-        return { bg: "#FFEBEE", text: "#D32F2F" }; // Red
+        return { bg: "#FFEBEE", text: "#D32F2F", label: t('statusRejected') }; 
       default:
-        return { bg: "#FFF8E1", text: "#F57C00" }; // Orange/Yellow
+        return { bg: "#FFF8E1", text: "#F57C00", label: t('statusPending') }; 
     }
   };
 
   const renderItem = ({ item }) => {
     const isExpanded = expandedId === item.id;
-    const statusStyle = getStatusStyle(item.status);
-    const displayName = item.agencyName || "Unnamed Agency";
+    const statusInfo = getStatusStyle(item.status);
+    const displayName = item.agencyName || t('unnamedAgency');
 
     return (
       <View style={styles.cardContainer}>
@@ -121,7 +126,7 @@ const ManageAgencyScreen = () => {
         <TouchableOpacity
           style={styles.cardHeader}
           onPress={() => toggleExpand(item.id)}
-          activeOpacity={0.7} // <--- FIXED HERE
+          activeOpacity={0.7} 
         >
           <View style={styles.avatarContainer}>
             {/* Avatar Placeholder */}
@@ -136,9 +141,9 @@ const ManageAgencyScreen = () => {
             <Text style={styles.agencyName} numberOfLines={1}>
               {displayName}
             </Text>
-            <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-              <Text style={[styles.statusText, { color: statusStyle.text }]}>
-                {item.status.toUpperCase()}
+            <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
+              <Text style={[styles.statusText, { color: statusInfo.text }]}>
+                {statusInfo.label}
               </Text>
             </View>
           </View>
@@ -156,17 +161,17 @@ const ManageAgencyScreen = () => {
             <View style={styles.divider} />
             
             <View style={styles.detailRow}>
-              <Text style={styles.label}>Email:</Text>
+              <Text style={styles.label}>{t('email')}:</Text>
               <Text style={styles.value}>{item.email || "N/A"}</Text>
             </View>
 
             <View style={styles.detailRow}>
-              <Text style={styles.label}>License No:</Text>
+              <Text style={styles.label}>{t('licenseNo')}</Text>
               <Text style={styles.value}>{item.licenseNo || "N/A"}</Text>
             </View>
 
             <View style={styles.detailRow}>
-              <Text style={styles.label}>Website:</Text>
+              <Text style={styles.label}>{t('website')}</Text>
               <Text style={[styles.value, { color: '#648DDB' }]}>{item.companyUrl || "N/A"}</Text>
             </View>
 
@@ -178,7 +183,7 @@ const ManageAgencyScreen = () => {
                   onPress={() => handleReject(item.id)}
                   disabled={actionLoading === item.id}
                 >
-                  <Text style={styles.rejectText}>Reject</Text>
+                  <Text style={styles.rejectText}>{t('reject')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -189,7 +194,7 @@ const ManageAgencyScreen = () => {
                   {actionLoading === item.id ? (
                     <ActivityIndicator color="#FFF" size="small" />
                   ) : (
-                    <Text style={styles.approveText}>Approve</Text>
+                    <Text style={styles.approveText}>{t('approve')}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -207,7 +212,7 @@ const ManageAgencyScreen = () => {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Agencies Management</Text>
+        <Text style={styles.headerTitle}>{t('agenciesManagement')}</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -221,7 +226,7 @@ const ManageAgencyScreen = () => {
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No agencies found.</Text>
+              <Text style={styles.emptyText}>{t('noAgenciesFound')}</Text>
             </View>
           }
         />

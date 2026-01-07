@@ -1,7 +1,5 @@
-// src/screens/HistoryScreen.js
-
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -14,12 +12,16 @@ import {
 } from 'react-native';
 // CHANGED: Import getUserOrders instead of getUserPlans
 import { getUserOrders } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 export default function HistoryScreen() {
     const router = useRouter();
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    // 2. Destructure Hook
+    const { t } = useLanguage();
 
     const loadOrders = async () => {
         try {
@@ -47,8 +49,10 @@ export default function HistoryScreen() {
     const renderOrderItem = ({ item }) => (
         <TouchableOpacity 
             style={styles.card} 
-            // You can implement an OrderDetails screen later if needed
-            onPress={() => alert(`Order ID: ${item.id}`)}
+            onPress={() => router.push({
+                pathname: '/order-details',
+                params: { orderId: item.id } 
+            })}
         >
             <View style={styles.cardHeader}>
                 <View style={styles.iconBox}>
@@ -56,10 +60,10 @@ export default function HistoryScreen() {
                     <Ionicons name="ticket-outline" size={24} color="#5A8AE4" />
                 </View>
                 <View style={styles.cardInfo}>
-                    <Text style={styles.planName}>{item.planName || "Trip Order"}</Text>
-                    <Text style={styles.agencyName}>Agency: {item.agencyName || "Unknown"}</Text>
+                    <Text style={styles.planName}>{item.planName || t('tripOrder')}</Text>
+                    <Text style={styles.agencyName}>{t('agency')}: {item.agencyName || "Unknown"}</Text>
                     <Text style={styles.dateText}>
-                        Travel Date: {item.travelDate ? new Date(item.travelDate).toLocaleDateString() : "N/A"}
+                        {t('travelDate')}: {item.travelDate ? new Date(item.travelDate).toLocaleDateString() : "N/A"}
                     </Text>
                 </View>
                 {/* Status Badge */}
@@ -71,7 +75,7 @@ export default function HistoryScreen() {
             <View style={styles.cardFooter}>
                 <View style={styles.stat}>
                     <Ionicons name="people-outline" size={16} color="#666" />
-                    <Text style={styles.statText}>{item.pax || 1} Pax</Text>
+                    <Text style={styles.statText}>{item.pax || 1} {t('pax')}</Text>
                 </View>
                 <View style={styles.stat}>
                     <Ionicons name="wallet-outline" size={16} color="#666" />
@@ -92,6 +96,7 @@ export default function HistoryScreen() {
     return (
         <View style={styles.container}>
             {/* Added a Header Title since it's now Orders */}
+            <Stack.Screen options={{ headerTitle: t('myOrders') }} />
 
             <FlatList
                 data={orders}
@@ -104,8 +109,8 @@ export default function HistoryScreen() {
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
                         <Ionicons name="receipt-outline" size={60} color="#DDD" />
-                        <Text style={styles.emptyText}>No orders yet.</Text>
-                        <Text style={styles.subEmptyText}>Book a trip to see it here!</Text>
+                        <Text style={styles.emptyText}>{t('noOrders')}</Text>
+                        <Text style={styles.subEmptyText}>{t('bookTripHint')}</Text>
                     </View>
                 }
             />

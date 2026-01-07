@@ -1,8 +1,6 @@
-// src/screens/AgencyEntertainmentDetailsScreen.js
-
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -21,49 +19,79 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 import { getEntertainmentById } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 const { width } = Dimensions.get('window');
 
 const AgencyEntertainmentDetailsScreen = () => {
     const router = useRouter();
     const { id } = useLocalSearchParams();
+    // 2. Destructure Hook
+    const { t } = useLanguage();
 
     const [item, setItem] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchDetails = async () => {
-            try {
-                if (id) {
-                    const result = await getEntertainmentById(id);
-                    setItem(result);
+    useFocusEffect(
+        useCallback(() => {
+            let isActive = true; // 防止组件卸载后设值报错
+
+            const fetchDetails = async () => {
+                try {
+                    setLoading(true); // 每次回来都显示一下加载，或者你可以根据需求去掉这行
+                    if (id) {
+                        const result = await getEntertainmentById(id);
+                        if (isActive) {
+                            setItem(result);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error fetching details:', error);
+                } finally {
+                    if (isActive) {
+                        setLoading(false);
+                    }
                 }
-            } catch (error) {
-                console.error('Error fetching details:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchDetails();
-    }, [id]);
+            };
+
+            fetchDetails();
+
+            return () => {
+                isActive = false; // 清理函数
+            };
+        }, [id]) // 依赖项仍然是 id
+    );
 
     const openNavigationApp = () => {
         if (item?.locationURL) {
             Linking.openURL(item.locationURL).catch(() => {
-                Alert.alert('Error', 'Could not open map application.');
+                // Reusing error key from Food Details if available, or fallback
+                Alert.alert(t('alertErrorTitle'), t('errorMapApp')); 
             });
         } else {
-            Alert.alert('No Location', 'No location link provided.');
+            Alert.alert(t('noLocationTitle'), t('noLocationMsg'));
         }
     };
+
     const getLocalizedMapUrl = (url) => {
         if (!url) return null;
         const separator = url.includes('?') ? '&' : '?';
         return `${url}${separator}hl=en`; 
     };
+
+    // --- NEW: Handle Edit Navigation ---
+    const handleEdit = () => {
+        // 跳转到编辑页面，并把当前的 item ID 传过去
+        // 请确保你已经创建了 /agency/edit-entertainment 页面
+        router.push({
+            pathname: '/agency-edit-entertainment', // 这里填你实际的编辑页面路由
+            params: { id: item.id }
+        });
+    };
+
     // =================================================================
     // 🧹 AGGRESSIVE CLEANING SCRIPT 🧹
-    // Removes Google Search Bars, Bottom Cards, and Headers
     // =================================================================
     const mobileCleanScript = `
       (function() {
@@ -107,9 +135,9 @@ const AgencyEntertainmentDetailsScreen = () => {
     if (!item) {
         return (
             <View style={styles.loaderContainer}>
-                <Text style={styles.errorText}>Entertainment details not found.</Text>
+                <Text style={styles.errorText}>{t('entNotFound')}</Text>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
-                    <Text style={{ color: '#A58383' }}>Go Back</Text>
+                    <Text style={{ color: '#A58383' }}>{t('goBack')}</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -128,8 +156,14 @@ const AgencyEntertainmentDetailsScreen = () => {
                 <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]} />
 
                 <SafeAreaView style={styles.safeArea}>
+                    {/* --- MODIFIED HEADER --- */}
                     <View style={styles.header}>
                         <Text style={styles.headerTitle} numberOfLines={1}>{item.title}</Text>
+                        
+                        {/* 🔥 Added Edit Button Here 🔥 */}
+                        <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
+                            <Ionicons name="create-outline" size={26} color="#333" />
+                        </TouchableOpacity>
                     </View>
 
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -142,14 +176,27 @@ const AgencyEntertainmentDetailsScreen = () => {
                         </View>
 
                         <View style={styles.infoCard}>
-                            <Text style={styles.cardLabel}>Activity Details</Text>
+                            <Text style={styles.cardLabel}>{t('activityDetails')}</Text>
 
+                            {/* 1. Suggested Transport */}
                             <View style={styles.dataRow}>
                                 <Ionicons name="bus-outline" size={20} color="#666" />
                                 <View style={styles.dataTextGroup}>
-                                    <Text style={styles.dataTitle}>Suggested Transport</Text>
+                                    <Text style={styles.dataTitle}>{t('suggestedTransport')}</Text>
                                     <Text style={styles.dataValue}>
                                         {item.suggestedTransport} (RM {item.transportCost?.toFixed(2)})
+                                    </Text>
+                                </View>
+                            </View>
+
+                            {/* 🔥 2. NEW: Ticket Price 🔥 */}
+                            <View style={styles.dataRow}>
+                                <Ionicons name="ticket-outline" size={20} color="#666" />
+                                <View style={styles.dataTextGroup}>
+                                    {/* 这里用了 t('ticketPriceRM')，如果你的语言文件里没有这个key，它会显示 "Ticket Price" */}
+                                    <Text style={styles.dataTitle}>{t('ticketPriceRM') || "Ticket Price"}</Text>
+                                    <Text style={styles.dataValue}>
+                                        RM {item.ticketPrice?.toFixed(2) || '0.00'}
                                     </Text>
                                 </View>
                             </View>
@@ -157,12 +204,13 @@ const AgencyEntertainmentDetailsScreen = () => {
                             <View style={styles.divider} />
 
                             {/* --- MAP SECTION --- */}
-                            <Text style={[styles.dataTitle, { marginBottom: 10 }]}>Location Preview</Text>
+                            <Text style={[styles.dataTitle, { marginBottom: 10 }]}>{t('locationPreview')}</Text>
 
                             <View style={styles.mapContainer}>
                                 {item.locationURL ? (
                                     <WebView
-                                        source={{ uri: getLocalizedMapUrl(item.locationURL) }}                                        style={styles.mapWebView}
+                                        source={{ uri: getLocalizedMapUrl(item.locationURL) }}                                     
+                                        style={styles.mapWebView}
                                         nestedScrollEnabled={true}
                                         showsUserLocation={false}
                                         // Hardware acceleration for Android
@@ -175,10 +223,12 @@ const AgencyEntertainmentDetailsScreen = () => {
                                         originWhitelist={['*']}
                                         javaScriptEnabled={true}
                                         domStorageEnabled={true}
+                                        setSupportMultipleWindows={false}
                                         startInLoadingState={true}
                                         renderLoading={() => (
                                             <View style={styles.loadingOverlay}>
                                                 <ActivityIndicator color="#648DDB" />
+                                                {/* Reusing existing loading text key if created previously, or hardcode fallback */}
                                                 <Text style={styles.loadingText}>Loading Map...</Text>
                                             </View>
                                         )}
@@ -197,13 +247,13 @@ const AgencyEntertainmentDetailsScreen = () => {
                                 ) : (
                                     <View style={styles.noMapContainer}>
                                         <Ionicons name="map-outline" size={30} color="#ccc" />
-                                        <Text style={styles.noMapText}>No location map available</Text>
+                                        <Text style={styles.noMapText}>{t('noMap')}</Text>
                                     </View>
                                 )}
 
                                 <TouchableOpacity style={styles.navigateFab} onPress={openNavigationApp}>
                                     <Ionicons name="navigate" size={20} color="#FFF" />
-                                    <Text style={styles.navigateFabText}>Go</Text>
+                                    <Text style={styles.navigateFabText}>{t('go')}</Text>
                                 </TouchableOpacity>
                             </View>
                             {/* ------------------------ */}
@@ -211,14 +261,14 @@ const AgencyEntertainmentDetailsScreen = () => {
                             <View style={styles.divider} />
 
                             <View style={styles.descriptionSection}>
-                                <Text style={styles.descriptionLabel}>About this activity</Text>
+                                <Text style={styles.descriptionLabel}>{t('aboutActivity')}</Text>
                                 <Text style={styles.descriptionText}>
-                                    {item.description || 'No additional details provided.'}
+                                    {item.description || t('noDetails')}
                                 </Text>
                             </View>
 
                             <View style={styles.footerRow}>
-                                <Text style={styles.totalLabel}>Estimated Total Cost</Text>
+                                <Text style={styles.totalLabel}>{t('estTotalCost')}</Text>
                                 <Text style={styles.totalAmount}>RM {item.estimatedTotalExpenses?.toFixed(2)}</Text>
                             </View>
                         </View>
@@ -235,6 +285,16 @@ const styles = StyleSheet.create({
     safeArea: { flex: 1 },
     header: { height: 50, justifyContent: 'center', alignItems: 'center' },
     headerTitle: { fontSize: 18, fontWeight: 'bold' },
+    
+    // 🔥 Added Style for Edit Button 🔥
+    editButton: {
+        position: 'absolute',
+        right: 20, // 靠右对齐
+        top: 10,   // 垂直位置调整
+        zIndex: 10, // 确保它在顶层可以点击
+        padding: 5
+    },
+
     scrollContent: { alignItems: 'center', paddingBottom: 40 },
     imageWrapper: { marginVertical: 25, elevation: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.4, shadowRadius: 12 },
     mainImage: { width: width * 0.8, height: width * 0.8, borderRadius: 30 },
@@ -246,10 +306,10 @@ const styles = StyleSheet.create({
     dataValue: { fontSize: 15, color: '#444' },
     divider: { height: 1, backgroundColor: '#EEE', marginVertical: 15 },
     
-    // Map Styles - UPDATED HEIGHT
+    // Map Styles
     mapContainer: {
         width: '100%',
-        height: 450, // Height fixed to match request
+        height: 450, 
         borderRadius: 12,
         overflow: 'hidden',
         marginBottom: 10,
@@ -288,9 +348,11 @@ const styles = StyleSheet.create({
     descriptionLabel: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
     descriptionText: { fontSize: 14, color: '#555', lineHeight: 22 },
     footerRow: { marginTop: 20, alignItems: 'flex-end' },
+    totalLabel: { fontSize: 12, color: '#888', textTransform: 'uppercase' },
     totalAmount: { fontSize: 22, fontWeight: 'bold', color: '#E35D5D' },
     errorText: { fontSize: 16, color: '#666' },
-    backLink: { marginTop: 15 }
+    backLink: { marginTop: 15 },
+    cardLabel: { fontSize: 18, fontWeight: 'bold', marginBottom: 20, color: '#333' },
 });
 
 export default AgencyEntertainmentDetailsScreen;

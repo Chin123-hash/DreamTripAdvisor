@@ -145,6 +145,7 @@ export const addEntertainment = async (data, imageUri) => {
             locationURL: data.locationURL || "",
             suggestedTransport: data.suggestedTransport,
             transportCost: parseFloat(data.transportCost) || 0,
+            ticketPrice: parseFloat(data.ticketPrice) || 0,
             estimatedTotalExpenses: parseFloat(data.estimatedTotalExpenses) || 0,
             rating: parseFloat(data.rating) || 0,
             imageUrl: imageUrl,
@@ -232,24 +233,25 @@ export const createNewPlan = async (planName) => {
 
 // 3. Add Item to a Specific Plan
 // 1. UPDATE: Add a unique 'cartId' when adding items
+// In src/services/AuthService.js
+
 export const addItemToPlan = async (planId, itemData) => {
     const user = auth.currentUser;
     if (!user) throw new Error("User not authenticated");
 
     try {
         const planRef = doc(db, "users", user.uid, "plans", planId);
-
-        // Generate a unique ID for this specific instance
         const newCartId = Date.now().toString() + Math.floor(Math.random() * 1000).toString();
 
         await updateDoc(planRef, {
             items: arrayUnion({
                 itemId: itemData.id, 
-                cartId: newCartId, // <--- NEW UNIQUE ID
+                cartId: newCartId,
                 title: itemData.title,
                 price: parseFloat(itemData.price), 
                 image: itemData.imageUrl,
-                type: itemData.type || 'entertainment', 
+                type: itemData.type || 'entertainment',
+                locationURL: itemData.locationURL || "", // <--- ADD THIS LINE
                 addedAt: new Date().toISOString()
             })
         });
@@ -445,7 +447,7 @@ export const addFood = async (data, imageUri) => {
             title: data.title,
             description: data.description,
             locationURL: data.locationURL || "",
-            priceRange: data.priceRange, // e.g., "RM 10 - RM 30"
+            priceRange: parseFloat(data.priceRange) || 0, // e.g., "RM 10 - RM 30"
             suggestedTransport: data.suggestedTransport,
             transportCost: parseFloat(data.transportCost) || 0,
             estimatedTotalExpenses: parseFloat(data.estimatedTotalExpenses) || 0,
@@ -478,12 +480,17 @@ export const deleteFood = async (foodId) => {
 // --- UPDATE FOOD (For Agencies) ---
 export const updateFood = async (foodId, updatedData, newImageUri) => {
     try {
-        let finalData = { ...updatedData };
+        let finalData = {
+            ...updatedData,
+            transportCost: parseFloat(updatedData.transportCost) || 0,
+            estimatedTotalExpenses: parseFloat(updatedData.estimatedTotalExpenses) || 0,
+            rating: parseFloat(updatedData.rating) || 0,
+        };
 
         if (newImageUri) {
             const response = await fetch(newImageUri);
             const blob = await response.blob();
-            const filename = `foods/${new Date().getTime()}.jpg`;
+            const filename = `foods/${Date.now()}.jpg`;
             const storageRef = ref(storage, filename);
             await uploadBytes(storageRef, blob);
             finalData.imageUrl = await getDownloadURL(storageRef);
@@ -491,6 +498,7 @@ export const updateFood = async (foodId, updatedData, newImageUri) => {
 
         const foodRef = doc(db, "foods", foodId);
         await updateDoc(foodRef, finalData);
+
         return true;
     } catch (error) {
         console.error("Error updating food:", error);
@@ -588,8 +596,7 @@ export const getCartPlanDetails = async (planId) => {
 
 export const getAgencies = async () => {
     try {
-        // Determine the correct collection based on your logic (users or agencies)
-        // Assuming agencies are stored in 'users' collection with role 'agency'
+        // Query users where role is 'agency'
         const q = query(collection(db, "users"), where("role", "==", "agency"));
         const querySnapshot = await getDocs(q);
 
@@ -598,7 +605,8 @@ export const getAgencies = async () => {
             const data = doc.data();
             agencies.push({
                 id: doc.id,
-                name: data.agencyName || data.fullName || "Unnamed Agency", // Fallback names
+                name: data.agencyName || data.fullName || "Unnamed Agency",
+                status: data.status, // <--- CRITICAL FIX: Now retrieving status
             });
         });
         return agencies;
@@ -780,6 +788,187 @@ export const adminUpdateUser = async (userId, newData) => {
         return true;
     } catch (error) {
         console.error("Error admin updating user:", error);
+        throw error;
+    }
+};
+
+export const updateEntertainment = async (entertainmentId, updatedData, newImageUri) => {
+    try {
+        let finalData = {
+            ...updatedData,
+            ticketPrice: parseFloat(updatedData.ticketPrice) || 0,
+            transportCost: parseFloat(updatedData.transportCost) || 0,
+            estimatedTotalExpenses: parseFloat(updatedData.estimatedTotalExpenses) || 0,
+            rating: parseFloat(updatedData.rating) || 0,
+        };
+
+        // Upload new image if provided
+        if (newImageUri) {
+            const response = await fetch(newImageUri);
+            const blob = await response.blob();
+            const filename = `entertainments/${Date.now()}.jpg`;
+            const storageRef = ref(storage, filename);
+            await uploadBytes(storageRef, blob);
+            finalData.imageUrl = await getDownloadURL(storageRef);
+        }
+
+        const entRef = doc(db, "entertainments", entertainmentId);
+        await updateDoc(entRef, finalData);
+
+        return true;
+    } catch (error) {
+        console.error("Error updating entertainment:", error);
+        throw error;
+    }
+};
+
+export const getTopAgencies = (orders, limit = 5) => {
+    const map = {};
+    orders.forEach(o => {
+        const name = o.agencyName || "Unknown Agency";
+        if (!map[name]) map[name] = { revenue: 0, orders: 0 };
+        map[name].revenue += (Number(o.totalAmount) || 0);
+        map[name].orders += 1;
+    });
+    return Object.entries(map).sort((a, b) => b[1].revenue - a[1].revenue).slice(0, limit);
+};
+
+export const getCategoryRevenue = (orders) => {
+    const map = {};
+
+    orders.forEach(o => {
+        o.items?.forEach(item => {
+            const category = item.category || item.type || 'Other';
+            const price = Number(item.price) || 0;
+            const qty = Number(item.quantity) || 1;
+
+            map[category] = (map[category] || 0) + (price * qty);
+        });
+    });
+
+    return map;
+};
+
+export const getTopSellingItems = (orders, limit = 5) => {
+    const map = {};
+
+    orders.forEach(o => {
+        o.items?.forEach(item => {
+            const title = item.title || "Unknown Item";
+            if (!map[title]) {
+                map[title] = { qty: 0, revenue: 0 };
+            }
+            const price = Number(item.price) || 0;
+            const qty = Number(item.quantity) || 1;
+
+            map[title].qty += qty;
+            map[title].revenue += (price * qty);
+        });
+    });
+
+    return Object.entries(map)
+        .sort((a, b) => b[1].qty - a[1].qty)
+        .slice(0, limit);
+};
+
+export const toggleFavorite = async (item) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    const favRef = doc(db, "users", user.uid, "favorites", item.id);
+    const docSnap = await getDoc(favRef);
+
+    if (docSnap.exists()) {
+        // Remove if already exists
+        await deleteDoc(favRef);
+        return false; // Not favorite anymore
+    } else {
+        // Add to favorites
+        await setDoc(favRef, {
+            id: item.id,
+            title: item.title,
+            // Handle different image field names
+            image: item.imageUrl || item.image || 'https://via.placeholder.com/150',
+            price: parseFloat(item.price) || 0,
+            type: item.type, // 'food', 'entertainment', 'plan'
+            rating: item.rating || 0,
+            locationURL: item.locationURL || "",
+            createdAt: new Date().toISOString()
+        });
+        return true; // Is now favorite
+    }
+};
+
+// 2. Check if Item is Favorite
+export const checkFavoriteStatus = async (itemId) => {
+    const user = auth.currentUser;
+    if (!user) return false;
+
+    try {
+        const favRef = doc(db, "users", user.uid, "favorites", itemId);
+        const docSnap = await getDoc(favRef);
+        return docSnap.exists();
+    } catch (error) {
+        console.error("Error checking favorite:", error);
+        return false;
+    }
+};
+
+// 3. Get All Favorites
+export const getFavorites = async () => {
+    const user = auth.currentUser;
+    if (!user) return [];
+
+    try {
+        const querySnapshot = await getDocs(collection(db, "users", user.uid, "favorites"));
+        const list = [];
+        querySnapshot.forEach((doc) => {
+            list.push(doc.data());
+        });
+        return list;
+    } catch (error) {
+        console.error("Error fetching favorites:", error);
+        return [];
+    }
+};
+
+export const submitItemRating = async (type, itemId, userRating) => {
+    try {
+        // 1. Determine Collection Name based on type
+        // The type usually comes as 'food' or 'entertainment' (singular)
+        // But your collections are 'foods' and 'entertainments' (plural)
+        const collectionName = type === 'food' ? 'foods' : 'entertainments';
+        
+        const docRef = doc(db, collectionName, itemId);
+        const docSnap = await getDoc(docRef);
+
+        if (!docSnap.exists()) {
+            throw new Error("Item not found");
+        }
+
+        const data = docSnap.data();
+
+        // 2. Get existing stats. 
+        // If 'ratingCount' doesn't exist yet, we initialize logic:
+        // - If current rating > 0, assume count is 1.
+        // - If current rating is 0, assume count is 0.
+        let currentRating = parseFloat(data.rating) || 0;
+        let currentCount = parseInt(data.ratingCount) || (currentRating > 0 ? 1 : 0);
+
+        // 3. Calculate New Average
+        // Formula: (OldAvg * OldCount + NewRating) / (OldCount + 1)
+        const newCount = currentCount + 1;
+        const newAverage = ((currentRating * currentCount) + userRating) / newCount;
+
+        // 4. Update Firestore
+        await updateDoc(docRef, {
+            rating: parseFloat(newAverage.toFixed(2)), // Keep 2 decimal places
+            ratingCount: newCount
+        });
+
+        return true;
+    } catch (error) {
+        console.error("Error submitting rating:", error);
         throw error;
     }
 };

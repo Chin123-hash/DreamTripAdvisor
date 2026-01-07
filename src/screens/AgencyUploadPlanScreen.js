@@ -1,5 +1,3 @@
-// src/screens/AgencyUploadPlanScreen.js
-
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,13 +14,16 @@ import {
     ScrollView,
     StyleSheet,
     Text,
-    TextInput, TouchableOpacity, View
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useRouter } from 'expo-router';
 import { addPlan, fetchEntertainmentList, fetchFoodList } from '../services/AuthService';
-
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 const generateDaysOptions = () => {
     const options = [];
@@ -37,9 +38,13 @@ const generatePlanId = () => {
     return `P${timestamp}`;
 };
 
-export function AgencyUploadPlanScreen() {
+// --- FIX: Added 'default' keyword here ---
+export default function AgencyUploadPlanScreen() {
     const auth = getAuth();
     const currentUser = auth.currentUser;
+    const router = useRouter();
+    // 2. Destructure Hook
+    const { t } = useLanguage();
 
     // --- State Variables ---
     const [planId] = useState(generatePlanId());
@@ -85,7 +90,7 @@ export function AgencyUploadPlanScreen() {
 
             } catch (error) {
                 console.error("Error loading dropdowns:", error);
-                Alert.alert("Error", "Failed to load lists.");
+                Alert.alert(t('alertErrorTitle'), t('alertLoadFail'));
             }
         };
 
@@ -114,14 +119,14 @@ export function AgencyUploadPlanScreen() {
 
     // --- 4. Save Logic (Uses addPlan from AuthService) ---
     const handleSave = async () => {
-        if (!currentUser) return Alert.alert("Error", "Please log in.");
+        if (!currentUser) return Alert.alert(t('alertErrorTitle'), t('alertLoginUpload'));
 
         if (!planName || !days || !pax || !cost || !imageUri) {
-            return Alert.alert("Missing Info", "Please fill in Plan Name, Days, Pax, Cost and upload a Picture.");
+            return Alert.alert(t('alertErrorTitle'), t('alertFillAllPlan'));
         }
 
         if (!selectedEnt && !selectedFood) {
-            return Alert.alert("Requirement", "Please select at least one Entertainment OR one Food option.");
+            return Alert.alert(t('alertRequiredTitle'), t('alertSelectOne'));
         }
 
         setLoading(true);
@@ -146,10 +151,10 @@ export function AgencyUploadPlanScreen() {
 
             await addPlan(planData, imageUri);
             
-            Alert.alert("Success", "Trip Plan Uploaded!");
+            Alert.alert(t('alertSuccessTitle'), t('alertPlanUploaded'));
             handleReset();
         } catch (error) {
-            Alert.alert("Error", error.message || "Upload failed");
+            Alert.alert(t('alertUploadFailed'), error.message || t('alertUnknownError'));
         } finally {
             setLoading(false);
         }
@@ -162,7 +167,7 @@ export function AgencyUploadPlanScreen() {
                 <View style={styles.modalContent}>
                     <Text style={styles.modalTitle}>{title}</Text>
                     {data.length === 0 ? (
-                        <Text style={styles.emptyText}>No items found.</Text>
+                        <Text style={styles.emptyText}>{t('noItemsFound')}</Text>
                     ) : (
                         <FlatList
                             data={data}
@@ -174,7 +179,7 @@ export function AgencyUploadPlanScreen() {
                                 } else if (item && item.title) {
                                     displayText = item.title;
                                 } else {
-                                    displayText = "Unnamed Item";
+                                    displayText = t('unnamedItem');
                                 }
 
                                 return (
@@ -189,7 +194,7 @@ export function AgencyUploadPlanScreen() {
                         />
                     )}
                     <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-                        <Text style={styles.closeBtnText}>Close</Text>
+                        <Text style={styles.closeBtnText}>{t('close')}</Text>
                     </TouchableOpacity>
                 </View>
             </TouchableOpacity>
@@ -199,7 +204,7 @@ export function AgencyUploadPlanScreen() {
     const isBasicFilled = planName && days && pax && cost && imageUri;
     const isSelectionValid = selectedEnt || selectedFood;
     const canSave = isBasicFilled && isSelectionValid;
-    const router = useRouter();
+
     return (
         
         <SafeAreaView style={styles.container}>
@@ -208,7 +213,7 @@ export function AgencyUploadPlanScreen() {
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={28} color="#333" /> 
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Upload Plan</Text>
+                <Text style={styles.headerTitle}>{t('uploadPlanTitle')}</Text>
                 <View style={{ width: 33 }} />
             </View>
 
@@ -216,7 +221,7 @@ export function AgencyUploadPlanScreen() {
                 <ScrollView contentContainerStyle={styles.scrollContainer}>
                     
                     <Text style={styles.idText}>
-                        Plan ID: <Text style={{ fontWeight: '600' }}>{planId}</Text>
+                        {t('planId')} <Text style={{ fontWeight: '600' }}>{planId}</Text>
                     </Text>
 
                     {/* Image Upload Area */}
@@ -233,7 +238,7 @@ export function AgencyUploadPlanScreen() {
                         <TouchableOpacity style={styles.changePictureButtonContainer} onPress={pickImage} disabled={loading}>
                             <LinearGradient colors={['#4CD964', '#28A745']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradientButton}>
                                 <Ionicons name="cloud-upload-outline" size={20} color="#FFF" />
-                                <Text style={styles.changePictureText}>{imageUri ? "Change Picture" : "Upload Picture"}</Text>
+                                <Text style={styles.changePictureText}>{imageUri ? t('changePic') : t('uploadPic')}</Text>
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
@@ -241,10 +246,10 @@ export function AgencyUploadPlanScreen() {
                     {/* Form Fields */}
                     <View style={styles.formContainer}>
                         
-                        <Text style={styles.label}>Plan Name</Text>
+                        <Text style={styles.label}>{t('planName')}</Text>
                         <TextInput 
                             style={styles.inputField} 
-                            placeholder="e.g. Cameron Highlands Trip"
+                            placeholder={t('placeholderPlanNameTrip')}
                             placeholderTextColor="#888"
                             value={planName} 
                             onChangeText={setPlanName} 
@@ -252,22 +257,22 @@ export function AgencyUploadPlanScreen() {
                         
                         <View style={styles.row}>
                             <View style={styles.col}>
-                                <Text style={styles.label}>Suggested Days of Trip</Text>
+                                <Text style={styles.label}>{t('suggestedDays')}</Text>
                                 <TouchableOpacity 
                                     style={styles.dropdownField} 
                                     onPress={() => setShowDaysModal(true)}
                                 >
                                     <Text style={[styles.dropdownText, !days && {color:'#888'}]}>
-                                        {days || "Select Duration"}
+                                        {days || t('selectDuration')}
                                     </Text>
                                     <Ionicons name="chevron-down" size={20} color="#888" />
                                 </TouchableOpacity>
                             </View>
                             <View style={styles.col}>
-                                <Text style={styles.label}>Suggested Pax</Text>
+                                <Text style={styles.label}>{t('suggestedPax')}</Text>
                                 <TextInput 
                                     style={styles.inputField} 
-                                    placeholder="e.g. 10" 
+                                    placeholder={t('placeholderPax')}
                                     placeholderTextColor="#888"
                                     keyboardType="numeric"
                                     value={pax} 
@@ -276,29 +281,29 @@ export function AgencyUploadPlanScreen() {
                             </View>
                         </View>
 
-                        <Text style={styles.label}>Entertainment</Text>
+                        <Text style={styles.label}>{t('legendEnt')}</Text>
                         <TouchableOpacity 
                             style={styles.dropdownField} 
                             onPress={() => setShowEntModal(true)}
                         >
                             <Text style={[styles.dropdownText, !selectedEnt && {color:'#888'}]}>
-                                {selectedEnt ? selectedEnt.title : "Select an Entertainment"}
+                                {selectedEnt ? selectedEnt.title : t('selectEnt')}
                             </Text>
                             <Ionicons name="chevron-down" size={20} color="#888" />
                         </TouchableOpacity>
 
-                        <Text style={styles.label}>Food</Text>
+                        <Text style={styles.label}>{t('legendFood')}</Text>
                         <TouchableOpacity 
                             style={[styles.dropdownField, {marginBottom: 20}]} 
                             onPress={() => setShowFoodModal(true)}
                         >
                             <Text style={[styles.dropdownText, !selectedFood && {color:'#888'}]}>
-                                {selectedFood ? selectedFood.title : "Select a Food"}
+                                {selectedFood ? selectedFood.title : t('selectFood')}
                             </Text>
                             <Ionicons name="chevron-down" size={20} color="#888" />
                         </TouchableOpacity>
 
-                        <Text style={styles.label}>Estimated Cost</Text>
+                        <Text style={styles.label}>{t('estimatedCostPlan')}</Text>
                         <View style={styles.currencyContainer}></View>
                             <Text style={styles.currencyPrefix}>RM</Text>
                             <TextInput 
@@ -317,7 +322,7 @@ export function AgencyUploadPlanScreen() {
                     {/* Buttons */}
                     <View style={styles.buttonRow}>
                         <TouchableOpacity style={styles.resetButton} onPress={handleReset} disabled={loading}>
-                            <Text style={styles.resetButtonText}>Reset</Text>
+                            <Text style={styles.resetButtonText}>{t('reset')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -328,7 +333,7 @@ export function AgencyUploadPlanScreen() {
                             {loading ? (
                                 <ActivityIndicator color="#FFFFFF" />
                             ) : (
-                                <Text style={styles.saveButtonText}>Save</Text>
+                                <Text style={styles.saveButtonText}>{t('save')}</Text>
                             )}
                         </TouchableOpacity>
                     </View>
@@ -337,19 +342,19 @@ export function AgencyUploadPlanScreen() {
 
             {/* Modals */}
             <SelectionModal 
-                visible={showDaysModal} title="Select Duration" 
+                visible={showDaysModal} title={t('selectDuration')}
                 data={generateDaysOptions()} onClose={() => setShowDaysModal(false)}
                 onSelect={(item) => setDays(item)}
             />
 
             <SelectionModal 
-                visible={showEntModal} title="Select Entertainment" 
+                visible={showEntModal} title={t('selectEnt')}
                 data={entList} onClose={() => setShowEntModal(false)}
                 onSelect={(item) => setSelectedEnt(item)}
             />
 
             <SelectionModal 
-                visible={showFoodModal} title="Select Food" 
+                visible={showFoodModal} title={t('selectFood')}
                 data={foodList} onClose={() => setShowFoodModal(false)}
                 onSelect={(item) => setSelectedFood(item)}
             />
