@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -33,21 +33,35 @@ const AgencyEntertainmentDetailsScreen = () => {
     const [item, setItem] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchDetails = async () => {
-            try {
-                if (id) {
-                    const result = await getEntertainmentById(id);
-                    setItem(result);
+    useFocusEffect(
+        useCallback(() => {
+            let isActive = true; // 防止组件卸载后设值报错
+
+            const fetchDetails = async () => {
+                try {
+                    setLoading(true); // 每次回来都显示一下加载，或者你可以根据需求去掉这行
+                    if (id) {
+                        const result = await getEntertainmentById(id);
+                        if (isActive) {
+                            setItem(result);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error fetching details:', error);
+                } finally {
+                    if (isActive) {
+                        setLoading(false);
+                    }
                 }
-            } catch (error) {
-                console.error('Error fetching details:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchDetails();
-    }, [id]);
+            };
+
+            fetchDetails();
+
+            return () => {
+                isActive = false; // 清理函数
+            };
+        }, [id]) // 依赖项仍然是 id
+    );
 
     const openNavigationApp = () => {
         if (item?.locationURL) {
@@ -64,6 +78,16 @@ const AgencyEntertainmentDetailsScreen = () => {
         if (!url) return null;
         const separator = url.includes('?') ? '&' : '?';
         return `${url}${separator}hl=en`; 
+    };
+
+    // --- NEW: Handle Edit Navigation ---
+    const handleEdit = () => {
+        // 跳转到编辑页面，并把当前的 item ID 传过去
+        // 请确保你已经创建了 /agency/edit-entertainment 页面
+        router.push({
+            pathname: '/agency-edit-entertainment', // 这里填你实际的编辑页面路由
+            params: { id: item.id }
+        });
     };
 
     // =================================================================
@@ -132,8 +156,14 @@ const AgencyEntertainmentDetailsScreen = () => {
                 <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]} />
 
                 <SafeAreaView style={styles.safeArea}>
+                    {/* --- MODIFIED HEADER --- */}
                     <View style={styles.header}>
                         <Text style={styles.headerTitle} numberOfLines={1}>{item.title}</Text>
+                        
+                        {/* 🔥 Added Edit Button Here 🔥 */}
+                        <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
+                            <Ionicons name="create-outline" size={26} color="#333" />
+                        </TouchableOpacity>
                     </View>
 
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -148,12 +178,25 @@ const AgencyEntertainmentDetailsScreen = () => {
                         <View style={styles.infoCard}>
                             <Text style={styles.cardLabel}>{t('activityDetails')}</Text>
 
+                            {/* 1. Suggested Transport */}
                             <View style={styles.dataRow}>
                                 <Ionicons name="bus-outline" size={20} color="#666" />
                                 <View style={styles.dataTextGroup}>
                                     <Text style={styles.dataTitle}>{t('suggestedTransport')}</Text>
                                     <Text style={styles.dataValue}>
                                         {item.suggestedTransport} (RM {item.transportCost?.toFixed(2)})
+                                    </Text>
+                                </View>
+                            </View>
+
+                            {/* 🔥 2. NEW: Ticket Price 🔥 */}
+                            <View style={styles.dataRow}>
+                                <Ionicons name="ticket-outline" size={20} color="#666" />
+                                <View style={styles.dataTextGroup}>
+                                    {/* 这里用了 t('ticketPriceRM')，如果你的语言文件里没有这个key，它会显示 "Ticket Price" */}
+                                    <Text style={styles.dataTitle}>{t('ticketPriceRM') || "Ticket Price"}</Text>
+                                    <Text style={styles.dataValue}>
+                                        RM {item.ticketPrice?.toFixed(2) || '0.00'}
                                     </Text>
                                 </View>
                             </View>
@@ -166,7 +209,7 @@ const AgencyEntertainmentDetailsScreen = () => {
                             <View style={styles.mapContainer}>
                                 {item.locationURL ? (
                                     <WebView
-                                        source={{ uri: getLocalizedMapUrl(item.locationURL) }}                                
+                                        source={{ uri: getLocalizedMapUrl(item.locationURL) }}                                     
                                         style={styles.mapWebView}
                                         nestedScrollEnabled={true}
                                         showsUserLocation={false}
@@ -242,6 +285,16 @@ const styles = StyleSheet.create({
     safeArea: { flex: 1 },
     header: { height: 50, justifyContent: 'center', alignItems: 'center' },
     headerTitle: { fontSize: 18, fontWeight: 'bold' },
+    
+    // 🔥 Added Style for Edit Button 🔥
+    editButton: {
+        position: 'absolute',
+        right: 20, // 靠右对齐
+        top: 10,   // 垂直位置调整
+        zIndex: 10, // 确保它在顶层可以点击
+        padding: 5
+    },
+
     scrollContent: { alignItems: 'center', paddingBottom: 40 },
     imageWrapper: { marginVertical: 25, elevation: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.4, shadowRadius: 12 },
     mainImage: { width: width * 0.8, height: width * 0.8, borderRadius: 30 },
