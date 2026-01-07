@@ -300,7 +300,7 @@ export default function CustomerMainPage() {
                           <Text style={styles.menuText}>{t('menuOrders')}</Text>
                       </TouchableOpacity>
 
-                      <TouchableOpacity style={styles.menuItem} onPress={() => closeSidebar()}>
+                      <TouchableOpacity style={styles.menuItem} onPress={() => { closeSidebar(); router.push('/favourite'); } }>
                           <Ionicons name="heart-outline" size={24} color="#333" />
                           <Text style={styles.menuText}>{t('menuFav')}</Text>
                       </TouchableOpacity>

@@ -6,6 +6,7 @@ import {
     Alert,
     Image,
     Linking,
+    Modal, // Import Modal
     ScrollView,
     StyleSheet,
     Text,
@@ -13,24 +14,29 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLanguage } from '../context/LanguageContext';
 import {
     getEntertainmentById,
     getFoodById,
-    getOrderDetails
+    getOrderDetails,
+    submitItemRating // Import the new service
 } from '../services/AuthService';
-// 1. Import Hook
-import { useLanguage } from '../context/LanguageContext';
 
 export default function OrderDetailsScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
-    // 2. Destructure Hook
     const { t } = useLanguage();
     
     const [order, setOrder] = useState(null);
     const [loading, setLoading] = useState(true);
     const [enrichedItems, setEnrichedItems] = useState([]); 
     const [loadingLocations, setLoadingLocations] = useState(false);
+
+    // --- RATING STATE ---
+    const [ratingModalVisible, setRatingModalVisible] = useState(false);
+    const [selectedItemForRating, setSelectedItemForRating] = useState(null);
+    const [starCount, setStarCount] = useState(0);
+    const [ratedItems, setRatedItems] = useState([]); // Track items rated in this session
 
     useEffect(() => {
         loadOrder();
@@ -45,7 +51,6 @@ export default function OrderDetailsScreen() {
                 const raw = Array.isArray(params.orderData) ? params.orderData[0] : params.orderData;
                 const parsed = JSON.parse(raw);
                 setOrder(parsed);
-                // Immediately fetch fresh data for these items
                 await fetchLocationsForItems(parsed.items);
             } 
             else if (params.orderId) {
@@ -56,7 +61,7 @@ export default function OrderDetailsScreen() {
                     setOrder(fetchedOrder);
                     await fetchLocationsForItems(fetchedOrder.items);
                 } else {
-                    Alert.alert(t('alertErrorTitle'), "Order ID not found in database.");
+                    Alert.alert(t('alertErrorTitle'), "Order ID not found.");
                 }
             } 
         } catch (error) {
@@ -69,74 +74,49 @@ export default function OrderDetailsScreen() {
 
     const fetchLocationsForItems = async (items) => {
         if (!items) return;
-        
         setLoadingLocations(true);
         try {
             const promises = items.map(async (item) => {
-                // --- FIX: ALWAYS FETCH FRESH DATA ---
                 let fullData = null;
                 const itemId = item.itemId || item.id;
-
                 try {
                     if (item.type === 'food') {
                         fullData = await getFoodById(itemId);
                     } else {
                         fullData = await getEntertainmentById(itemId);
                     }
-                } catch (err) {
-                    console.log("Could not refresh item details, keeping old data.");
-                }
+                } catch (err) { console.log("Refresh error"); }
 
                 return {
                     ...item,
-                    // Priority: 1. Fresh DB Location, 2. Saved Snapshot Location, 3. Title
                     locationURL: fullData?.locationURL || item.locationURL || item.title,
-                    // Optional: You can also refresh the title/price if you want:
-                    title: fullData?.title || item.title 
+                    title: fullData?.title || item.title,
+                    id: itemId // Ensure ID is consistent
                 };
             });
-
             const results = await Promise.all(promises);
             setEnrichedItems(results);
         } catch (error) {
-            console.error("Error fetching locations:", error);
             setEnrichedItems(items);
         } finally {
             setLoadingLocations(false);
         }
     };
 
-    // --- ROBUST LOCATION PARSER ---
     const getLocationQuery = (item) => {
         const raw = item.locationURL;
-
-        if (!raw || typeof raw !== 'string') {
-            return item.title;
-        }
-
-        // 1. Try to extract coordinates "lat,lng" from URL
+        if (!raw || typeof raw !== 'string') return item.title;
         if (raw.includes('q=')) {
             const match = raw.match(/[?&]q=([^&]+)/);
-            if (match && match[1]) {
-                return decodeURIComponent(match[1]);
-            }
+            if (match && match[1]) return decodeURIComponent(match[1]);
         }
-        
         const coordMatch = raw.match(/([-+]?\d+\.\d+),\s*([-+]?\d+\.\d+)/);
-        if (coordMatch) {
-            return `${coordMatch[1]},${coordMatch[2]}`;
-        }
-
-        // 2. If valid normal link, might work, but fallback to title usually safer for routes
-        if (raw.includes('googleusercontent') || !raw.startsWith('http')) {
-             return item.title;
-        }
-
+        if (coordMatch) return `${coordMatch[1]},${coordMatch[2]}`;
+        if (raw.includes('googleusercontent') || !raw.startsWith('http')) return item.title;
         return item.title;
     };
 
     const handleOpenRoute = () => {
-        // Use enrichedItems (Fresh Data) instead of order.items
         const validItems = enrichedItems.filter(item => 
             (item.locationURL && item.locationURL.trim() !== "") || item.title
         );
@@ -147,14 +127,11 @@ export default function OrderDetailsScreen() {
         }
 
         const locations = validItems.map(getLocationQuery);
-        console.log("Routing Waypoints:", locations); 
-
         const safeEncode = (str) => encodeURIComponent(str);
         const origin = safeEncode(locations[0]);
         const destination = safeEncode(locations[locations.length - 1]);
         
         let url = '';
-
         if (locations.length === 1) {
             url = `https://www.google.com/maps/search/?api=1&query=${origin}`;
         } else {
@@ -163,14 +140,10 @@ export default function OrderDetailsScreen() {
                 const intermediate = locations.slice(1, -1);
                 waypoints = `&waypoints=${intermediate.map(loc => safeEncode(loc)).join('%7C')}`;
             }
-            
             url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints}&travelmode=driving`;
         }
 
-        Linking.openURL(url).catch(err => {
-            console.error("Error opening map:", err);
-            Alert.alert(t('alertErrorTitle'), t('errorMap'));
-        });
+        Linking.openURL(url).catch(err => Alert.alert(t('alertErrorTitle'), t('errorMap')));
     };
 
     const formatDate = (dateValue) => {
@@ -179,6 +152,34 @@ export default function OrderDetailsScreen() {
             const date = dateValue.toDate ? dateValue.toDate() : new Date(dateValue);
             return date.toLocaleDateString('en-MY', { day: '2-digit', month: 'long', year: 'numeric' });
         } catch { return '—'; }
+    };
+
+    // --- RATING HANDLERS ---
+    const openRatingModal = (item) => {
+        setSelectedItemForRating(item);
+        setStarCount(0);
+        setRatingModalVisible(true);
+    };
+
+    const submitRating = async () => {
+        if (starCount === 0) {
+            Alert.alert(t('alertRequiredTitle'), "Please select a star rating.");
+            return;
+        }
+        
+        try {
+            const itemId = selectedItemForRating.itemId || selectedItemForRating.id;
+            const type = selectedItemForRating.type || 'entertainment'; // default fallback
+
+            await submitItemRating(type, itemId, starCount);
+            
+            Alert.alert(t('alertSuccessTitle'), "Thank you for your feedback!");
+            setRatedItems(prev => [...prev, itemId]); // Mark as rated locally
+            setRatingModalVisible(false);
+            setSelectedItemForRating(null);
+        } catch (error) {
+            Alert.alert(t('alertErrorTitle'), "Failed to submit rating. Please try again.");
+        }
     };
 
     if (loading) {
@@ -206,12 +207,10 @@ export default function OrderDetailsScreen() {
         );
     }
 
-    // Determine which list to render:
     const displayItems = enrichedItems.length > 0 ? enrichedItems : order.items;
 
     return (
         <SafeAreaView style={styles.container}>
-            {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                     <Ionicons name="arrow-back" size={24} color="#333" />
@@ -222,8 +221,8 @@ export default function OrderDetailsScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-
-                {/* Map Route Button */}
+                
+                {/* Route Button */}
                 <TouchableOpacity 
                     style={[styles.routeButton, loadingLocations && styles.disabledBtn]} 
                     onPress={handleOpenRoute}
@@ -282,25 +281,42 @@ export default function OrderDetailsScreen() {
                     </View>
                 </View>
 
-                {/* Items Purchased */}
+                {/* Items Purchased & Rating */}
                 <View style={styles.section}>
                     <Text style={styles.sectionLabel}>{t('itineraryItems')}</Text>
-                    {displayItems?.map((item, index) => (
-                        <View key={index} style={styles.itemRow}>
-                            {item.image ? (
-                                <Image source={{ uri: item.image }} style={styles.itemImage} />
-                            ) : (
-                                <View style={[styles.itemImage, styles.placeholderImg]}>
-                                    <Ionicons name="pricetag-outline" size={20} color="#648DDB" />
+                    {displayItems?.map((item, index) => {
+                         const itemId = item.itemId || item.id;
+                         const isRated = ratedItems.includes(itemId);
+
+                         return (
+                            <View key={index} style={styles.itemRow}>
+                                {item.image ? (
+                                    <Image source={{ uri: item.image }} style={styles.itemImage} />
+                                ) : (
+                                    <View style={[styles.itemImage, styles.placeholderImg]}>
+                                        <Ionicons name="pricetag-outline" size={20} color="#648DDB" />
+                                    </View>
+                                )}
+                                <View style={styles.itemDetails}>
+                                    <Text style={styles.itemTitle}>{item.title}</Text>
+                                    <Text style={styles.itemType}>{item.type}</Text>
+                                    
+                                    {/* Rating Button */}
+                                    <TouchableOpacity 
+                                        style={[styles.rateButton, isRated && styles.ratedButton]}
+                                        onPress={() => !isRated && openRatingModal(item)}
+                                        disabled={isRated}
+                                    >
+                                        <Ionicons name={isRated ? "checkmark-circle" : "star-outline"} size={14} color={isRated ? "#FFF" : "#F5A623"} />
+                                        <Text style={[styles.rateButtonText, isRated && {color: '#FFF'}]}>
+                                            {isRated ? "Rated" : "Rate Item"}
+                                        </Text>
+                                    </TouchableOpacity>
                                 </View>
-                            )}
-                            <View style={styles.itemDetails}>
-                                <Text style={styles.itemTitle}>{item.title}</Text>
-                                <Text style={styles.itemType}>{item.type}</Text>
+                                <Text style={styles.itemPrice}>RM {(parseFloat(item.price) || 0).toFixed(2)}</Text>
                             </View>
-                            <Text style={styles.itemPrice}>RM {(parseFloat(item.price) || 0).toFixed(2)}</Text>
-                        </View>
-                    ))}
+                         );
+                    })}
                 </View>
 
                 {/* Summary */}
@@ -310,8 +326,50 @@ export default function OrderDetailsScreen() {
                         <Text style={styles.totalValue}>RM {(parseFloat(order.totalAmount) || 0).toFixed(2)}</Text>
                     </View>
                 </View>
-
             </ScrollView>
+
+            {/* --- RATING MODAL --- */}
+            <Modal
+                transparent={true}
+                visible={ratingModalVisible}
+                animationType="fade"
+                onRequestClose={() => setRatingModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Rate {selectedItemForRating?.title}</Text>
+                        <Text style={styles.modalSub}>How was your experience?</Text>
+                        
+                        <View style={styles.starsContainer}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                                <TouchableOpacity key={star} onPress={() => setStarCount(star)}>
+                                    <Ionicons 
+                                        name={star <= starCount ? "star" : "star-outline"} 
+                                        size={40} 
+                                        color="#F5A623" 
+                                        style={{ marginHorizontal: 5 }}
+                                    />
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity 
+                                style={[styles.modalBtn, {backgroundColor: '#EEE'}]} 
+                                onPress={() => setRatingModalVisible(false)}
+                            >
+                                <Text style={{color: '#333'}}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                style={[styles.modalBtn, {backgroundColor: '#648DDB'}]} 
+                                onPress={submitRating}
+                            >
+                                <Text style={{color: '#FFF', fontWeight: 'bold'}}>Submit</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -355,5 +413,71 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2, shadowRadius: 3,
     },
     disabledBtn: { backgroundColor: '#A0C0F0' },
-    routeButtonText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 }
+    routeButtonText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+    
+    // Rating Styles
+    rateButton: {
+        marginTop: 6,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 4,
+        paddingHorizontal: 8,
+        borderWidth: 1,
+        borderColor: '#F5A623',
+        borderRadius: 15,
+        alignSelf: 'flex-start'
+    },
+    ratedButton: {
+        backgroundColor: '#28A745',
+        borderColor: '#28A745'
+    },
+    rateButtonText: {
+        fontSize: 10,
+        color: '#F5A623',
+        fontWeight: 'bold',
+        marginLeft: 4
+    },
+    
+    // Modal Styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+    modalContent: {
+        width: '80%',
+        backgroundColor: '#FFF',
+        borderRadius: 20,
+        padding: 20,
+        alignItems: 'center',
+        elevation: 5
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        marginBottom: 5
+    },
+    modalSub: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 20
+    },
+    starsContainer: {
+        flexDirection: 'row',
+        marginBottom: 25
+    },
+    modalButtons: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: '100%'
+    },
+    modalBtn: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 10,
+        alignItems: 'center',
+        marginHorizontal: 5
+    }
 });

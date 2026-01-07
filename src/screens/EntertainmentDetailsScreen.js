@@ -20,43 +20,70 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 
-import { addItemToPlan, createNewPlan, getEntertainmentById, getUserPlans } from '../services/AuthService';
-// 1. Import Hook
 import { useLanguage } from '../context/LanguageContext';
+import {
+    addItemToPlan,
+    checkFavoriteStatus,
+    createNewPlan,
+    getEntertainmentById,
+    getUserPlans,
+    toggleFavorite
+} from '../services/AuthService';
 
 const { width, height } = Dimensions.get('window');
 
 const EntertainmentDetailsScreen = () => {
     const router = useRouter();
     const { id } = useLocalSearchParams();
-    // 2. Destructure Hook
     const { t } = useLanguage();
     
-    // Data State
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
-
-    // Modal State
     const [modalVisible, setModalVisible] = useState(false);
     const [plans, setPlans] = useState([]);
     const [loadingPlans, setLoadingPlans] = useState(false);
-    
-    // New Plan Input State
     const [isCreatingPlan, setIsCreatingPlan] = useState(false);
     const [newPlanName, setNewPlanName] = useState('');
+    const [isFavorite, setIsFavorite] = useState(false);
 
     useEffect(() => {
         const fetchDetails = async () => {
             if (id) {
                 const result = await getEntertainmentById(id);
                 setData(result);
+                const status = await checkFavoriteStatus(id);
+                setIsFavorite(status);
             }
             setLoading(false);
         };
         fetchDetails();
     }, [id]);
 
-    // --- NUCLEAR OPTION CLEANING SCRIPT ---
+    const handleToggleFavorite = async () => {
+        if (!data) return;
+        const ticketPrice = parseFloat(data.ticketPrice || data.ticketCost) || 0;
+        const transportPrice = parseFloat(data.transportCost) || 0;
+        const totalExpenses = data.estimatedTotalExpenses 
+            ? parseFloat(data.estimatedTotalExpenses)
+            : (ticketPrice + transportPrice);
+
+        const itemToSave = {
+            id: data.id,
+            title: data.title,
+            image: data.imageUrl,
+            price: totalExpenses,
+            type: 'entertainment',
+            rating: data.rating,
+            locationURL: data.locationURL || ""
+        };
+        try {
+            const newStatus = await toggleFavorite(itemToSave);
+            setIsFavorite(newStatus);
+        } catch (error) {
+            Alert.alert(t('alertErrorTitle'), "Please login to save favorites.");
+        }
+    };
+
     const mobileCleanScript = `
       (function() {
         function hideJunk() {
@@ -66,20 +93,13 @@ const EntertainmentDetailsScreen = () => {
                 .ml-promotion-container, .mobile-promotion-container, .promotional-footer, .upsell-container { display: none !important; opacity: 0 !important; }
                 .gb_gd, .gb_T, .gb_zd { display: none !important; opacity: 0 !important; }
             \`;
-            
             var head = document.head || document.getElementsByTagName('head')[0];
             var style = document.createElement('style');
             style.type = 'text/css';
             style.appendChild(document.createTextNode(css));
             head.appendChild(style);
-
             var bottomCards = document.querySelectorAll('div[role="dialog"], div[aria-label^="Place"], #bottom-pane');
             bottomCards.forEach(el => el.style.display = 'none');
-            
-            var topBars = document.querySelectorAll('button[aria-label="Menu"], input[aria-label="Search Google Maps"]');
-            topBars.forEach(el => {
-                if(el.closest('div')) el.closest('div').style.display = 'none';
-            });
         }
         hideJunk();
         setInterval(hideJunk, 500);
@@ -87,7 +107,6 @@ const EntertainmentDetailsScreen = () => {
       true;
     `;
 
-    // --- HELPER: CONVERT SAVED URL TO WEBVIEW URL ---
     const getPreviewUrl = (savedUrl) => {
         if (!savedUrl) return null;
         if (savedUrl.includes('q=')) {
@@ -99,59 +118,33 @@ const EntertainmentDetailsScreen = () => {
         return savedUrl;
     };
 
-    // --- UPDATED NAVIGATION HANDLER (Deep Linking) ---
     const openNavigationApp = () => {
         const url = data?.locationURL;
         if (!url) {
             Alert.alert(t('alertNoLocation'), t('alertNoLocationMsg'));
             return;
         }
-
-        // 1. Try to extract coordinates from our specific format
         let latLng = null;
         if (url.includes('q=')) {
             const match = url.match(/[?&]q=([^&]+)/);
-            if (match && match[1]) {
-                latLng = match[1]; 
-            }
+            if (match && match[1]) latLng = match[1]; 
         }
-
-        // 2. Construct Platform-Specific Deep Link
         let targetUrl = url; 
-
         if (latLng) {
             const label = encodeURIComponent(data.title || 'Destination');
-            if (Platform.OS === 'ios') {
-                targetUrl = `maps:0,0?q=${label}@${latLng}`;
-            } else {
-                targetUrl = `geo:0,0?q=${latLng}(${label})`;
-            }
+            if (Platform.OS === 'ios') targetUrl = `maps:0,0?q=${label}@${latLng}`;
+            else targetUrl = `geo:0,0?q=${latLng}(${label})`;
         } else {
             const query = encodeURIComponent(data.title || '');
-            if (Platform.OS === 'ios') {
-                targetUrl = `maps:0,0?q=${query}`;
-            } else {
-                targetUrl = `geo:0,0?q=${query}`;
-            }
+            if (Platform.OS === 'ios') targetUrl = `maps:0,0?q=${query}`;
+            else targetUrl = `geo:0,0?q=${query}`;
         }
-
-        // 3. Attempt to Open
-        Linking.canOpenURL(targetUrl)
-            .then((supported) => {
-                if (supported) {
-                    Linking.openURL(targetUrl);
-                } else {
-                    console.log("Deep link not supported, opening web URL");
-                    Linking.openURL(url);
-                }
-            })
-            .catch((err) => {
-                console.error("Map Error:", err);
-                Linking.openURL(url);
-            });
+        Linking.canOpenURL(targetUrl).then((supported) => {
+            if (supported) Linking.openURL(targetUrl);
+            else Linking.openURL(url);
+        }).catch((err) => Linking.openURL(url));
     };
 
-    // --- ACTIONS ---
     const handleAddToPlanClick = async () => {
         setModalVisible(true);
         setLoadingPlans(true);
@@ -188,14 +181,10 @@ const EntertainmentDetailsScreen = () => {
                 type: 'entertainment', 
                 locationURL: data.locationURL || "" 
             };
-
             await addItemToPlan(plan.id, itemToSave);
-            
             setModalVisible(false);
             setNewPlanName('');
             setIsCreatingPlan(false);
-            
-            // Dynamic Success Message: "Added to [PlanName]!"
             Alert.alert(t('alertSuccessTitle'), `${t('alertAddedTo')} ${plan.planName}!`);
         } catch (error) {
             Alert.alert(t('alertErrorTitle'), t('alertAddToPlanFail'));
@@ -205,22 +194,37 @@ const EntertainmentDetailsScreen = () => {
     if (loading) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#5A8AE4" /></View>;
     if (!data) return <View style={styles.loadingContainer}><Text>Not Found</Text></View>;
 
-    // --- CALCULATIONS ---
     const bgImage = data.imageUrl || 'https://via.placeholder.com/400';
     const ticketPrice = parseFloat(data.ticketPrice || data.ticketCost) || 0;
     const transportPrice = parseFloat(data.transportCost) || 0;
-    
     const totalExpenses = data.estimatedTotalExpenses 
         ? parseFloat(data.estimatedTotalExpenses).toFixed(2)
         : (ticketPrice + transportPrice).toFixed(2);
-
     const rating = data.rating || 5.0;
-    
     const previewUrl = getPreviewUrl(data.locationURL);
 
     return (
         <View style={styles.container}>
-            <Stack.Screen options={{ headerTransparent: true, headerTitle: "", headerTintColor: "#FFF" }} />
+            {/* === CHANGED: Moved Button to Header === */}
+            <Stack.Screen 
+                options={{ 
+                    headerTransparent: true, 
+                    headerTitle: "", 
+                    headerTintColor: "#FFF",
+                    headerRight: () => (
+                        <TouchableOpacity 
+                            style={styles.favButtonHeader} 
+                            onPress={handleToggleFavorite}
+                        >
+                            <Ionicons 
+                                name={isFavorite ? "heart" : "heart-outline"} 
+                                size={26} 
+                                color={isFavorite ? "#FF3B30" : "#FFF"} 
+                            />
+                        </TouchableOpacity>
+                    )
+                }} 
+            />
             <StatusBar barStyle="light-content" />
             
             <View style={styles.imageContainer}>
@@ -256,7 +260,6 @@ const EntertainmentDetailsScreen = () => {
 
                     <View style={styles.divider} />
 
-                    {/* === MAP SECTION === */}
                     <Text style={styles.sectionTitle}>{t('locationPreview')}</Text>
                     <View style={styles.mapContainer}>
                         {previewUrl ? (
@@ -265,23 +268,9 @@ const EntertainmentDetailsScreen = () => {
                                 style={styles.mapWebView}
                                 nestedScrollEnabled={true}
                                 showsUserLocation={false}
-                                androidLayerType="hardware"
-                                userAgent="Mozilla/5.0 (Linux; Android 10; Mobile; rv:89.0) Gecko/89.0 Firefox/89.0"
                                 injectedJavaScript={mobileCleanScript}
-                                originWhitelist={['*']}
-                                javaScriptEnabled={true}
-                                domStorageEnabled={true}
                                 startInLoadingState={true}
-                                renderLoading={() => (
-                                    <View style={styles.loadingOverlay}>
-                                        <ActivityIndicator color="#5A8AE4" />
-                                    </View>
-                                )}
-                                onShouldStartLoadWithRequest={(request) => {
-                                    const { url } = request;
-                                    if (url.startsWith('http') || url.startsWith('https')) return true;
-                                    return false;
-                                }}
+                                renderLoading={() => <View style={styles.loadingOverlay}><ActivityIndicator color="#5A8AE4" /></View>}
                             />
                         ) : (
                             <View style={styles.noMapContainer}>
@@ -289,14 +278,11 @@ const EntertainmentDetailsScreen = () => {
                                 <Text style={styles.noMapText}>{t('noMap')}</Text>
                             </View>
                         )}
-
                         <TouchableOpacity style={styles.navigateFab} onPress={openNavigationApp}>
                             <Ionicons name="navigate" size={20} color="#FFF" />
                             <Text style={styles.navigateFabText}>{t('go')}</Text>
                         </TouchableOpacity>
                     </View>
-                    {/* ================== */}
-
                     <View style={{ height: 140 }} />
                 </ScrollView>
             </View>
@@ -311,23 +297,15 @@ const EntertainmentDetailsScreen = () => {
                 </TouchableOpacity>
             </View>
 
-             <Modal
-                animationType="slide"
-                transparent={true}
-                visible={modalVisible}
-                onRequestClose={() => setModalVisible(false)}
-            >
+             <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>
-                                {isCreatingPlan ? t('newTripName') : t('selectTrip')}
-                            </Text>
+                            <Text style={styles.modalTitle}>{isCreatingPlan ? t('newTripName') : t('selectTrip')}</Text>
                             <TouchableOpacity onPress={() => { setModalVisible(false); setIsCreatingPlan(false); }}>
                                 <Ionicons name="close" size={24} color="#999" />
                             </TouchableOpacity>
                         </View>
-
                         {!isCreatingPlan && (
                             <>
                                 {loadingPlans ? <ActivityIndicator color="#5A8AE4" style={{margin: 20}}/> : (
@@ -355,23 +333,12 @@ const EntertainmentDetailsScreen = () => {
                                 </TouchableOpacity>
                             </>
                         )}
-
                         {isCreatingPlan && (
                             <View style={{width: '100%'}}>
-                                <TextInput 
-                                    style={styles.input} 
-                                    placeholder={t('placeholderPlanName')} 
-                                    value={newPlanName} 
-                                    onChangeText={setNewPlanName} 
-                                    autoFocus 
-                                />
+                                <TextInput style={styles.input} placeholder={t('placeholderPlanName')} value={newPlanName} onChangeText={setNewPlanName} autoFocus />
                                 <View style={styles.modalActionRow}>
-                                    <TouchableOpacity style={[styles.modalBtn, {backgroundColor: '#f0f0f0'}]} onPress={() => setIsCreatingPlan(false)}>
-                                        <Text style={{color:'#666'}}>{t('back')}</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={[styles.modalBtn, {backgroundColor: '#5A8AE4'}]} onPress={handleCreatePlan}>
-                                        <Text style={{color:'#FFF', fontWeight: 'bold'}}>{t('createAndAdd')}</Text>
-                                    </TouchableOpacity>
+                                    <TouchableOpacity style={[styles.modalBtn, {backgroundColor: '#f0f0f0'}]} onPress={() => setIsCreatingPlan(false)}><Text style={{color:'#666'}}>{t('back')}</Text></TouchableOpacity>
+                                    <TouchableOpacity style={[styles.modalBtn, {backgroundColor: '#5A8AE4'}]} onPress={handleCreatePlan}><Text style={{color:'#FFF', fontWeight: 'bold'}}>{t('createAndAdd')}</Text></TouchableOpacity>
                                 </View>
                             </View>
                         )}
@@ -387,6 +354,17 @@ const styles = StyleSheet.create({
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     imageContainer: { height: height * 0.5, width: '100%', position: 'absolute', top: 0 },
     heroImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+    
+    // === CHANGED: Header Button Style ===
+    favButtonHeader: {
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        borderRadius: 20,
+        padding: 6,
+        marginRight: 10,
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+
     sheetContainer: { flex: 1, marginTop: height * 0.35, backgroundColor: '#FFF', borderTopLeftRadius: 35, borderTopRightRadius: 35, elevation: 10 },
     scrollContent: { paddingHorizontal: 25, paddingTop: 35 },
     headerSection: { marginBottom: 20 },
@@ -399,87 +377,18 @@ const styles = StyleSheet.create({
     costRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
     costLabel: { fontSize: 17, color: '#333' },
     costValue: { fontSize: 17, fontWeight: 'bold' },
-
-    // === MAP STYLES ===
-    mapContainer: {
-        width: '100%',
-        height: 450, 
-        borderRadius: 20,
-        overflow: 'hidden',
-        marginBottom: 10,
-        position: 'relative',
-        backgroundColor: '#f9f9f9',
-        borderWidth: 1,
-        borderColor: '#EEE'
-    },
-    mapWebView: {
-        flex: 1,
-        backgroundColor: 'transparent',
-        opacity: 0.99 
-    },
-    navigateFab: {
-        position: 'absolute',
-        bottom: 10,
-        right: 10,
-        backgroundColor: '#5A8AE4',
-        flexDirection: 'row',
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 20,
-        alignItems: 'center',
-        elevation: 5,
-        zIndex: 999 
-    },
+    mapContainer: { width: '100%', height: 450, borderRadius: 20, overflow: 'hidden', marginBottom: 10, position: 'relative', backgroundColor: '#f9f9f9', borderWidth: 1, borderColor: '#EEE' },
+    mapWebView: { flex: 1, backgroundColor: 'transparent', opacity: 0.99 },
+    navigateFab: { position: 'absolute', bottom: 10, right: 10, backgroundColor: '#5A8AE4', flexDirection: 'row', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, alignItems: 'center', elevation: 5, zIndex: 999 },
     navigateFabText: { color: '#FFF', marginLeft: 5, fontSize: 12, fontWeight: 'bold' },
     noMapContainer: { height: 100, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 12 },
     noMapText: { marginTop: 5, color: '#999', fontSize: 12 },
-    loadingOverlay: {
-        position: 'absolute', top: 0, bottom: 0, left: 0, right: 0,
-        justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0'
-    },
-
+    loadingOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' },
     bottomBar: { position: 'absolute', bottom: 0, width: '100%', height: 120, backgroundColor: '#FFF', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 30, paddingBottom: 20, borderTopWidth: 1, borderColor: '#F0F0F0', elevation: 20 },
-    totalLabel: { fontSize: 14, color: '#888', textTransform: 'uppercase' },
+    totalLabel: { fontSize: 14, color: '#888', textTransform: 'uppercase', maxWidth: '90%' },
     totalPrice: { fontSize: 28, fontWeight: '800', color: '#5A8AE4' },
-    // --- UPDATED BUTTON STYLES ---
-   
-    totalLabel: { 
-        fontSize: 14, 
-        color: '#888', 
-        textTransform: 'uppercase', 
-        maxWidth: '90%'
-    },
-    totalPrice: { 
-        fontSize: 28, 
-        fontWeight: '800', 
-        color: '#5A8AE4',
-        // Prevent price from overlapping button if screen is small
-    },
-    
-    // --- FIXED DYNAMIC BUTTON ---
-    addButton: { 
-        backgroundColor: '#5A8AE4', 
-        // 1. Maintain original height feel
-        paddingVertical: 18, 
-        
-        // 2. Allow dynamic expansion but keep it tight enough for Malay
-        paddingHorizontal: 20, 
-        
-        // 3. FORCE a minimum width so English "Add to Plan" doesn't look tiny
-        minWidth: 160, 
-        
-        borderRadius: 20, 
-        elevation: 5,
-        justifyContent: 'center',
-        alignItems: 'center'
-    },
-    addButtonText: { 
-        color: '#FFF', 
-        fontSize: 17, // Good balance between 16 and 18
-        fontWeight: 'bold',
-        textAlign: 'center'
-    },
-
+    addButton: { backgroundColor: '#5A8AE4', paddingVertical: 18, paddingHorizontal: 20, minWidth: 160, borderRadius: 20, elevation: 5, justifyContent: 'center', alignItems: 'center' },
+    addButtonText: { color: '#FFF', fontSize: 17, fontWeight: 'bold', textAlign: 'center' },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
     modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 25, minHeight: 300 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
