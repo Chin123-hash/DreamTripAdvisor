@@ -287,6 +287,8 @@ const translations = {
     foodId: "Food ID:",
     foodName: "Food Name",
     placeholderFoodName: "e.g. Taiyaki",
+    approxPrice: "Approximate Price",
+    placeholderApproxPrice: "e.g. 15",
     priceRangeRM: "Price Range (RM)",
     placeholderPriceRange: "10.00",
     cuisineType: "Cuisine Type",
