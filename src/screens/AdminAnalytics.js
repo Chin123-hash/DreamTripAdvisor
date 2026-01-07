@@ -17,7 +17,7 @@ import {
     PieChart,
 } from 'react-native-chart-kit';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getAllOrders } from '../services/AuthService';
+import { getAllOrders, getCategoryRevenue, getTopAgencies, getTopSellingItems } from '../services/AuthService';
 // 1. Import Hook
 import { useLanguage } from '../context/LanguageContext';
 
@@ -46,6 +46,11 @@ export default function AdminAnalyticsScreen() {
         }
     };
 
+    const getFormattedDate = (createdAt) => {
+        if (!createdAt) return "Unknown";
+        if (createdAt.toDate) return createdAt.toDate().toLocaleDateString(); // Firebase Timestamp
+        return new Date(createdAt).toLocaleDateString(); // ISO String
+    };
     /* =======================
         AGGREGATED STATS
     ======================== */
@@ -67,22 +72,14 @@ export default function AdminAnalyticsScreen() {
     ======================== */
     const revenueTrend = useMemo(() => {
         const map = {};
-
         orders.forEach(o => {
-            const date = o.createdAt?.toDate
-                ? o.createdAt.toDate().toLocaleDateString()
-                : new Date(o.createdAt).toLocaleDateString();
-
-            map[date] = (map[date] || 0) + Number(o.totalAmount || 0);
+            const date = getFormattedDate(o.createdAt);
+            map[date] = (map[date] || 0) + (Number(o.totalAmount) || 0);
         });
 
         const labels = Object.keys(map).slice(-7);
         const values = labels.map(l => map[l]);
-
-        // Fix for empty data causing chart crash
-        if (values.length === 0) return { labels: ["No Data"], values: [0] };
-
-        return { labels, values };
+        return values.length === 0 ? { labels: ["No Data"], values: [0] } : { labels, values };
     }, [orders]);
 
     /* =======================
@@ -129,13 +126,84 @@ export default function AdminAnalyticsScreen() {
         return { labels, values };
     }, [orders]);
 
-    if (loading) {
-        return (
-            <SafeAreaView style={styles.center}>
-                <ActivityIndicator size="large" color="#648DDB" />
-            </SafeAreaView>
-        );
-    }
+    const processedTopAgencies = useMemo(() => {
+        return getTopAgencies(orders);
+    }, [orders]);
+
+    // --- NEW: The missing Top Agencies List UI ---
+    const topAgenciesList = useMemo(() => {
+        return processedTopAgencies.map(([name, data], index) => (
+            <TouchableOpacity
+                key={name}
+                style={styles.rankRow}
+                onPress={() => {
+                    // Navigate to agency details and pass the agency name
+                    router.push({
+                        pathname: '/admin-analysis-agency-profile',
+                        params: { agencyName: name }
+                    });
+                }}
+                activeOpacity={0.7}
+            >
+                <Text style={styles.rankIndex}>#{index + 1}</Text>
+                <View style={{ flex: 1 }}>
+                    <Text style={styles.rankName}>{name}</Text>
+                    <Text style={styles.rankSub}>{data.orders} {t('ordersLabel')}</Text>
+                </View>
+                <Text style={styles.rankName}>RM {Number(data.revenue).toFixed(2)}</Text>
+                <Ionicons name="chevron-forward" size={18} color="#CCC" style={{ marginLeft: 10 }} />
+            </TouchableOpacity>
+        ));
+    }, [processedTopAgencies, t]);
+
+    const processedCategoryData = useMemo(() => {
+        const dataMap = getCategoryRevenue(orders);
+        const colors = ['#4DB6AC', '#FF8A65', '#BA68C8', '#648DDB'];
+
+        return Object.keys(dataMap).map((key, index) => ({
+            name: key.toUpperCase(),
+            population: dataMap[key],
+            color: colors[index % colors.length],
+            legendFontColor: '#333',
+            legendFontSize: 12,
+        }));
+    }, [orders]);
+
+    const processedTopItems = useMemo(() => {
+        return getTopSellingItems(orders);
+    }, [orders]);
+
+    const customerSegments = useMemo(() => {
+        const seen = new Set();
+        let newUsers = 0;
+        let returningUsers = 0;
+
+        orders.forEach(o => {
+            if (seen.has(o.customerId)) {
+                returningUsers++;
+            } else {
+                newUsers++;
+                seen.add(o.customerId);
+            }
+        });
+
+        return [
+            {
+                name: "New Customers",
+                population: newUsers,
+                color: '#81C784',
+                legendFontColor: '#333',
+                legendFontSize: 12,
+            },
+            {
+                name: "Returning Customers",
+                population: returningUsers,
+                color: '#FFB74D',
+                legendFontColor: '#333',
+                legendFontSize: 12,
+            },
+        ];
+    }, [orders]);
 
     return (
         <SafeAreaView style={styles.container}>
@@ -148,71 +216,114 @@ export default function AdminAnalyticsScreen() {
                 <View style={{ width: 40 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.content}>
-                {/* Overview */}
-                <View style={styles.row}>
-                    <LinearGradient colors={['#333', '#555']} style={styles.card}>
-                        <Text style={styles.cardLabel}>{t('totalRevenue')}</Text>
-                        <Text style={styles.cardValue}>RM {stats.revenue}</Text>
-                    </LinearGradient>
-
-                    <View style={styles.lightCard}>
-                        <Text style={styles.lightLabel}>{t('ordersLabel')}</Text>
-                        <Text style={styles.lightValue}>{stats.orders}</Text>
-                    </View>
+            {loading ? (
+                <View style={styles.center}>
+                    <ActivityIndicator size="large" color="#648DDB" />
                 </View>
+            ) : (
+                <ScrollView contentContainerStyle={styles.content}>
+                    {/* Overview */}
+                    <View style={styles.row}>
+                        <LinearGradient colors={['#333', '#555']} style={styles.card}>
+                            <Text style={styles.cardLabel}>{t('totalRevenue')}</Text>
+                            <Text style={styles.cardValue}>RM {stats.revenue}</Text>
+                        </LinearGradient>
 
-                <View style={styles.row}>
-                    <View style={styles.lightCard}>
-                        <Text style={styles.lightLabel}>{t('agenciesCount')}</Text>
-                        <Text style={styles.lightValue}>{stats.agencies}</Text>
+                            <TouchableOpacity
+                                style={styles.lightCard}
+                                onPress={() => {
+                                    // Option A: Navigate to a list of orders
+                                    router.push('/admin-order-dashboard');
+                                }}
+                                activeOpacity={0.7} // Adds a nice dimming effect when pressed
+                            >
+                                <Text style={styles.lightLabel}>{t('ordersLabel')}</Text>
+                                <Text style={styles.lightValue}>{stats.orders}</Text>
+                            </TouchableOpacity>
                     </View>
-                    <View style={styles.lightCard}>
-                        <Text style={styles.lightLabel}>{t('customers')}</Text>
-                        <Text style={styles.lightValue}>{stats.customers}</Text>
+
+                    <View style={styles.row}>
+                            <TouchableOpacity
+                                style={styles.lightCard}
+                                onPress={() => {
+                                    // Option A: Navigate to a list of orders
+                                    router.push('/manage-agency');
+                                }}
+                                activeOpacity={0.7} // Adds a nice dimming effect when pressed
+                            >
+                                <Text style={styles.lightLabel}>{t('agenciesCount')}</Text>
+                                <Text style={styles.lightValue}>{stats.agencies}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.lightCard}
+                                onPress={() => {
+                                    // Option A: Navigate to a list of orders
+                                    router.push('/admin-user-list');
+                                }}
+                                activeOpacity={0.7} // Adds a nice dimming effect when pressed
+                            >
+                                <Text style={styles.lightLabel}>{t('customers')}</Text>
+                                <Text style={styles.lightValue}>{stats.customers}</Text>
+                            </TouchableOpacity>
                     </View>
-                </View>
 
-                {/* Revenue Trend */}
-                <Text style={styles.sectionTitle}>{t('revenueTrend')}</Text>
-                <LineChart
-                    data={{
-                        labels: revenueTrend.labels,
-                        datasets: [{ data: revenueTrend.values }],
-                    }}
-                    width={screenWidth}
-                    height={220}
-                    chartConfig={chartConfig}
-                    bezier
-                    style={styles.chart}
-                />
+                    {/* Charts */}
+                    <Text style={styles.sectionTitle}>{t('revenueTrend')}</Text>
+                    <LineChart
+                        data={{
+                            labels: revenueTrend.labels,
+                            datasets: [{ data: revenueTrend.values }],
+                        }}
+                        width={screenWidth}
+                        height={220}
+                        chartConfig={chartConfig}
+                        bezier
+                        style={styles.chart}
+                    />
 
-                {/* Orders by Agency */}
-                <Text style={styles.sectionTitle}>{t('ordersByAgency')}</Text>
-                <PieChart
-                    data={agencyChart}
-                    width={screenWidth}
-                    height={220}
-                    chartConfig={chartConfig}
-                    accessor="population"
-                    backgroundColor="transparent"
-                    paddingLeft="15"
-                    absolute
-                />
+                    <Text style={styles.sectionTitle}>{t('ordersByAgency')}</Text>
+                    <PieChart
+                        data={agencyChart}
+                        width={screenWidth}
+                        height={220}
+                        chartConfig={chartConfig}
+                        accessor="population"
+                        backgroundColor="transparent"
+                        paddingLeft="15"
+                        absolute
+                    />
 
-                {/* Orders per Day */}
-                <Text style={styles.sectionTitle}>{t('ordersPerDay')}</Text>
-                <BarChart
-                    data={{
-                        labels: ordersByDate.labels,
-                        datasets: [{ data: ordersByDate.values }],
-                    }}
-                    width={screenWidth}
-                    height={220}
-                    chartConfig={chartConfig}
-                    style={styles.chart}
-                />
-            </ScrollView>
+                    <Text style={styles.sectionTitle}>{t('ordersPerDay')}</Text>
+                    <BarChart
+                        data={{
+                            labels: ordersByDate.labels,
+                            datasets: [{ data: ordersByDate.values }],
+                        }}
+                        width={screenWidth}
+                        height={220}
+                        chartConfig={chartConfig}
+                        style={styles.chart}
+                    />
+                        <Text style={styles.sectionTitle}>Top Agencies</Text>
+                        {topAgenciesList}
+                        <Text style={styles.sectionTitle}>Customer Segments</Text>
+                        <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={() => router.push('/admin-analysis-cust-list')} // Navigate to your customer list route
+                        >
+                            <PieChart
+                                data={customerSegments}
+                                width={screenWidth}
+                                height={180}
+                                chartConfig={chartConfig}
+                                accessor="population"
+                                backgroundColor="transparent"
+                                paddingLeft="15"
+                            // absolute // Remove absolute if you want to show percentages like in your image
+                            />
+                        </TouchableOpacity>
+                </ScrollView>
+            )}
         </SafeAreaView>
     );
 }
@@ -277,4 +388,31 @@ const styles = StyleSheet.create({
     chart: {
         borderRadius: 15,
     },
+    rankRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        backgroundColor: '#F8F9FA',
+        borderRadius: 12,
+        marginBottom: 10,
+    },
+
+    rankIndex: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        width: 30,
+        color: '#648DDB',
+    },
+
+    rankName: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#333',
+    },
+
+    rankSub: {
+        fontSize: 12,
+        color: '#777',
+    },
+
 });

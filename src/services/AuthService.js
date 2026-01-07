@@ -145,6 +145,7 @@ export const addEntertainment = async (data, imageUri) => {
             locationURL: data.locationURL || "",
             suggestedTransport: data.suggestedTransport,
             transportCost: parseFloat(data.transportCost) || 0,
+            ticketPrice: parseFloat(data.ticketPrice) || 0,
             estimatedTotalExpenses: parseFloat(data.estimatedTotalExpenses) || 0,
             rating: parseFloat(data.rating) || 0,
             imageUrl: imageUrl,
@@ -479,12 +480,17 @@ export const deleteFood = async (foodId) => {
 // --- UPDATE FOOD (For Agencies) ---
 export const updateFood = async (foodId, updatedData, newImageUri) => {
     try {
-        let finalData = { ...updatedData };
+        let finalData = {
+            ...updatedData,
+            transportCost: parseFloat(updatedData.transportCost) || 0,
+            estimatedTotalExpenses: parseFloat(updatedData.estimatedTotalExpenses) || 0,
+            rating: parseFloat(updatedData.rating) || 0,
+        };
 
         if (newImageUri) {
             const response = await fetch(newImageUri);
             const blob = await response.blob();
-            const filename = `foods/${new Date().getTime()}.jpg`;
+            const filename = `foods/${Date.now()}.jpg`;
             const storageRef = ref(storage, filename);
             await uploadBytes(storageRef, blob);
             finalData.imageUrl = await getDownloadURL(storageRef);
@@ -492,6 +498,7 @@ export const updateFood = async (foodId, updatedData, newImageUri) => {
 
         const foodRef = doc(db, "foods", foodId);
         await updateDoc(foodRef, finalData);
+
         return true;
     } catch (error) {
         console.error("Error updating food:", error);
@@ -785,6 +792,83 @@ export const adminUpdateUser = async (userId, newData) => {
     }
 };
 
+export const updateEntertainment = async (entertainmentId, updatedData, newImageUri) => {
+    try {
+        let finalData = {
+            ...updatedData,
+            ticketPrice: parseFloat(updatedData.ticketPrice) || 0,
+            transportCost: parseFloat(updatedData.transportCost) || 0,
+            estimatedTotalExpenses: parseFloat(updatedData.estimatedTotalExpenses) || 0,
+            rating: parseFloat(updatedData.rating) || 0,
+        };
+
+        // Upload new image if provided
+        if (newImageUri) {
+            const response = await fetch(newImageUri);
+            const blob = await response.blob();
+            const filename = `entertainments/${Date.now()}.jpg`;
+            const storageRef = ref(storage, filename);
+            await uploadBytes(storageRef, blob);
+            finalData.imageUrl = await getDownloadURL(storageRef);
+        }
+
+        const entRef = doc(db, "entertainments", entertainmentId);
+        await updateDoc(entRef, finalData);
+
+        return true;
+    } catch (error) {
+        console.error("Error updating entertainment:", error);
+        throw error;
+    }
+};
+
+export const getTopAgencies = (orders, limit = 5) => {
+    const map = {};
+    orders.forEach(o => {
+        const name = o.agencyName || "Unknown Agency";
+        if (!map[name]) map[name] = { revenue: 0, orders: 0 };
+        map[name].revenue += (Number(o.totalAmount) || 0);
+        map[name].orders += 1;
+    });
+    return Object.entries(map).sort((a, b) => b[1].revenue - a[1].revenue).slice(0, limit);
+};
+
+export const getCategoryRevenue = (orders) => {
+    const map = {};
+
+    orders.forEach(o => {
+        o.items?.forEach(item => {
+            const category = item.category || item.type || 'Other';
+            const price = Number(item.price) || 0;
+            const qty = Number(item.quantity) || 1;
+
+            map[category] = (map[category] || 0) + (price * qty);
+        });
+    });
+
+    return map;
+};
+
+export const getTopSellingItems = (orders, limit = 5) => {
+    const map = {};
+
+    orders.forEach(o => {
+        o.items?.forEach(item => {
+            const title = item.title || "Unknown Item";
+            if (!map[title]) {
+                map[title] = { qty: 0, revenue: 0 };
+            }
+            const price = Number(item.price) || 0;
+            const qty = Number(item.quantity) || 1;
+
+            map[title].qty += qty;
+            map[title].revenue += (price * qty);
+        });
+    });
+
+    return Object.entries(map)
+        .sort((a, b) => b[1].qty - a[1].qty)
+        .slice(0, limit);
 export const toggleFavorite = async (item) => {
     const user = auth.currentUser;
     if (!user) throw new Error("User not authenticated");

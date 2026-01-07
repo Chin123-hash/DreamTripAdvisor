@@ -26,10 +26,10 @@ export default function OrderDetailsScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
     const { t } = useLanguage();
-    
+
     const [order, setOrder] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [enrichedItems, setEnrichedItems] = useState([]); 
+    const [enrichedItems, setEnrichedItems] = useState([]);
     const [loadingLocations, setLoadingLocations] = useState(false);
 
     // --- RATING STATE ---
@@ -40,7 +40,7 @@ export default function OrderDetailsScreen() {
 
     useEffect(() => {
         loadOrder();
-    }, [params.orderId, params.orderData]); 
+    }, [params.orderId, params.orderData]);
 
     const loadOrder = async () => {
         if (!params.orderId && !params.orderData) return;
@@ -52,7 +52,7 @@ export default function OrderDetailsScreen() {
                 const parsed = JSON.parse(raw);
                 setOrder(parsed);
                 await fetchLocationsForItems(parsed.items);
-            } 
+            }
             else if (params.orderId) {
                 const cleanId = Array.isArray(params.orderId) ? params.orderId[0] : params.orderId;
                 const fetchedOrder = await getOrderDetails(cleanId.trim());
@@ -63,7 +63,7 @@ export default function OrderDetailsScreen() {
                 } else {
                     Alert.alert(t('alertErrorTitle'), "Order ID not found.");
                 }
-            } 
+            }
         } catch (error) {
             console.error("Error loading order:", error);
             Alert.alert(t('alertErrorTitle'), "Failed to load order details.");
@@ -130,7 +130,7 @@ export default function OrderDetailsScreen() {
         const safeEncode = (str) => encodeURIComponent(str);
         const origin = safeEncode(locations[0]);
         const destination = safeEncode(locations[locations.length - 1]);
-        
+
         let url = '';
         if (locations.length === 1) {
             url = `https://www.google.com/maps/search/?api=1&query=${origin}`;
@@ -199,8 +199,8 @@ export default function OrderDetailsScreen() {
                 <View style={styles.center}>
                     <Ionicons name="alert-circle-outline" size={50} color="#ccc" />
                     <Text style={{ color: '#999', marginTop: 10 }}>{t('orderNotFound')}</Text>
-                    <TouchableOpacity onPress={() => router.back()} style={{marginTop: 20}}>
-                        <Text style={{color: '#648DDB'}}>{t('goBack')}</Text>
+                    <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20 }}>
+                        <Text style={{ color: '#648DDB' }}>{t('goBack')}</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>

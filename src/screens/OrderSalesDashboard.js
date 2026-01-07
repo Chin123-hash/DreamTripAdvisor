@@ -177,6 +177,7 @@ export default function AgencyOrdersScreen() {
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={28} color="#333" />
                 </TouchableOpacity>
+
                 <Text style={styles.headerTitle}>{t('orderSales')}</Text>
                 
                 {/* --- ADDED: ANALYTICS BUTTON --- */}
@@ -250,5 +251,11 @@ const styles = StyleSheet.create({
     dateText: { fontSize: 10, color: '#BBB', marginTop: 4 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     emptyContainer: { alignItems: 'center', marginTop: 50 },
-    emptyText: { color: '#999', marginTop: 10 }
+    emptyText: { color: '#999', marginTop: 10 },
+    analyticsButton: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
 });
