@@ -6,7 +6,7 @@ import {
     Alert,
     Image,
     Linking,
-    Modal, // Import Modal
+    Modal,
     ScrollView,
     StyleSheet,
     Text,
@@ -16,10 +16,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../context/LanguageContext';
 import {
+    getCurrentUserData // 1. Import this to check role
+    ,
+
     getEntertainmentById,
     getFoodById,
     getOrderDetails,
-    submitItemRating // Import the new service
+    submitItemRating
 } from '../services/AuthService';
 
 export default function OrderDetailsScreen() {
@@ -36,11 +39,31 @@ export default function OrderDetailsScreen() {
     const [ratingModalVisible, setRatingModalVisible] = useState(false);
     const [selectedItemForRating, setSelectedItemForRating] = useState(null);
     const [starCount, setStarCount] = useState(0);
-    const [ratedItems, setRatedItems] = useState([]); // Track items rated in this session
+    const [ratedItems, setRatedItems] = useState([]); 
+    
+    // 2. State to track if user is customer
+    const [isCustomer, setIsCustomer] = useState(false);
 
     useEffect(() => {
+        checkUserRole(); // Check role on load
         loadOrder();
     }, [params.orderId, params.orderData]);
+
+    // 3. Logic to check role
+    const checkUserRole = async () => {
+        try {
+            const user = await getCurrentUserData();
+            // Only allow rating if role is explicitly 'customer'
+            if (user && user.role === 'traveller') {
+                setIsCustomer(true);
+            } else {
+                setIsCustomer(false);
+            }
+        } catch (error) {
+            console.log("Error checking user role", error);
+            setIsCustomer(false);
+        }
+    };
 
     const loadOrder = async () => {
         if (!params.orderId && !params.orderData) return;
@@ -91,7 +114,7 @@ export default function OrderDetailsScreen() {
                     ...item,
                     locationURL: fullData?.locationURL || item.locationURL || item.title,
                     title: fullData?.title || item.title,
-                    id: itemId // Ensure ID is consistent
+                    id: itemId 
                 };
             });
             const results = await Promise.all(promises);
@@ -169,12 +192,12 @@ export default function OrderDetailsScreen() {
         
         try {
             const itemId = selectedItemForRating.itemId || selectedItemForRating.id;
-            const type = selectedItemForRating.type || 'entertainment'; // default fallback
+            const type = selectedItemForRating.type || 'entertainment';
 
             await submitItemRating(type, itemId, starCount);
             
             Alert.alert(t('alertSuccessTitle'), "Thank you for your feedback!");
-            setRatedItems(prev => [...prev, itemId]); // Mark as rated locally
+            setRatedItems(prev => [...prev, itemId]); 
             setRatingModalVisible(false);
             setSelectedItemForRating(null);
         } catch (error) {
@@ -301,17 +324,19 @@ export default function OrderDetailsScreen() {
                                     <Text style={styles.itemTitle}>{item.title}</Text>
                                     <Text style={styles.itemType}>{item.type}</Text>
                                     
-                                    {/* Rating Button */}
-                                    <TouchableOpacity 
-                                        style={[styles.rateButton, isRated && styles.ratedButton]}
-                                        onPress={() => !isRated && openRatingModal(item)}
-                                        disabled={isRated}
-                                    >
-                                        <Ionicons name={isRated ? "checkmark-circle" : "star-outline"} size={14} color={isRated ? "#FFF" : "#F5A623"} />
-                                        <Text style={[styles.rateButtonText, isRated && {color: '#FFF'}]}>
-                                            {isRated ? "Rated" : "Rate Item"}
-                                        </Text>
-                                    </TouchableOpacity>
+                                    {/* 4. CONDITIONAL RENDER: ONLY SHOW IF CUSTOMER */}
+                                    {isCustomer && (
+                                        <TouchableOpacity 
+                                            style={[styles.rateButton, isRated && styles.ratedButton]}
+                                            onPress={() => !isRated && openRatingModal(item)}
+                                            disabled={isRated}
+                                        >
+                                            <Ionicons name={isRated ? "checkmark-circle" : "star-outline"} size={14} color={isRated ? "#FFF" : "#F5A623"} />
+                                            <Text style={[styles.rateButtonText, isRated && {color: '#FFF'}]}>
+                                                {isRated ? "Rated" : "Rate Item"}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
                                 <Text style={styles.itemPrice}>RM {(parseFloat(item.price) || 0).toFixed(2)}</Text>
                             </View>

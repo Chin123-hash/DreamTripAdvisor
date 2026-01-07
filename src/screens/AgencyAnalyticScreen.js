@@ -6,7 +6,7 @@ import {
     ActivityIndicator,
     Dimensions,
     Image,
-    RefreshControl, // 1. Import RefreshControl
+    RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
@@ -31,7 +31,7 @@ export default function AgencyAnalyticsScreen() {
     const [allOrders, setAllOrders] = useState([]); 
     const [filteredOrders, setFilteredOrders] = useState([]); 
     const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false); // 2. Refresh State
+    const [refreshing, setRefreshing] = useState(false);
     const [timeRange, setTimeRange] = useState('30'); 
     const [selectedPoint, setSelectedPoint] = useState(null); 
 
@@ -39,11 +39,9 @@ export default function AgencyAnalyticsScreen() {
         loadData();
     }, []);
 
-    // 3. Load Data Function
     const loadData = async () => {
         try {
             const data = await getAgencyOrders();
-            // Sort by date ascending
             const sorted = data.sort((a, b) => {
                 const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
                 const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
@@ -54,17 +52,15 @@ export default function AgencyAnalyticsScreen() {
             console.error('Analytics Error:', err);
         } finally {
             setLoading(false);
-            setRefreshing(false); // Stop refreshing animation
+            setRefreshing(false);
         }
     };
 
-    // 4. On Refresh Handler
     const onRefresh = useCallback(() => {
         setRefreshing(true);
         loadData();
     }, []);
 
-    // Filter Logic
     useEffect(() => {
         if (timeRange === 'all') {
             setFilteredOrders(allOrders);
@@ -90,8 +86,9 @@ export default function AgencyAnalyticsScreen() {
         const uniqueCustomers = new Set(filteredOrders.map(o => o.customerId)).size;
         const avgOrderValue = filteredOrders.length > 0 ? revenue / filteredOrders.length : 0;
 
-        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const days = [t('sun'), t('mon'), t('tue'), t('wed'), t('thu'), t('fri'), t('sat')];
         const dayCounts = {};
+        
         filteredOrders.forEach(o => {
             const d = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
             const dayName = days[d.getDay()];
@@ -99,15 +96,14 @@ export default function AgencyAnalyticsScreen() {
         });
         const peakDayEntry = Object.entries(dayCounts).sort((a, b) => b[1] - a[1])[0];
 
-        // Growth Calculation
         let revenueGrowth = 0;
         if (timeRange !== 'all') {
-            const days = parseInt(timeRange);
+            const daysCount = parseInt(timeRange);
             const now = new Date();
             const currentPeriodStart = new Date();
-            currentPeriodStart.setDate(now.getDate() - days);
+            currentPeriodStart.setDate(now.getDate() - daysCount);
             const prevPeriodStart = new Date(currentPeriodStart);
-            prevPeriodStart.setDate(prevPeriodStart.getDate() - days);
+            prevPeriodStart.setDate(prevPeriodStart.getDate() - daysCount);
 
             const prevRevenue = allOrders
                 .filter(o => {
@@ -131,101 +127,70 @@ export default function AgencyAnalyticsScreen() {
             peakDay: peakDayEntry ? peakDayEntry[0] : 'N/A',
             revenueGrowth: revenueGrowth.toFixed(1)
         };
-    }, [filteredOrders, timeRange, allOrders]);
+    }, [filteredOrders, timeRange, allOrders, t]);
 
     /* =======================
-        REVENUE TREND (LINE)
+        CHART DATA LOGIC
     ======================== */
     const revenueTrend = useMemo(() => {
-        if (filteredOrders.length === 0) return { labels: ["No Data"], values: [0] };
-
+        if (filteredOrders.length === 0) return { labels: [t('noData')], values: [0] };
         const map = {};
         filteredOrders.forEach(o => {
             const d = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
             const key = `${d.getDate()}/${d.getMonth() + 1}`;
             map[key] = (map[key] || 0) + Number(o.totalAmount || 0);
         });
-
         const labels = Object.keys(map);
         const values = Object.values(map);
-
-        if (labels.length > 7) {
-             return { 
-                 labels: labels.slice(-6), 
-                 values: values.slice(-6),
-             };
-        }
+        if (labels.length > 7) return { labels: labels.slice(-6), values: values.slice(-6) };
         return { labels, values };
-    }, [filteredOrders]);
+    }, [filteredOrders, t]);
 
-    /* =======================
-        CUSTOMER RETENTION (PIE)
-    ======================== */
     const customerRetention = useMemo(() => {
         const activeCustomerIds = [...new Set(filteredOrders.map(o => o.customerId))];
         if (activeCustomerIds.length === 0) return [];
-
         let typeA_Count = 0; 
         let typeB_Count = 0; 
 
         if (timeRange === 'all') {
              activeCustomerIds.forEach(uid => {
                  const orderCount = allOrders.filter(o => o.customerId === uid).length;
-                 if (orderCount > 1) typeB_Count++; 
-                 else typeA_Count++; 
+                 if (orderCount > 1) typeB_Count++; else typeA_Count++; 
              });
              return [
-                { name: "One-time", population: typeA_Count, color: "#648DDB", legendFontColor: "#7F7F7F", legendFontSize: 12 },
-                { name: "Repeat", population: typeB_Count, color: "#FF8A65", legendFontColor: "#7F7F7F", legendFontSize: 12 }
+                { name: t('oneTime'), population: typeA_Count, color: "#648DDB", legendFontColor: "#7F7F7F", legendFontSize: 12 },
+                { name: t('repeat'), population: typeB_Count, color: "#FF8A65", legendFontColor: "#7F7F7F", legendFontSize: 12 }
             ];
         } else {
             const now = new Date();
             const cutoff = new Date();
             cutoff.setDate(now.getDate() - parseInt(timeRange));
-
             activeCustomerIds.forEach(uid => {
                 const customerOrders = allOrders.filter(o => o.customerId === uid);
                 customerOrders.sort((a,b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-                
                 const firstOrder = customerOrders[0];
                 const firstDate = firstOrder.createdAt?.toDate ? firstOrder.createdAt.toDate() : new Date(firstOrder.createdAt);
-
-                if (firstDate >= cutoff) typeA_Count++; 
-                else typeB_Count++; 
+                if (firstDate >= cutoff) typeA_Count++; else typeB_Count++; 
             });
-
             return [
-                { name: "New", population: typeA_Count, color: "#4CAF50", legendFontColor: "#7F7F7F", legendFontSize: 12 },
-                { name: "Returning", population: typeB_Count, color: "#FF9800", legendFontColor: "#7F7F7F", legendFontSize: 12 }
+                { name: t('newCust'), population: typeA_Count, color: "#4CAF50", legendFontColor: "#7F7F7F", legendFontSize: 12 },
+                { name: t('returning'), population: typeB_Count, color: "#FF9800", legendFontColor: "#7F7F7F", legendFontSize: 12 }
             ];
         }
-    }, [allOrders, filteredOrders, timeRange]);
+    }, [allOrders, filteredOrders, timeRange, t]);
 
-    /* =======================
-        TOP ITEMS (RANKING)
-    ======================== */
     const topItems = useMemo(() => {
         const map = {};
-        
         filteredOrders.forEach(o => {
             o.items?.forEach(i => {
                 const name = i.title || "Unknown Item";
                 if (!map[name]) {
-                    map[name] = {
-                        title: name,
-                        image: i.image || i.imageUrl || 'https://via.placeholder.com/50', 
-                        count: 0
-                    };
+                    map[name] = { title: name, image: i.image || i.imageUrl || 'https://via.placeholder.com/50', count: 0 };
                 }
                 map[name].count += (Number(i.quantity) || 1);
             });
         });
-
-        const sorted = Object.values(map)
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 5);
-
-        return sorted;
+        return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 5);
     }, [filteredOrders]);
 
     // --- HANDLERS ---
@@ -256,6 +221,14 @@ export default function AgencyAnalyticsScreen() {
         }
     };
 
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.center}>
+                <ActivityIndicator size="large" color="#648DDB" />
+            </SafeAreaView>
+        );
+    }
+
     return (
         <SafeAreaView style={styles.container}>
             {/* HEADER */}
@@ -263,132 +236,133 @@ export default function AgencyAnalyticsScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                     <Ionicons name="arrow-back" size={24} color="#333" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{t('analyticsDashboard') || 'Analytics'}</Text>
+                <Text style={styles.headerTitle}>{t('analyticsDashboard')}</Text>
                 <View style={{ width: 40 }} />
             </View>
 
-            {/* TIME FILTER TABS */}
-            <View style={styles.tabContainer}>
-                {['7', '30', 'all'].map((range) => (
-                    <TouchableOpacity 
-                        key={range} 
-                        style={[styles.tab, timeRange === range && styles.activeTab]}
-                        onPress={() => setTimeRange(range)}
-                    >
-                        <Text style={[styles.tabText, timeRange === range && styles.activeTabText]}>
-                            {range === 'all' ? 'All Time' : `Last ${range} Days`}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
+            {/* --- UPDATED: Horizontal Scroll Filter Tabs --- */}
+            <View style={styles.filterWrapper}>
+                <ScrollView 
+                    horizontal 
+                    showsHorizontalScrollIndicator={false} 
+                    contentContainerStyle={styles.tabContainer}
+                >
+                    {['7', '30', '90', '180', 'all'].map((range) => (
+                        <TouchableOpacity 
+                            key={range} 
+                            style={[styles.tab, timeRange === range && styles.activeTab]}
+                            onPress={() => setTimeRange(range)}
+                        >
+                            <Text style={[styles.tabText, timeRange === range && styles.activeTabText]}>
+                                {range === 'all' ? t('allTime') : `${t('last')} ${range} ${t('days')}`}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
             </View>
 
-            {loading && !refreshing ? (
-                <View style={styles.center}><ActivityIndicator size="large" color="#648DDB" /></View>
-            ) : (
-                <ScrollView 
-                    contentContainerStyle={styles.content} 
-                    showsVerticalScrollIndicator={false}
-                    refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#648DDB']} />
-                    }
-                >
-                    
-                    {/* KEY METRICS GRID */}
-                    <View style={styles.gridContainer}>
-                        <LinearGradient colors={['#648DDB', '#5A8AE4']} style={styles.mainCard}>
-                            <View>
-                                <Text style={styles.cardLabel}>{t('totalRevenue')}</Text>
-                                <Text style={styles.cardValue}>RM {stats.revenue}</Text>
+            <ScrollView 
+                contentContainerStyle={styles.content} 
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#648DDB']} />
+                }
+            >
+                
+                {/* KEY METRICS GRID */}
+                <View style={styles.gridContainer}>
+                    <LinearGradient colors={['#648DDB', '#5A8AE4']} style={styles.mainCard}>
+                        <View>
+                            <Text style={styles.cardLabel}>{t('totalRevenue')}</Text>
+                            <Text style={styles.cardValue}>RM {stats.revenue}</Text>
+                        </View>
+                        <View style={styles.rowBetween}>
+                            <View style={styles.badge}>
+                                <Text style={styles.badgeText}>{filteredOrders.length} {t('ordersLabel')}</Text>
                             </View>
-                            <View style={styles.rowBetween}>
-                                <View style={styles.badge}>
-                                    <Text style={styles.badgeText}>{filteredOrders.length} Orders</Text>
-                                </View>
-                                {timeRange !== 'all' && <GrowthBadge value={stats.revenueGrowth} />}
-                            </View>
-                        </LinearGradient>
+                            {timeRange !== 'all' && <GrowthBadge value={stats.revenueGrowth} />}
+                        </View>
+                    </LinearGradient>
 
-                        <View style={styles.rightColumn}>
-                            <View style={styles.smallCard}>
-                                <Text style={styles.smallLabel}>Avg Order</Text>
-                                <Text style={styles.smallValue}>RM {stats.aov}</Text>
-                            </View>
-                            <View style={styles.smallCard}>
-                                <Text style={styles.smallLabel}>Peak Day</Text>
-                                <Text style={styles.smallValue}>{stats.peakDay}</Text>
-                            </View>
+                    <View style={styles.rightColumn}>
+                        <View style={styles.smallCard}>
+                            <Text style={styles.smallLabel}>{t('avgOrder')}</Text>
+                            <Text style={styles.smallValue}>RM {stats.aov}</Text>
+                        </View>
+                        <View style={styles.smallCard}>
+                            <Text style={styles.smallLabel}>{t('peakDay')}</Text>
+                            <Text style={styles.smallValue}>{stats.peakDay}</Text>
                         </View>
                     </View>
+                </View>
 
-                    {/* REVENUE TREND */}
-                    <Text style={styles.sectionTitle}>Revenue Trend</Text>
-                    <View style={styles.chartContainer}>
-                        {selectedPoint && (
-                            <View style={styles.tooltip}>
-                                <Text style={styles.tooltipText}>{selectedPoint.label}: RM {selectedPoint.value.toFixed(2)}</Text>
-                            </View>
-                        )}
-                        <LineChart
-                            data={{ labels: revenueTrend.labels, datasets: [{ data: revenueTrend.values }] }}
-                            width={screenWidth} height={220} chartConfig={chartConfig} bezier
-                            onDataPointClick={handleDataPointClick}
-                            style={styles.chart}
-                            withInnerLines={false} withOuterLines={false}
-                        />
-                        {/* 5. ADDED NOTE */}
-                        <Text style={styles.hintText}>* Tap on dots to see details</Text>
-                    </View>
+                {/* REVENUE TREND */}
+                <Text style={styles.sectionTitle}>{t('revenueTrend')}</Text>
+                <View style={styles.chartContainer}>
+                    {selectedPoint && (
+                        <View style={styles.tooltip}>
+                            <Text style={styles.tooltipText}>{selectedPoint.label}: RM {selectedPoint.value.toFixed(2)}</Text>
+                        </View>
+                    )}
+                    <LineChart
+                        data={{ labels: revenueTrend.labels, datasets: [{ data: revenueTrend.values }] }}
+                        width={screenWidth} height={220} chartConfig={chartConfig} bezier
+                        onDataPointClick={handleDataPointClick}
+                        style={styles.chart}
+                        withInnerLines={false} withOuterLines={false}
+                    />
+                    <Text style={styles.hintText}>{t('tapForDetails')}</Text>
+                </View>
 
-                    {/* TOP ITEMS (RANKING TABLE) */}
-                    <Text style={styles.sectionTitle}>Top Selling Items</Text>
-                    <View style={styles.rankingContainer}>
-                        {topItems.length > 0 ? (
-                            topItems.map((item, index) => (
-                                <View key={index} style={styles.rankRow}>
-                                    <View style={[styles.rankBadge, { backgroundColor: getRankColor(index) }]}>
-                                        <Text style={[styles.rankText, index > 2 && { color: '#555' }]}>{index + 1}</Text>
-                                    </View>
-                                    
-                                    <Image 
-                                        source={{ uri: item.image }} 
-                                        style={styles.rankImage} 
-                                        resizeMode="cover"
-                                    />
-                                    
-                                    <View style={styles.rankInfo}>
-                                        <Text style={styles.rankTitle} numberOfLines={1}>{item.title}</Text>
-                                        <Text style={styles.rankSales}>{item.count} Sales</Text>
-                                    </View>
-
-                                    {index === 0 && <Ionicons name="trophy" size={20} color="#FFD700" />}
+                {/* TOP ITEMS (RANKING TABLE) */}
+                <Text style={styles.sectionTitle}>{t('topSelling')}</Text>
+                <View style={styles.rankingContainer}>
+                    {topItems.length > 0 ? (
+                        topItems.map((item, index) => (
+                            <View key={index} style={styles.rankRow}>
+                                <View style={[styles.rankBadge, { backgroundColor: getRankColor(index) }]}>
+                                    <Text style={[styles.rankText, index > 2 && { color: '#555' }]}>{index + 1}</Text>
                                 </View>
-                            ))
-                        ) : (
-                            <Text style={styles.noData}>No item sales in this period.</Text>
-                        )}
-                    </View>
+                                
+                                <Image 
+                                    source={{ uri: item.image }} 
+                                    style={styles.rankImage} 
+                                    resizeMode="cover"
+                                />
+                                
+                                <View style={styles.rankInfo}>
+                                    <Text style={styles.rankTitle} numberOfLines={1}>{item.title}</Text>
+                                    <Text style={styles.rankSales}>{item.count} {t('salesCount')}</Text>
+                                </View>
 
-                    {/* CUSTOMER RETENTION */}
-                    <Text style={styles.sectionTitle}>
-                        {timeRange === 'all' ? "Customer Loyalty" : "Customer Acquisition"}
-                    </Text>
-                    <View style={styles.chartContainer}>
-                        {customerRetention.length > 0 ? (
-                            <PieChart
-                                data={customerRetention}
-                                width={screenWidth} height={200}
-                                chartConfig={chartConfig}
-                                accessor="population"
-                                backgroundColor="transparent"
-                                paddingLeft="15"
-                                absolute
-                            />
-                        ) : <Text style={styles.noData}>No customer data.</Text>}
-                    </View>
+                                {index === 0 && <Ionicons name="trophy" size={20} color="#FFD700" />}
+                            </View>
+                        ))
+                    ) : (
+                        <Text style={styles.noData}>{t('noItemSales')}</Text>
+                    )}
+                </View>
 
-                    <View style={{height: 40}} />
-                </ScrollView>
-            )}
+                {/* CUSTOMER RETENTION */}
+                <Text style={styles.sectionTitle}>
+                    {timeRange === 'all' ? t('customerLoyalty') : t('customerAcquisition')}
+                </Text>
+                <View style={styles.chartContainer}>
+                    {customerRetention.length > 0 ? (
+                        <PieChart
+                            data={customerRetention}
+                            width={screenWidth} height={200}
+                            chartConfig={chartConfig}
+                            accessor="population"
+                            backgroundColor="transparent"
+                            paddingLeft="15"
+                            absolute
+                        />
+                    ) : <Text style={styles.noData}>{t('noCustomerData')}</Text>}
+                </View>
+
+                <View style={{height: 40}} />
+            </ScrollView>
         </SafeAreaView>
     );
 }
@@ -413,8 +387,24 @@ const styles = StyleSheet.create({
     },
     headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
     
-    tabContainer: { flexDirection: 'row', justifyContent: 'center', marginVertical: 15, paddingHorizontal: 20 },
-    tab: { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: '#E0E0E0', borderRadius: 20, marginHorizontal: 5 },
+    // --- Updated Filter Styles ---
+    filterWrapper: {
+        backgroundColor: '#F9FAFB',
+        paddingVertical: 10,
+    },
+    tabContainer: {
+        paddingHorizontal: 15, // Space at start/end of scroll
+    },
+    tab: { 
+        paddingVertical: 8, 
+        paddingHorizontal: 16, 
+        backgroundColor: '#E0E0E0', 
+        borderRadius: 20, 
+        marginRight: 10, // Space between tabs
+        minWidth: 60,
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
     activeTab: { backgroundColor: '#648DDB' },
     tabText: { fontSize: 13, color: '#666', fontWeight: '600' },
     activeTabText: { color: '#FFF' },

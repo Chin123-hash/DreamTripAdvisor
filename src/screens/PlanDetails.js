@@ -17,7 +17,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// Service imports
+// 1. Add Firestore Imports
+import { collection, getDocs, limit, query } from 'firebase/firestore';
+import { db } from '../../firebaseConfig';
+
+import { useLanguage } from '../context/LanguageContext';
 import {
     addPlanToCart,
     checkFavoriteStatus,
@@ -26,8 +30,6 @@ import {
     getPlanDetails,
     toggleFavorite
 } from '../services/AuthService';
-// 1. Import Hook
-import { useLanguage } from '../context/LanguageContext';
 
 const { width } = Dimensions.get('window');
 
@@ -43,7 +45,6 @@ export default function PlanDetailsScreen() {
     const params = useLocalSearchParams(); 
     const { t } = useLanguage();
     
-    // Handle cases where param might be 'id' or 'planId'
     const planId = params.id || params.planId; 
     
     // --- STATE ---
@@ -66,7 +67,6 @@ export default function PlanDetailsScreen() {
     const [showPicker, setShowPicker] = useState(false);
     const [pickerMode, setPickerMode] = useState('from'); 
 
-    // Favorite State
     const [isFavorite, setIsFavorite] = useState(false);
 
     // --- 1. FETCH DATA ---
@@ -77,7 +77,6 @@ export default function PlanDetailsScreen() {
             
             if (planId) {
                 await loadPlanData(planId);
-                // Check Favorite
                 const status = await checkFavoriteStatus(planId);
                 setIsFavorite(status);
             } else {
@@ -90,7 +89,6 @@ export default function PlanDetailsScreen() {
         init();
     }, [planId]);
 
-    // Recalculate total when pax or items change
     useEffect(() => {
         if (rawItems.length > 0) calculateTotal(rawItems);
     }, [pax, rawItems]);
@@ -105,18 +103,15 @@ export default function PlanDetailsScreen() {
         }
     };
 
-    // --- TOGGLE FAVORITE ---
     const handleToggleFavorite = async () => {
         const itemToSave = {
             id: planId,
             title: planName,
-            // Plans usually have one main image, or use placeholder
             image: 'https://via.placeholder.com/300', 
-            // Use 1 pax price estimate for the favorite list display
             price: totalExpense / (parseInt(pax) || 1), 
             type: 'plan',
-            rating: 5, // Default or fetch real rating
-            locationURL: "" // Plans might not have a single location
+            rating: 5, 
+            locationURL: "" 
         };
 
         try {
@@ -128,7 +123,7 @@ export default function PlanDetailsScreen() {
         }
     };
 
-    // --- LOAD DATA ---
+    // --- LOAD DATA (REFACTORED) ---
     const loadPlanData = async (id) => {
         try {
             const planData = await getPlanDetails(id);
@@ -138,34 +133,59 @@ export default function PlanDetailsScreen() {
 
                 let itemsToUse = [];
 
-                // 1. If DB has specific items list, use it
+                // 1. Priority: Use items specifically saved in the plan
                 if (planData.items && planData.items.length > 0) {
                     itemsToUse = planData.items.map(item => ({
                         ...item,
                         price: parsePrice(item.price) 
                     }));
                 } 
-                // 2. If no items, try to find Ticket & Transport fees specifically
-                else if (planData.ticketPrice || planData.transportFee || planData.price) {
-                    const ticket = parsePrice(planData.ticketPrice);
-                    const transport = parsePrice(planData.transportFee);
-                    const basePrice = parsePrice(planData.price);
-
-                    if (ticket > 0) {
-                        itemsToUse.push({ title: t('ticketEntry'), type: 'Entertainment', price: ticket });
-                    }
-                    if (transport > 0) {
-                        itemsToUse.push({ title: t('transportFee'), type: 'Transport', price: transport });
-                    }
-                    
-                    // If neither ticket nor transport found, but there is a base price, use that
-                    if (itemsToUse.length === 0 && basePrice > 0) {
-                        itemsToUse.push({ title: t('packageFee'), type: 'Entertainment', price: basePrice });
-                    }
-                }
-                // 3. Last Resort
+                // 2. Fallback: If no items, fetch RANDOM real items from DB
                 else {
-                    itemsToUse = [{ title: t('estimatedCost'), type: 'Entertainment', price: 300 }];
+                    // Fetch 5 random foods (grabbing more than needed to shuffle)
+                    const foodQuery = query(collection(db, 'foods'), limit(10)); 
+                    const entQuery = query(collection(db, 'entertainments'), limit(10));
+
+                    const [foodSnapshot, entSnapshot] = await Promise.all([
+                        getDocs(foodQuery),
+                        getDocs(entQuery)
+                    ]);
+
+                    const allFoods = foodSnapshot.docs.map(doc => {
+                        const d = doc.data();
+                        return {
+                            id: doc.id,
+                            title: d.title,
+                            type: 'Food',
+                            price: parsePrice(d.estimatedTotalExpenses || d.priceRange || 20),
+                            imageUrl: d.imageUrl
+                        };
+                    });
+
+                    const allEnts = entSnapshot.docs.map(doc => {
+                        const d = doc.data();
+                        return {
+                            id: doc.id,
+                            title: d.title,
+                            type: 'Entertainment',
+                            price: parsePrice(d.estimatedTotalExpenses || d.ticketPrice || 50),
+                            imageUrl: d.imageUrl
+                        };
+                    });
+
+                    // Shuffle and pick 2 Foods and 2 Entertainments
+                    const shuffledFoods = allFoods.sort(() => 0.5 - Math.random()).slice(0, 2);
+                    const shuffledEnts = allEnts.sort(() => 0.5 - Math.random()).slice(0, 2);
+
+                    itemsToUse = [...shuffledEnts, ...shuffledFoods];
+
+                    // If DB is empty, THEN fallback to generic transport/ticket fee (Safety net)
+                    if (itemsToUse.length === 0) {
+                        const ticket = parsePrice(planData.ticketPrice);
+                        const transport = parsePrice(planData.transportFee);
+                        if (ticket > 0) itemsToUse.push({ title: t('ticketEntry'), type: 'Entertainment', price: ticket });
+                        if (transport > 0) itemsToUse.push({ title: t('transportFee'), type: 'Transport', price: transport });
+                    }
                 }
 
                 setRawItems(itemsToUse);
@@ -202,6 +222,7 @@ export default function PlanDetailsScreen() {
         for (let hour = 9; hour <= 18; hour++) {
             let item = null;
             if (hour === 13) {
+                // Lunch Time: Prioritize food
                 item = food.length > 0 ? food.shift() : { title: t('lunchBreak'), type: 'Food', price: 0, isPlaceholder: true };
                 entCount = 0; 
             } else {
@@ -209,6 +230,7 @@ export default function PlanDetailsScreen() {
                     if (entertainment.length > 0) { item = entertainment.shift(); entCount++; } 
                     else { item = { title: t('freeEasy'), type: 'Entertainment', price: 0, isPlaceholder: true }; }
                 } else {
+                    // If ran out of entertainment, try food or rest
                     if (food.length > 0) { item = food.shift(); } 
                     else if (entertainment.length > 0) { item = entertainment.shift(); } 
                     else { item = { title: t('restTime'), type: 'Entertainment', price: 0, isPlaceholder: true }; }
@@ -239,7 +261,6 @@ export default function PlanDetailsScreen() {
 
         setLoading(true);
         try {
-            // Prepare the data packet
             const finalPlanData = {
                 originalPlanId: planId,
                 planName: planName,
@@ -269,7 +290,6 @@ export default function PlanDetailsScreen() {
     // --- CHART LOGIC ---
     const renderPieChart = () => {
         const paxNum = parseInt(pax) || 1;
-        // Helper to sum by type
         const getSum = (type) => rawItems
             .filter(i => i.type?.toLowerCase() === type)
             .reduce((a, b) => a + (b.price || 0), 0) * paxNum;
@@ -318,7 +338,6 @@ export default function PlanDetailsScreen() {
         </View>
     );
 
-    // --- UTILS ---
     const onDateChange = (event, selectedDate) => {
         setShowPicker(false);
         if (selectedDate) {
@@ -340,8 +359,6 @@ export default function PlanDetailsScreen() {
                 {/* HEADER */}
                 <View style={styles.header}>
                     <Text style={styles.headerTitle}>{planName || t('tripDetails')}</Text>
-                    
-                    {/* FAVORITE TOGGLE */}
                     <TouchableOpacity onPress={handleToggleFavorite}>
                         <Ionicons 
                             name={isFavorite ? "heart" : "heart-outline"} 
@@ -351,7 +368,7 @@ export default function PlanDetailsScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* TIMELINE (VIEW ONLY) */}
+                {/* TIMELINE */}
                 <View style={styles.timelineCard}>
                     {schedule.map((item, index) => (
                         <View key={index} style={styles.timelineRow}>
@@ -370,7 +387,7 @@ export default function PlanDetailsScreen() {
                     {schedule.length === 0 && <Text style={{fontStyle:'italic', color:'#999'}}>{t('noSchedule')}</Text>}
                 </View>
 
-                {/* CONFIGURATION FORM */}
+                {/* FORM */}
                 <View style={styles.formSection}>
                     <View style={styles.bellHeader}>
                         <Ionicons name="settings-outline" size={24} color="#555" />
@@ -421,7 +438,6 @@ export default function PlanDetailsScreen() {
                 <Text style={styles.handwrittenTitle}>{t('estimatedExpenses')}</Text>
                 {renderPieChart()}
 
-                {/* ADD TO CART BUTTON */}
                 <TouchableOpacity style={styles.addToCartBtn} onPress={handleAddToCart}>
                     <Ionicons name="cart" size={24} color="#FFF" style={{marginRight: 10}} />
                     <Text style={styles.addToCartText}>{t('addToCart')}</Text>
@@ -430,7 +446,6 @@ export default function PlanDetailsScreen() {
                 <View style={{height: 40}} />
             </ScrollView>
 
-            {/* AGENCY MODAL */}
             <Modal visible={showAgencyModal} transparent={true} animationType="slide">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
@@ -458,7 +473,6 @@ export default function PlanDetailsScreen() {
                 </View>
             </Modal>
 
-            {/* DATE PICKER */}
             {showPicker && (
                 <DateTimePicker
                     value={pickerMode === 'from' ? fromDate : toDate}
@@ -477,7 +491,6 @@ const styles = StyleSheet.create({
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
     headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#000' },
     
-    // Timeline Styles
     timelineCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, marginBottom: 25, borderWidth: 1, borderColor: '#DDD', shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
     timelineRow: { flexDirection: 'row', marginBottom: 20, alignItems: 'flex-start' },
     timeCol: { width: 75, alignItems: 'center' },
@@ -488,7 +501,6 @@ const styles = StyleSheet.create({
     contentTitle: { fontSize: 16, fontWeight: '600', color: '#333' }, 
     contentDesc: { fontSize: 13, color: '#666', marginTop: 2 },
 
-    // Form Styles
     formSection: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, marginBottom: 20, borderWidth: 1, borderColor: '#DDD' },
     bellHeader: { flexDirection:'row', alignItems:'center', marginBottom: 15, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#EEE' },
     formRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
@@ -502,7 +514,6 @@ const styles = StyleSheet.create({
     totalLabel: { fontSize: 18, fontWeight: 'bold', color: '#333' },
     totalValue: { fontSize: 18, fontWeight: 'bold', color: '#648DDB' },
 
-    // Chart Styles
     handwrittenTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20, color: '#000', marginTop: 10 },
     chartContainer: { alignItems: 'center', marginBottom: 30 },
     pieCircle: { width: 150, height: 150, borderRadius: 75, overflow: 'hidden', flexDirection: 'row', position: 'relative', marginBottom: 20 },
@@ -516,11 +527,9 @@ const styles = StyleSheet.create({
     legendDot: { width: 12, height: 12, borderRadius: 6, marginRight: 5 },
     legendText: { fontSize: 12, color: '#555' },
 
-    // Add to Cart Button
     addToCartBtn: { flexDirection: 'row', backgroundColor: '#648DDB', paddingVertical: 16, borderRadius: 30, alignItems: 'center', justifyContent: 'center', marginHorizontal: 20, shadowColor: "#648DDB", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4.65, elevation: 8 },
     addToCartText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
 
-    // Modal Styles
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
     modalContainer: { width: '85%', backgroundColor: '#FFF', borderRadius: 16, padding: 20, maxHeight: '60%' },
     modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center' },

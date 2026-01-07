@@ -5,39 +5,56 @@ const API_KEY = "AIzaSyAkT5iDirGlGpMoN8FHGtPG5c-Tlx87Xc0";
 
 const genAI = new GoogleGenerativeAI(API_KEY);
 
-// We do NOT fetch data here. We just send what the UI gives us.
-export const sendMessageToGemini = async (userMessage, history = [], databaseContext = "") => {
+export const sendMessageToGemini = async (userMessage, history = [], databaseContext = null) => {
   try {
-    // Use the standard fast model
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-09-2025" });
+    // 1. Use the stable model alias (safer than specific date versions)
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
+      // Optional: systematic instructions for the persona
+      systemInstruction: "You are a witty and helpful travel assistant for the 'Dream Trip' app. You love saving people money." 
+    });
 
     const chat = model.startChat({
       history: history, 
       generationConfig: {
-        maxOutputTokens: 500,
+        maxOutputTokens: 1000, // Increased slightly for better itineraries
+        temperature: 0.7,      // Balance between creativity and accuracy
       },
     });
 
-    // MAGIC TRICK: If database data is provided, we wrap the user's message with it.
-    // The user won't see this big block of text, but Gemini will read it.
-    let finalMessage = userMessage;
-    
-    if (databaseContext) {
-      finalMessage = `
-      [SYSTEM INSTRUCTION: You are a helpful travel assistant.
-      Here is the live database of available trips, hotels, and food. 
-      ONLY recommend items from this list if relevant:
-      ${databaseContext}]
+    // 2. Construct the Final Prompt
+    // We wrap the user's message with the database data if it exists.
+    let finalPrompt = userMessage;
 
-      User Question: ${userMessage}`;
-    }
+    if (databaseContext && databaseContext !== "{}" && !databaseContext.includes("error")) {
+      finalPrompt = `
+      [SYSTEM DATA START]
+      The following is a list of real options available in our database matching the user's request. 
+      Use THIS data to answer. Do not hallucinate prices or locations.
 
-    const result = await chat.sendMessage(finalMessage);
+      ${databaseContext}
+      [SYSTEM DATA END]
+
+      User's Question: "${userMessage}"
+      `;
+          }
+
+    // 3. Send Message
+    const result = await chat.sendMessage(finalPrompt);
     const response = await result.response;
     return response.text();
     
   } catch (error) {
     console.error("Gemini API Error:", error);
+    
+    // Graceful Error Handling for UI
+    if (error.message.includes("400")) {
+      return "I'm having trouble understanding that request. Could you rephrase it?";
+    }
+    if (error.message.includes("429")) {
+      return "I'm a bit overwhelmed right now. Please try again in a moment.";
+    }
+    
     throw error;
   }
 };

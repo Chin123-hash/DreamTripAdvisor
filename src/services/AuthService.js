@@ -869,6 +869,8 @@ export const getTopSellingItems = (orders, limit = 5) => {
     return Object.entries(map)
         .sort((a, b) => b[1].qty - a[1].qty)
         .slice(0, limit);
+};
+
 export const toggleFavorite = async (item) => {
     const user = auth.currentUser;
     if (!user) throw new Error("User not authenticated");

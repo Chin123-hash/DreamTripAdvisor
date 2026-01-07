@@ -469,12 +469,84 @@ const translations = {
     noAgenciesFound: "No agencies found.",
 
     // Admin Analytics
+    // Admin Analytics
     analyticsDashboard: "Analytics Dashboard",
+    totalRevenue: "Total Revenue",
+    totalOrders: "Total Orders",
+    avgOrder: "Avg Order",
+    peakDay: "Peak Day",
     revenueTrend: "Revenue Trend",
+    topSellingItems: "Top Selling Items",
+    topAgencies: "Top Agencies",
     ordersByAgency: "Orders by Agency",
     ordersPerDay: "Orders per Day",
-    agenciesCount: "Agencies",
+    custLoyalty: "Customer Loyalty",
+    custAcquisition: "Customer Acquisition",
+    
+    // Labels & Status
+    sold: "Sold",
     ordersLabel: "Orders",
+    agenciesCount: "Agencies",
+    tapForDetails: "* Tap on dots to see details",
+    noData: "No Data",
+    noItemsSold: "No items sold yet.",
+    noCustData: "No customer data yet.",
+    
+    // Chart Segments
+    oneTime: "One-time",
+    repeat: "Repeat",
+    newCust: "New",
+    returning: "Returning",
+    
+    // Date Filters
+    last: "Last",
+    days: "Days",
+    allTime: "All Time",
+
+    // Agency Analytics
+    last: "Last",
+    days: "Days",
+    avgOrder: "Avg Order",
+    peakDay: "Peak Day",
+    tapForDetails: "* Tap on dots to see details",
+    topSelling: "Top Selling Items",
+    salesCount: "Sales",
+    customerLoyalty: "Customer Loyalty",
+    customerAcquisition: "Customer Acquisition",
+    
+    // Chart Labels
+    oneTime: "One-time",
+    repeat: "Repeat",
+    newCust: "New",
+    returning: "Returning",
+    noData: "No Data",
+    noItemSales: "No item sales in this period.",
+    noCustomerData: "No customer data.",
+    
+    // Days
+    sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat",
+
+    // Agency Details (Admin View)
+    agencyProfile: "Agency Profile",
+    license: "License No",
+    totalOrders: "Total Orders",
+    recentOrders: "Recent Orders",
+    customer: "Customer",
+    items: "items",
+    noOrdersFound: "No orders found.",
+    guest: "Guest",
+
+    // Customer List
+    customers: "Customers",
+    searchPlaceholder: "Search by name or email...",
+    all: "All",
+    oneTime: "One-time",
+    repeat: "Repeat",
+    ordersLabel: "Orders",
+    totalSpent: "Total",
+    joined: "Joined",
+    traveller: "Traveller",
+    noCustomersFound: "No customers found.",
   },
 
 
@@ -942,13 +1014,85 @@ const translations = {
     alertRejectFail: "Tidak dapat menolak agensi.",
     noAgenciesFound: "Tiada agensi ditemui.",
 
+
+    // Agency Analytics
+    last: "Terakhir",
+    days: "Hari",
+    avgOrder: "Purata Pesanan",
+    peakDay: "Hari Puncak",
+    tapForDetails: "* Tekan titik untuk butiran",
+    topSelling: "Item Terlaris",
+    salesCount: "Jualan",
+    customerLoyalty: "Kesetiaan Pelanggan",
+    customerAcquisition: "Perolehan Pelanggan",
+    
+    // Chart Labels
+    oneTime: "Sekali",
+    repeat: "Berulang",
+    newCust: "Baru",
+    returning: "Kembali",
+    noData: "Tiada Data",
+    noItemSales: "Tiada jualan item dalam tempoh ini.",
+    noCustomerData: "Tiada data pelanggan.",
+    
+    // Days
+    sun: "Ahad", mon: "Isnin", tue: "Sel", wed: "Rabu", thu: "Kha", fri: "Jum", sat: "Sab",
+
+    // Agency Details (Admin View)
+    agencyProfile: "Profil Agensi",
+    license: "No Lesen",
+    totalOrders: "Jumlah Pesanan",
+    recentOrders: "Pesanan Terkini",
+    customer: "Pelanggan",
+    items: "item",
+    noOrdersFound: "Tiada pesanan ditemui.",
+    guest: "Tetamu",
+
+    // Customer List
+    customers: "Pelanggan",
+    searchPlaceholder: "Cari mengikut nama atau emel...",
+    all: "Semua",
+    oneTime: "Sekali",
+    repeat: "Berulang",
+    ordersLabel: "Pesanan",
+    totalSpent: "Jumlah",
+    joined: "Disertai",
+    traveller: "Pengembara",
+    noCustomersFound: "Tiada pelanggan ditemui.",
+
     // Admin Analytics
     analyticsDashboard: "Papan Pemuka Analitik",
+    totalRevenue: "Jumlah Hasil",
+    totalOrders: "Jumlah Pesanan",
+    avgOrder: "Purata Pesanan",
+    peakDay: "Hari Puncak",
     revenueTrend: "Trend Hasil",
-    ordersByAgency: "Pesanan mengikut Agensi",
-    ordersPerDay: "Pesanan setiap Hari",
-    agenciesCount: "Agensi",
+    topSellingItems: "Item Terlaris",
+    topAgencies: "Agensi Teratas",
+    ordersByAgency: "Pesanan Ikut Agensi",
+    ordersPerDay: "Pesanan Setiap Hari",
+    custLoyalty: "Kesetiaan Pelanggan",
+    custAcquisition: "Perolehan Pelanggan",
+    
+    // Labels & Status
+    sold: "Terjual",
     ordersLabel: "Pesanan",
+    agenciesCount: "Agensi",
+    tapForDetails: "* Tekan titik untuk butiran",
+    noData: "Tiada Data",
+    noItemsSold: "Tiada item terjual lagi.",
+    noCustData: "Tiada data pelanggan lagi.",
+    
+    // Chart Segments
+    oneTime: "Sekali",
+    repeat: "Berulang",
+    newCust: "Baru",
+    returning: "Kembali",
+    
+    // Date Filters
+    last: "Terakhir",
+    days: "Hari",
+    allTime: "Semua Masa",
   }
 };
 

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react'; // Removed useEffect as we don't need to load data on mount anymore
 import {
   ActivityIndicator,
   FlatList,
@@ -12,28 +12,21 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import Markdown from 'react-native-markdown-display';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// Import your services
-import Markdown from 'react-native-markdown-display';
-import { getAllTravelData } from '../services/FirebaseService';
+// ✅ UPDATE 1: Import the new dynamic fetcher (Make sure the path matches where you saved TravelDataService.js)
+import { getDynamicTravelData } from '../services/FirebaseService';
 import { sendMessageToGemini } from '../services/GeminiService';
+
+// Optional: Debugging tool to check models
 export const listAvailableModels = async () => {
   const apiKey = 'AIzaSyAkT5iDirGlGpMoN8FHGtPG5c-Tlx87Xc0'; 
   const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-
   try {
     const response = await fetch(url);
     const data = await response.json();
-    
-    console.log("--- AVAILABLE GEMINI MODELS ---");
-    data.models.forEach(model => {
-      console.log(`\nName: ${model.name}`);
-      console.log(`Description: ${model.description}`);
-      console.log(`Capabilities: ${model.supportedGenerationMethods.join(', ')}`);
-      console.log(`Input Token Limit: ${model.inputTokenLimit}`);
-      console.log(`Output Token Limit: ${model.outputTokenLimit}`);
-    });
+    console.log("--- AVAILABLE GEMINI MODELS ---", data);
   } catch (error) {
     console.error("Error fetching models:", error);
   }
@@ -48,22 +41,11 @@ export default function ChatbotScreen() {
   ]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [tripContext, setTripContext] = useState('');
+  
+  // ❌ REMOVED: tripContext state & useEffect. 
+  // We don't want to store stale data or load everything at the start.
 
-  // 2. LOAD DATA ON MOUNT
-  useEffect(() => {
-    const loadData = async () => {
-      console.log("Loading travel data from Firebase...");
-      const dataString = await getAllTravelData();
-      if (dataString) {
-        setTripContext(dataString);
-        console.log("Travel data loaded successfully.");
-      }
-    };
-    loadData();
-  }, []);
-
-  // 3. PREPARE HISTORY FOR API
+  // 2. PREPARE HISTORY FOR API
   const getHistoryForGemini = () => {
     return messages
       .filter(msg => msg.id !== '1') 
@@ -73,38 +55,44 @@ export default function ChatbotScreen() {
       }));
   };
 
-  // 4. HANDLE SEND
+  // 3. HANDLE SEND (The Big Update)
   const handleSend = async () => {
     if (!inputText.trim()) return;
 
-    // Add User Message
-    const userMessage = { id: Date.now().toString(), text: inputText, role: 'user' };
+    // A. UI Updates immediately
+    const userMessageText = inputText; // Capture text before clearing
+    const userMessage = { id: Date.now().toString(), text: userMessageText, role: 'user' };
     setMessages(prev => [...prev, userMessage]);
-    const currentInput = inputText; // Store for API call
     setInputText('');
     setLoading(true);
 
     try {
+      // B. ✅ STEP 1: Dynamically fetch ONLY relevant data based on this specific question
+      // This prevents the "Token Limit" crash by only grabbing what's needed.
+      console.log("Fetching context for:", userMessageText);
+      const relevantContext = await getDynamicTravelData(userMessageText);
+      
+      // C. ✅ STEP 2: Send history + new context to Gemini
       const history = getHistoryForGemini();
-      const responseText = await sendMessageToGemini(currentInput, history, tripContext);
+      const responseText = await sendMessageToGemini(userMessageText, history, relevantContext);
 
-      // Add Bot Message
+      // D. Add Bot Message
       const botMessage = { id: (Date.now() + 1).toString(), text: responseText, role: 'model' };
       setMessages(prev => [...prev, botMessage]);
       
     } catch (error) {
       console.error(error);
-      const errorMessage = { id: (Date.now() + 1).toString(), text: "Sorry, I'm having trouble connecting right now.", role: 'model' };
+      const errorMessage = { id: (Date.now() + 1).toString(), text: "Sorry, I'm having trouble connecting to the travel database right now.", role: 'model' };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setLoading(false);
     }
   };
 
-  // 5. RENDER BUBBLES
+  // 4. RENDER BUBBLES
   const renderMessage = ({ item }) => {
     const isUser = item.role === 'user';
-    const messageContent = String(item.text || ''); // Safety check
+    const messageContent = String(item.text || ''); 
 
     return (
       <View style={[
@@ -113,7 +101,6 @@ export default function ChatbotScreen() {
       ]}>
         <Markdown 
           style={isUser ? markdownStylesUser : markdownStylesBot}
-          // mergeStyle={true} // Optional: ensures styles merge correctly
         >
           {messageContent}
         </Markdown>
@@ -135,7 +122,6 @@ export default function ChatbotScreen() {
       {/* Keyboard Handling */}
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
-        // iOS needs "padding". Android usually behaves better with "height" OR undefined if using "pan" in app.json
         behavior={Platform.OS === "ios" ? "padding" : "height"} 
         keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
       >
@@ -156,7 +142,7 @@ export default function ChatbotScreen() {
             value={inputText}
             onChangeText={setInputText}
             multiline={true} 
-            textAlignVertical="center" // Android fix for multiline centering
+            textAlignVertical="center"
           />
           <TouchableOpacity 
             style={[styles.sendButton, (!inputText.trim() || loading) && styles.disabledButton]} 
@@ -176,7 +162,7 @@ export default function ChatbotScreen() {
   );
 }
 
-// --- STYLES ---
+// --- STYLES (Unchanged) ---
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
@@ -195,7 +181,7 @@ const styles = StyleSheet.create({
   listContent: { padding: 15, paddingBottom: 20 },
   
   messageBubble: {
-    maxWidth: '85%', // Slightly wider for tables
+    maxWidth: '85%', 
     padding: 12,
     borderRadius: 16,
     marginBottom: 10,
@@ -244,11 +230,9 @@ const styles = StyleSheet.create({
   }
 });
 
-// --- MARKDOWN STYLES ---
+// --- MARKDOWN STYLES (Unchanged) ---
 
-// Styles for the BOT
 const markdownStylesBot = {
-  // 1. Remove outer margins from the body
   body: { 
     fontSize: 15, 
     color: '#333',
@@ -256,20 +240,17 @@ const markdownStylesBot = {
     marginTop: 0,
     marginBottom: 0, 
   },
-  // 2. CRITICAL: Remove margins from paragraphs to fix the "hi" bubble height
   paragraph: {
     marginTop: 0,
     marginBottom: 0,
-    flexWrap: 'wrap', // Ensures text wraps correctly
+    flexWrap: 'wrap', 
   },
-  // Table styles (keep these)
   table: { borderWidth: 1, borderColor: '#ccc', borderRadius: 4, marginTop: 5 },
   tr: { borderBottomWidth: 1, borderColor: '#ccc', flexDirection: 'row' },
   th: { backgroundColor: '#f0f0f0', padding: 8, fontWeight: 'bold' },
   td: { padding: 8, borderColor: '#ccc', borderRightWidth: 1 },
 };
 
-// Styles for the USER
 const markdownStylesUser = {
   body: { 
     fontSize: 15, 

@@ -10,12 +10,14 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { useLanguage } from '../context/LanguageContext';
 import { getAllOrders, getAllUsers } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 export default function AgencyDetailsScreen() {
     const { agencyName } = useLocalSearchParams();
     const router = useRouter();
+    // 2. Destructure Hook
     const { t } = useLanguage();
 
     const [loading, setLoading] = useState(true);
@@ -38,9 +40,34 @@ export default function AgencyDetailsScreen() {
             const profile = users.find(u => u.agencyName === agencyName || u.fullName === agencyName);
             setAgencyInfo(profile);
 
-            // 2. Filter Orders for this Agency
-            const filteredOrders = orders.filter(o => o.agencyName === agencyName);
-            setAgencyOrders(filteredOrders);
+            // 2. Create a Map of Users for fast lookup [Key: UserID, Value: UserData]
+            const userMap = {};
+            users.forEach(u => {
+                if (u.id) userMap[u.id] = u;
+                if (u.uid) userMap[u.uid] = u; // Handle both id field styles
+            });
+
+            // 3. Filter Orders for this Agency AND Enrich with Customer Name
+            const enrichedOrders = orders
+                .filter(o => o.agencyName === agencyName)
+                .map(order => {
+                    // Try to get name from User Map using customerId
+                    let realName = t('guest'); // Use localized Guest
+                    if (order.customerId && userMap[order.customerId]) {
+                        const u = userMap[order.customerId];
+                        realName = u.fullName || u.username || u.email || t('guest');
+                    } else if (order.customerName) {
+                        // Fallback to name stored in order if user not found
+                        realName = order.customerName;
+                    }
+
+                    return {
+                        ...order,
+                        customerName: realName
+                    };
+                });
+
+            setAgencyOrders(enrichedOrders);
         } catch (error) {
             console.error("Error loading agency details:", error);
         } finally {
@@ -56,14 +83,21 @@ export default function AgencyDetailsScreen() {
     const renderOrderCard = ({ item }) => (
         <View style={styles.orderCard}>
             <View style={styles.orderHeader}>
-                <Text style={styles.orderId}>Order #{item.id.slice(-6).toUpperCase()}</Text>
-                <Text style={styles.orderDate}>{new Date(item.createdAt?.seconds * 1000).toLocaleDateString()}</Text>
+                <Text style={styles.orderId}>Order #{item.id ? item.id.slice(-6).toUpperCase() : '---'}</Text>
+                <Text style={styles.orderDate}>
+                    {item.createdAt?.seconds 
+                        ? new Date(item.createdAt.seconds * 1000).toLocaleDateString()
+                        : (item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A')}
+                </Text>
             </View>
-            <Text style={styles.customerName}>{t('customer')}: {item.customerName || 'Guest'}</Text>
+            
+            {/* Display the enriched name */}
+            <Text style={styles.customerName}>{t('customer')}: {item.customerName}</Text>
+            
             <View style={styles.divider} />
             <View style={styles.orderFooter}>
                 <Text style={styles.itemCount}>{item.items?.length || 0} {t('items')}</Text>
-                <Text style={styles.orderAmount}>RM {Number(item.totalAmount).toFixed(2)}</Text>
+                <Text style={styles.orderAmount}>RM {Number(item.totalAmount || 0).toFixed(2)}</Text>
             </View>
         </View>
     );
@@ -148,6 +182,7 @@ const styles = StyleSheet.create({
         padding: 15,
         elevation: 5,
         shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 10
     },
