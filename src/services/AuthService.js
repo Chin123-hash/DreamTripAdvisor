@@ -821,3 +821,51 @@ export const updateEntertainment = async (entertainmentId, updatedData, newImage
         throw error;
     }
 };
+
+export const getTopAgencies = (orders, limit = 5) => {
+    const map = {};
+
+    orders.forEach(o => {
+        if (!map[o.agencyName]) {
+            map[o.agencyName] = { revenue: 0, orders: 0 };
+        }
+        map[o.agencyName].revenue += Number(o.totalAmount || 0);
+        map[o.agencyName].orders += 1;
+    });
+
+    return Object.entries(map)
+        .sort((a, b) => b[1].revenue - a[1].revenue)
+        .slice(0, limit);
+};
+
+export const getCategoryRevenue = (orders) => {
+    const map = {};
+
+    orders.forEach(o => {
+        o.items?.forEach(item => {
+            map[item.category] =
+                (map[item.category] || 0) +
+                item.price * item.quantity;
+        });
+    });
+
+    return map;
+};
+
+export const getTopSellingItems = (orders, limit = 5) => {
+    const map = {};
+
+    orders.forEach(o => {
+        o.items?.forEach(item => {
+            if (!map[item.title]) {
+                map[item.title] = { qty: 0, revenue: 0 };
+            }
+            map[item.title].qty += item.quantity;
+            map[item.title].revenue += item.price * item.quantity;
+        });
+    });
+
+    return Object.entries(map)
+        .sort((a, b) => b[1].qty - a[1].qty)
+        .slice(0, limit);
+};

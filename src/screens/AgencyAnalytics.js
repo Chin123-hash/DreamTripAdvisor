@@ -17,8 +17,9 @@ import {
     PieChart,
 } from 'react-native-chart-kit';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getAllOrders } from '../services/AuthService';
+import { getAgencyOrders } from '../services/AuthService';
 // 1. Import Hook
+import { auth } from '../../firebaseConfig';
 import { useLanguage } from '../context/LanguageContext';
 
 const screenWidth = Dimensions.get('window').width - 40;
@@ -37,7 +38,11 @@ export default function AdminAnalyticsScreen() {
 
     const loadAnalytics = async () => {
         try {
-            const data = await getAllOrders();
+            const user = auth.currentUser;
+            if (!user) return;
+
+            // Fetch ONLY orders belonging to this agency
+            const data = await getAgencyOrders();
             setOrders(data);
         } catch (err) {
             console.error('Analytics Error:', err);
@@ -129,58 +134,24 @@ export default function AdminAnalyticsScreen() {
         return { labels, values };
     }, [orders]);
 
-    const topAgencies = useMemo(() => {
-        const map = {};
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.center}>
+                <ActivityIndicator size="large" color="#648DDB" />
+            </SafeAreaView>
+        );
+    }
 
-        orders.forEach(o => {
-            if (!o.agencyName) return;
-
-            if (!map[o.agencyName]) {
-                map[o.agencyName] = { revenue: 0, orders: 0 };
-            }
-            map[o.agencyName].revenue += Number(o.totalAmount || 0);
-            map[o.agencyName].orders += 1;
-        });
-
-        return Object.entries(map)
-            .sort((a, b) => b[1].revenue - a[1].revenue)
-            .slice(0, 5);
-    }, [orders]);
-
-    const categoryRevenue = useMemo(() => {
+    const topProducts = useMemo(() => {
         const map = {};
 
         orders.forEach(o => {
             o.items?.forEach(item => {
-                const category = item.category || item.type || 'other';
-                map[category] =
-                    (map[category] || 0) +
-                    (Number(item.price) * Number(item.quantity || 1));
-            });
-        });
-
-        const colors = ['#4DB6AC', '#FF8A65', '#BA68C8'];
-
-        return Object.keys(map).map((key, index) => ({
-            name: key.toUpperCase(),
-            population: map[key],
-            color: colors[index % colors.length],
-            legendFontColor: '#333',
-            legendFontSize: 12,
-        }));
-    }, [orders]);
-
-    const topItems = useMemo(() => {
-        const map = {};
-
-        orders.forEach(o => {
-            o.items?.forEach(item => {
-                if (!map[item.title]) {
-                    map[item.title] = { qty: 0, revenue: 0 };
+                if (!map[item.name]) {
+                    map[item.name] = { qty: 0, revenue: 0 };
                 }
-                map[item.title].qty += Number(item.quantity || 1);
-                map[item.title].revenue +=
-                    Number(item.price) * Number(item.quantity || 1);
+                map[item.name].qty += item.quantity;
+                map[item.name].revenue += item.price * item.quantity;
             });
         });
 
@@ -189,36 +160,20 @@ export default function AdminAnalyticsScreen() {
             .slice(0, 5);
     }, [orders]);
 
-    const customerSegments = useMemo(() => {
+    const customerTypes = useMemo(() => {
+        const map = { new: 0, returning: 0 };
         const seen = new Set();
-        let newUsers = 0;
-        let returningUsers = 0;
 
         orders.forEach(o => {
             if (seen.has(o.customerId)) {
-                returningUsers++;
+                map.returning++;
             } else {
-                newUsers++;
+                map.new++;
                 seen.add(o.customerId);
             }
         });
 
-        return [
-            {
-                name: t('newCustomers'),
-                population: newUsers,
-                color: '#81C784',
-                legendFontColor: '#333',
-                legendFontSize: 12,
-            },
-            {
-                name: t('returningCustomers'),
-                population: returningUsers,
-                color: '#FFB74D',
-                legendFontColor: '#333',
-                legendFontSize: 12,
-            },
-        ];
+        return map;
     }, [orders]);
 
     return (
@@ -232,75 +187,71 @@ export default function AdminAnalyticsScreen() {
                 <View style={{ width: 40 }} />
             </View>
 
-            {loading ? (
-                <View style={styles.center}>
-                    <ActivityIndicator size="large" color="#648DDB" />
+            <ScrollView contentContainerStyle={styles.content}>
+                {/* Overview */}
+                <View style={styles.row}>
+                    <LinearGradient colors={['#333', '#555']} style={styles.card}>
+                        <Text style={styles.cardLabel}>{t('totalRevenue')}</Text>
+                        <Text style={styles.cardValue}>RM {stats.revenue}</Text>
+                    </LinearGradient>
+
+                    <View style={styles.lightCard}>
+                        <Text style={styles.lightLabel}>{t('ordersLabel')}</Text>
+                        <Text style={styles.lightValue}>{stats.orders}</Text>
+                    </View>
                 </View>
-            ) : (
-                <ScrollView contentContainerStyle={styles.content}>
-                    {/* Overview */}
-                    <View style={styles.row}>
-                        <LinearGradient colors={['#333', '#555']} style={styles.card}>
-                            <Text style={styles.cardLabel}>{t('totalRevenue')}</Text>
-                            <Text style={styles.cardValue}>RM {stats.revenue}</Text>
-                        </LinearGradient>
 
-                        <View style={styles.lightCard}>
-                            <Text style={styles.lightLabel}>{t('ordersLabel')}</Text>
-                            <Text style={styles.lightValue}>{stats.orders}</Text>
-                        </View>
+                <View style={styles.row}>
+                    <View style={styles.lightCard}>
+                        <Text style={styles.lightLabel}>{t('agenciesCount')}</Text>
+                        <Text style={styles.lightValue}>{stats.agencies}</Text>
                     </View>
-
-                    <View style={styles.row}>
-                        <View style={styles.lightCard}>
-                            <Text style={styles.lightLabel}>{t('agenciesCount')}</Text>
-                            <Text style={styles.lightValue}>{stats.agencies}</Text>
-                        </View>
-                        <View style={styles.lightCard}>
-                            <Text style={styles.lightLabel}>{t('customers')}</Text>
-                            <Text style={styles.lightValue}>{stats.customers}</Text>
-                        </View>
+                    <View style={styles.lightCard}>
+                        <Text style={styles.lightLabel}>{t('customers')}</Text>
+                        <Text style={styles.lightValue}>{stats.customers}</Text>
                     </View>
+                </View>
 
-                    {/* Charts */}
-                    <Text style={styles.sectionTitle}>{t('revenueTrend')}</Text>
-                    <LineChart
-                        data={{
-                            labels: revenueTrend.labels,
-                            datasets: [{ data: revenueTrend.values }],
-                        }}
-                        width={screenWidth}
-                        height={220}
-                        chartConfig={chartConfig}
-                        bezier
-                        style={styles.chart}
-                    />
+                {/* Revenue Trend */}
+                <Text style={styles.sectionTitle}>{t('revenueTrend')}</Text>
+                <LineChart
+                    data={{
+                        labels: revenueTrend.labels,
+                        datasets: [{ data: revenueTrend.values }],
+                    }}
+                    width={screenWidth}
+                    height={220}
+                    chartConfig={chartConfig}
+                    bezier
+                    style={styles.chart}
+                />
 
-                    <Text style={styles.sectionTitle}>{t('ordersByAgency')}</Text>
-                    <PieChart
-                        data={agencyChart}
-                        width={screenWidth}
-                        height={220}
-                        chartConfig={chartConfig}
-                        accessor="population"
-                        backgroundColor="transparent"
-                        paddingLeft="15"
-                        absolute
-                    />
+                {/* Orders by Agency */}
+                <Text style={styles.sectionTitle}>{t('ordersByAgency')}</Text>
+                <PieChart
+                    data={agencyChart}
+                    width={screenWidth}
+                    height={220}
+                    chartConfig={chartConfig}
+                    accessor="population"
+                    backgroundColor="transparent"
+                    paddingLeft="15"
+                    absolute
+                />
 
-                    <Text style={styles.sectionTitle}>{t('ordersPerDay')}</Text>
-                    <BarChart
-                        data={{
-                            labels: ordersByDate.labels,
-                            datasets: [{ data: ordersByDate.values }],
-                        }}
-                        width={screenWidth}
-                        height={220}
-                        chartConfig={chartConfig}
-                        style={styles.chart}
-                    />
-                </ScrollView>
-            )}
+                {/* Orders per Day */}
+                <Text style={styles.sectionTitle}>{t('ordersPerDay')}</Text>
+                <BarChart
+                    data={{
+                        labels: ordersByDate.labels,
+                        datasets: [{ data: ordersByDate.values }],
+                    }}
+                    width={screenWidth}
+                    height={220}
+                    chartConfig={chartConfig}
+                    style={styles.chart}
+                />
+            </ScrollView>
         </SafeAreaView>
     );
 }
@@ -365,31 +316,4 @@ const styles = StyleSheet.create({
     chart: {
         borderRadius: 15,
     },
-    rankRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        backgroundColor: '#F8F9FA',
-        borderRadius: 12,
-        marginBottom: 10,
-    },
-
-    rankIndex: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        width: 30,
-        color: '#648DDB',
-    },
-
-    rankName: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#333',
-    },
-
-    rankSub: {
-        fontSize: 12,
-        color: '#777',
-    },
-
 });

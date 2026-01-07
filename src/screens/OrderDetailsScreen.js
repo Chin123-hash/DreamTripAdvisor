@@ -26,15 +26,15 @@ export default function OrderDetailsScreen() {
     const params = useLocalSearchParams();
     // 2. Destructure Hook
     const { t } = useLanguage();
-    
+
     const [order, setOrder] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [enrichedItems, setEnrichedItems] = useState([]); 
+    const [enrichedItems, setEnrichedItems] = useState([]);
     const [loadingLocations, setLoadingLocations] = useState(false);
 
     useEffect(() => {
         loadOrder();
-    }, [params.orderId, params.orderData]); 
+    }, [params.orderId, params.orderData]);
 
     const loadOrder = async () => {
         if (!params.orderId && !params.orderData) return;
@@ -47,7 +47,7 @@ export default function OrderDetailsScreen() {
                 setOrder(parsed);
                 // Immediately fetch fresh data for these items
                 await fetchLocationsForItems(parsed.items);
-            } 
+            }
             else if (params.orderId) {
                 const cleanId = Array.isArray(params.orderId) ? params.orderId[0] : params.orderId;
                 const fetchedOrder = await getOrderDetails(cleanId.trim());
@@ -58,7 +58,7 @@ export default function OrderDetailsScreen() {
                 } else {
                     Alert.alert(t('alertErrorTitle'), "Order ID not found in database.");
                 }
-            } 
+            }
         } catch (error) {
             console.error("Error loading order:", error);
             Alert.alert(t('alertErrorTitle'), "Failed to load order details.");
@@ -69,7 +69,7 @@ export default function OrderDetailsScreen() {
 
     const fetchLocationsForItems = async (items) => {
         if (!items) return;
-        
+
         setLoadingLocations(true);
         try {
             const promises = items.map(async (item) => {
@@ -92,7 +92,7 @@ export default function OrderDetailsScreen() {
                     // Priority: 1. Fresh DB Location, 2. Saved Snapshot Location, 3. Title
                     locationURL: fullData?.locationURL || item.locationURL || item.title,
                     // Optional: You can also refresh the title/price if you want:
-                    title: fullData?.title || item.title 
+                    title: fullData?.title || item.title
                 };
             });
 
@@ -121,7 +121,7 @@ export default function OrderDetailsScreen() {
                 return decodeURIComponent(match[1]);
             }
         }
-        
+
         const coordMatch = raw.match(/([-+]?\d+\.\d+),\s*([-+]?\d+\.\d+)/);
         if (coordMatch) {
             return `${coordMatch[1]},${coordMatch[2]}`;
@@ -129,7 +129,7 @@ export default function OrderDetailsScreen() {
 
         // 2. If valid normal link, might work, but fallback to title usually safer for routes
         if (raw.includes('googleusercontent') || !raw.startsWith('http')) {
-             return item.title;
+            return item.title;
         }
 
         return item.title;
@@ -137,7 +137,7 @@ export default function OrderDetailsScreen() {
 
     const handleOpenRoute = () => {
         // Use enrichedItems (Fresh Data) instead of order.items
-        const validItems = enrichedItems.filter(item => 
+        const validItems = enrichedItems.filter(item =>
             (item.locationURL && item.locationURL.trim() !== "") || item.title
         );
 
@@ -147,12 +147,12 @@ export default function OrderDetailsScreen() {
         }
 
         const locations = validItems.map(getLocationQuery);
-        console.log("Routing Waypoints:", locations); 
+        console.log("Routing Waypoints:", locations);
 
         const safeEncode = (str) => encodeURIComponent(str);
         const origin = safeEncode(locations[0]);
         const destination = safeEncode(locations[locations.length - 1]);
-        
+
         let url = '';
 
         if (locations.length === 1) {
@@ -163,7 +163,7 @@ export default function OrderDetailsScreen() {
                 const intermediate = locations.slice(1, -1);
                 waypoints = `&waypoints=${intermediate.map(loc => safeEncode(loc)).join('%7C')}`;
             }
-            
+
             url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints}&travelmode=driving`;
         }
 
@@ -198,8 +198,8 @@ export default function OrderDetailsScreen() {
                 <View style={styles.center}>
                     <Ionicons name="alert-circle-outline" size={50} color="#ccc" />
                     <Text style={{ color: '#999', marginTop: 10 }}>{t('orderNotFound')}</Text>
-                    <TouchableOpacity onPress={() => router.back()} style={{marginTop: 20}}>
-                        <Text style={{color: '#648DDB'}}>{t('goBack')}</Text>
+                    <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20 }}>
+                        <Text style={{ color: '#648DDB' }}>{t('goBack')}</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -224,8 +224,8 @@ export default function OrderDetailsScreen() {
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
                 {/* Map Route Button */}
-                <TouchableOpacity 
-                    style={[styles.routeButton, loadingLocations && styles.disabledBtn]} 
+                <TouchableOpacity
+                    style={[styles.routeButton, loadingLocations && styles.disabledBtn]}
                     onPress={handleOpenRoute}
                     disabled={loadingLocations}
                 >
