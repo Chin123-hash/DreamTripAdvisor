@@ -549,6 +549,72 @@ const translations = {
     joined: "Joined",
     traveller: "Traveller",
     noCustomersFound: "No customers found.",
+
+    // Agency Edit Entertainment
+    editEntertainment: "Edit Entertainment",
+    missingInfo: "Missing Info",
+    missingTitleDesc: "Title and Description are required.",
+    missingLocation: "Missing Location",
+    selectLocation: "Please select a location.",
+    entUpdatedSuccess: "Entertainment updated successfully!",
+    updateFailed: "Failed to update entertainment.",
+    tapToAddImage: "Tap to add image",
+    transportCostLabel: "Trans. Cost",
+    
+    // Reusing existing keys where possible (entName, locationSearch, ticketPriceRM, etc.)
+
+    // Agency Edit Food
+    editFood: "Edit Food",
+    foodName: "Food Name",
+    placeholderFoodNameEdit: "Enter food name",
+    approxPrice: "Approx. Price",
+    transportLabel: "Transport",
+    transportCost: "Trans. Cost",
+    labelDescription: "Description",
+    placeholderDescFood: "Describe the food...",
+    
+    // Alerts (Edit Food)
+    missingInfoFood: "Title, Description, and Price are required.",
+    foodUpdatedSuccess: "Food updated successfully!",
+    updateFoodFailed: "Failed to update food.",
+    tapToAddImage: "Tap to add image",
+
+    // Help & Support
+    helpSupport: "Help & Support",
+    helpHeroTitle: "How can we help you?",
+    helpHeroSub: "Browse our frequently asked questions or contact our dedicated support team below.",
+    
+    // FAQ Categories & Items
+    catTravelers: "For Travelers",
+    qCancel: "How do I cancel a booking?",
+    aCancel: "To cancel a booking, go to the \"History\" tab, select the specific order, and tap \"Request Cancellation\". Please note that refunds depend on the agency's cancellation policy.",
+    qItinerary: "Where can I view my itinerary?",
+    aItinerary: "Your full itinerary is available in the \"History\" tab under \"Upcoming Trips\". You can also download a PDF version or view route maps directly from the details page.",
+    qRate: "How do I rate a service?",
+    aRate: "You can rate Food and Entertainment items after your trip date has passed. Go to the Order Details page and click on the star icon next to the item.",
+    
+    catAgencies: "For Agencies",
+    qVerify: "How do I verify my agency account?",
+    aVerify: "Agency verification requires submitting a valid business license. Go to \"Settings\" > \"Agency Verification\" to upload your documents. Review takes 24-48 hours.",
+    qRevenue: "How do I track my revenue?",
+    aRevenue: "Visit the \"Analytics\" dashboard from your main profile page. You can view revenue trends, top-selling packages, and customer retention metrics.",
+    
+    catAccount: "Account & Security",
+    qForgotPass: "I forgot my password.",
+    aForgotPass: "On the Login screen, tap \"Forgot Password?\". Enter your registered email address, and we will send you a link to reset your credentials.",
+    qContact: "How do I contact support?",
+    aContact: "You can reach us via the buttons below (Email or Phone). Our support team is available Mon-Fri, 9 AM - 6 PM.",
+    
+    // Contact Section
+    stillNeedHelp: "Still need help?",
+    emailSupport: "Email Support",
+    emailSub: "Get a response within 24 hours",
+    callUs: "Call Us",
+    callSub: "Mon-Fri, 9:00 AM - 6:00 PM",
+    
+    // Footer
+    privacyPolicy: "Privacy Policy",
+    termsOfService: "Terms of Service",
   },
 
 
@@ -1095,6 +1161,72 @@ const translations = {
     last: "Terakhir",
     days: "Hari",
     allTime: "Semua Masa",
+
+    // Agency Edit Entertainment
+    editEntertainment: "Sunting Hiburan",
+    missingInfo: "Maklumat Hilang",
+    missingTitleDesc: "Tajuk dan Penerangan diperlukan.",
+    missingLocation: "Lokasi Hilang",
+    selectLocation: "Sila pilih lokasi.",
+    entUpdatedSuccess: "Hiburan berjaya dikemaskini!",
+    updateFailed: "Gagal mengemaskini hiburan.",
+    tapToAddImage: "Tekan untuk tambah gambar",
+    transportCostLabel: "Kos Peng.",
+    
+    // Reusing existing keys where possible
+
+    // Agency Edit Food
+    editFood: "Sunting Makanan",
+    foodName: "Nama Makanan",
+    placeholderFoodNameEdit: "Masukkan nama makanan",
+    approxPrice: "Anggaran Harga",
+    transportLabel: "Pengangkutan",
+    transportCost: "Kos Peng.",
+    labelDescription: "Penerangan",
+    placeholderDescFood: "Terangkan makanan tersebut...",
+    
+    // Alerts (Edit Food)
+    missingInfoFood: "Tajuk, Penerangan, dan Harga diperlukan.",
+    foodUpdatedSuccess: "Makanan berjaya dikemaskini!",
+    updateFoodFailed: "Gagal mengemaskini makanan.",
+    tapToAddImage: "Tekan untuk tambah gambar",
+
+    // Help & Support
+    helpSupport: "Bantuan & Sokongan",
+    helpHeroTitle: "Bagaimana kami boleh membantu?",
+    helpHeroSub: "Layari soalan lazim kami atau hubungi pasukan sokongan kami di bawah.",
+    
+    // FAQ Categories & Items
+    catTravelers: "Untuk Pengembara",
+    qCancel: "Bagaimana saya membatalkan tempahan?",
+    aCancel: "Untuk membatalkan tempahan, pergi ke tab \"Sejarah\", pilih pesanan tertentu, dan tekan \"Minta Pembatalan\". Bayaran balik bergantung pada polisi agensi.",
+    qItinerary: "Di mana saya boleh lihat jadual perjalanan?",
+    aItinerary: "Jadual penuh tersedia dalam tab \"Sejarah\" di bawah \"Perjalanan Akan Datang\". Anda juga boleh muat turun PDF atau lihat peta dari halaman butiran.",
+    qRate: "Bagaimana saya memberi penilaian?",
+    aRate: "Anda boleh menilai Makanan dan Hiburan selepas tarikh perjalanan berlalu. Pergi ke halaman Butiran Pesanan dan klik ikon bintang.",
+    
+    catAgencies: "Untuk Agensi",
+    qVerify: "Bagaimana saya mengesahkan akaun agensi?",
+    aVerify: "Pengesahan agensi memerlukan lesen perniagaan yang sah. Pergi ke \"Tetapan\" > \"Pengesahan Agensi\" untuk memuat naik dokumen. Semakan mengambil masa 24-48 jam.",
+    qRevenue: "Bagaimana saya menjejaki hasil?",
+    aRevenue: "Lawati papan pemuka \"Analitik\" dari profil utama. Anda boleh melihat trend hasil, pakej terlaris, dan metrik pelanggan.",
+    
+    catAccount: "Akaun & Keselamatan",
+    qForgotPass: "Saya terlupa kata laluan.",
+    aForgotPass: "Pada skrin Log Masuk, tekan \"Lupa Kata Laluan?\". Masukkan emel berdaftar anda, dan kami akan menghantar pautan tetapan semula.",
+    qContact: "Bagaimana saya menghubungi sokongan?",
+    aContact: "Hubungi kami melalui butang di bawah. Pasukan sokongan kami tersedia Isnin-Jumaat, 9 PG - 6 PTG.",
+    
+    // Contact Section
+    stillNeedHelp: "Masih perlukan bantuan?",
+    emailSupport: "Sokongan Emel",
+    emailSub: "Dapatkan respons dalam 24 jam",
+    callUs: "Hubungi Kami",
+    callSub: "Isnin-Jumaat, 9:00 PG - 6:00 PTG",
+    
+    // Footer
+    privacyPolicy: "Dasar Privasi",
+    termsOfService: "Terma Perkhidmatan",
   }
 };
 

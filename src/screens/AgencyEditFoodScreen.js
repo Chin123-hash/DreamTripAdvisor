@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { LinearGradient } from 'expo-linear-gradient'; // 🎨 引入渐变库
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -47,7 +47,7 @@ const AgencyEditFoodScreen = () => {
         title: '',
         description: '',
         locationURL: '',
-        priceRange: '', // Acts as Approximate Price
+        priceRange: '', 
         // cuisineType removed
         suggestedTransport: '',
         transportCost: '',
@@ -66,7 +66,6 @@ const AgencyEditFoodScreen = () => {
                             description: data.description || '',
                             locationURL: data.locationURL || '',
                             priceRange: data.priceRange || '',
-                            // cuisineType removed
                             suggestedTransport: data.suggestedTransport || '',
                             transportCost: data.transportCost ? data.transportCost.toString() : '0',
                             rating: data.rating ? data.rating.toString() : '0',
@@ -76,7 +75,7 @@ const AgencyEditFoodScreen = () => {
                 }
             } catch (error) {
                 console.error("Error fetching food data:", error);
-                Alert.alert("Error", "Failed to load details.");
+                Alert.alert(t('alertErrorTitle'), t('alertLoadFail'));
             } finally {
                 setLoading(false);
             }
@@ -104,14 +103,13 @@ const AgencyEditFoodScreen = () => {
 
     // 3. Handle Save
     const handleSave = async () => {
-        // Removed check for cuisineType
         if (!formData.title || !formData.description || !formData.priceRange) {
-            Alert.alert("Missing Info", "Title, Description, and Price are required.");
+            Alert.alert(t('missingInfo'), t('missingInfoFood'));
             return;
         }
 
         if (!formData.locationURL) {
-            Alert.alert("Missing Location", "Please select a location.");
+            Alert.alert(t('missingLocation'), t('selectLocation'));
             return;
         }
 
@@ -131,7 +129,7 @@ const AgencyEditFoodScreen = () => {
 
             await updateFood(id, updatedData, imageUri);
 
-            Alert.alert("Success", "Food updated successfully!", [
+            Alert.alert(t('alertSuccessTitle'), t('foodUpdatedSuccess'), [
                 { 
                     text: "OK", 
                     onPress: () => router.back()
@@ -139,7 +137,7 @@ const AgencyEditFoodScreen = () => {
             ]);
         } catch (error) {
             console.error("Update error:", error);
-            Alert.alert("Error", "Failed to update food.");
+            Alert.alert(t('alertErrorTitle'), t('updateFoodFailed'));
         } finally {
             setSubmitting(false);
         }
@@ -156,7 +154,7 @@ const AgencyEditFoodScreen = () => {
     return (
         <KeyboardAvoidingView 
             behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={{ flex: 1, backgroundColor: '#F9FAFB' }} // 🎨 Soft Background
+            style={{ flex: 1, backgroundColor: '#F9FAFB' }} 
         >
             <ScrollView 
                 contentContainerStyle={styles.container}
@@ -174,7 +172,7 @@ const AgencyEditFoodScreen = () => {
                         ) : (
                             <View style={styles.placeholderImage}>
                                 <Ionicons name="fast-food-outline" size={50} color="#B0B0B0" />
-                                <Text style={styles.placeholderText}>Tap to add image</Text>
+                                <Text style={styles.placeholderText}>{t('tapToAddImage')}</Text>
                             </View>
                         )}
                         <View style={styles.editIconBadge}>
@@ -189,14 +187,13 @@ const AgencyEditFoodScreen = () => {
                     {/* Title */}
                     <View style={styles.formGroup}>
                         <View style={styles.labelRow}>
-                            {/* [DELETED] Ionicons icon here */}
-                            <Text style={styles.label}>{t('entName') || "Food Name"}</Text>
+                            <Text style={styles.label}>{t('foodName')}</Text>
                         </View>
                         <TextInput
                             style={styles.input}
                             value={formData.title}
                             onChangeText={(text) => handleChange('title', text)}
-                            placeholder="Enter food name"
+                            placeholder={t('placeholderFoodNameEdit')}
                             placeholderTextColor="#999"
                         />
                     </View>
@@ -205,11 +202,9 @@ const AgencyEditFoodScreen = () => {
                     <View style={[styles.formGroup, { zIndex: 9999, marginBottom: 15 }]}>
                         <View style={styles.labelRow}>
                             <Ionicons name="location-outline" size={16} color="#666" style={{marginRight:5}}/>
-                            <Text style={styles.label}>{t('locationSearch') || "Location Search"}</Text>
+                            <Text style={styles.label}>{t('locationSearch')}</Text>
                         </View>
                         
-                        {/* [DELETED] Current Location Set Text Block */}
-
                         <GooglePlacesAutocomplete
                             ref={locationRef}
                             debounce={300}
@@ -217,7 +212,7 @@ const AgencyEditFoodScreen = () => {
                                 onChangeText: (text) => { console.log(text); }, 
                                 autoCorrect: false, 
                             }}
-                            placeholder={t('placeholderLocSearch') || "Search Location"}
+                            placeholder={t('placeholderLocSearch')}
                             fetchDetails={true}
                             onPress={(data, details = null) => {
                                 setLocation(data.description);
@@ -247,25 +242,24 @@ const AgencyEditFoodScreen = () => {
                     <View style={styles.formGroup}>
                         <View style={styles.labelRow}>
                             <Ionicons name="document-text-outline" size={16} color="#666" style={{marginRight:5}}/>
-                            <Text style={styles.label}>Description</Text>
+                            <Text style={styles.label}>{t('labelDescription')}</Text>
                         </View>
                         <TextInput
                             style={[styles.input, styles.textArea]}
                             value={formData.description}
                             onChangeText={(text) => handleChange('description', text)}
-                            placeholder="Describe the food..."
+                            placeholder={t('placeholderDescFood')}
                             placeholderTextColor="#999"
                             multiline
                             numberOfLines={4}
                         />
                     </View>
 
-                    {/* --- Approximate Price (Cuisine Type Removed) --- */}
-                    {/* Changed from row/flex to standard full width formGroup since it's alone now */}
+                    {/* --- Approximate Price --- */}
                     <View style={styles.formGroup}>
                         <View style={styles.labelRow}>
                             <Ionicons name="pricetag-outline" size={16} color="#666" style={{marginRight:5}}/>
-                            <Text style={styles.label}>{t('approxPrice') || "Approx. Price"}</Text>
+                            <Text style={styles.label}>{t('approxPrice')}</Text>
                         </View>
                         <View style={styles.inputWithIcon}>
                             <Text style={styles.prefixText}>RM</Text>
@@ -286,13 +280,13 @@ const AgencyEditFoodScreen = () => {
                         <View style={[styles.formGroup, { flex: 1, marginRight: 10 }]}>
                             <View style={styles.labelRow}>
                                 <Ionicons name="bus-outline" size={16} color="#666" style={{marginRight:5}}/>
-                                <Text style={styles.label}>{t('transportLabel') || "Transport"}</Text>
+                                <Text style={styles.label}>{t('transportLabel')}</Text>
                             </View>
                             <TextInput
                                 style={styles.input}
                                 value={formData.suggestedTransport}
                                 onChangeText={(text) => handleChange('suggestedTransport', text)}
-                                placeholder="e.g. Grab"
+                                placeholder={t('placeholderTransport')}
                                 placeholderTextColor="#999"
                             />
                         </View>
@@ -301,7 +295,7 @@ const AgencyEditFoodScreen = () => {
                         <View style={[styles.formGroup, { flex: 1 }]}>
                             <View style={styles.labelRow}>
                                 <Ionicons name="cash-outline" size={16} color="#666" style={{marginRight:5}}/>
-                                <Text style={styles.label}>{t('transportCost') || "Trans. Cost"}</Text>
+                                <Text style={styles.label}>{t('transportCost')}</Text>
                             </View>
                             <View style={styles.inputWithIcon}>
                                 <Text style={styles.prefixText}>RM</Text>
@@ -317,7 +311,7 @@ const AgencyEditFoodScreen = () => {
                         </View>
                     </View>
 
-                    {/* Save Button */}
+                    {/* --- Save Button --- */}
                     <TouchableOpacity 
                         onPress={handleSave}
                         disabled={submitting}
@@ -333,7 +327,7 @@ const AgencyEditFoodScreen = () => {
                             {submitting ? (
                                 <ActivityIndicator color="#FFF" />
                             ) : (
-                                <Text style={styles.saveButtonText}>{t('save') || "Save Changes"}</Text>
+                                <Text style={styles.saveButtonText}>{t('save')}</Text>
                             )}
                         </LinearGradient>
                     </TouchableOpacity>

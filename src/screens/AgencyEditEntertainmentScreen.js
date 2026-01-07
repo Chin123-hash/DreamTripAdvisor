@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { LinearGradient } from 'expo-linear-gradient'; // 🎨 Added for fancy button
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 
+// 1. Import Hook
 import { useLanguage } from '../context/LanguageContext';
 import { getEntertainmentById, updateEntertainment } from '../services/AuthService';
 
@@ -29,6 +30,7 @@ const GOOGLE_PLACES_API_KEY = 'AIzaSyDIAZukJLwu4-KsDsZASQ8byWKAEPTos7g';
 const AgencyEditEntertainmentScreen = () => {
     const router = useRouter();
     const { id } = useLocalSearchParams();
+    // 2. Destructure Hook
     const { t } = useLanguage();
     const locationRef = useRef();
 
@@ -69,7 +71,7 @@ const AgencyEditEntertainmentScreen = () => {
                 }
             } catch (error) {
                 console.error("Error fetching data:", error);
-                Alert.alert("Error", "Failed to load details.");
+                Alert.alert(t('alertErrorTitle'), t('alertLoadFail'));
             } finally {
                 setLoading(false);
             }
@@ -96,12 +98,12 @@ const AgencyEditEntertainmentScreen = () => {
 
     const handleSave = async () => {
         if (!formData.title || !formData.description) {
-            Alert.alert("Missing Info", "Title and Description are required.");
+            Alert.alert(t('missingInfo'), t('missingTitleDesc'));
             return;
         }
 
         if (!formData.locationURL) {
-            Alert.alert("Missing Location", "Please select a location.");
+            Alert.alert(t('missingLocation'), t('selectLocation'));
             return;
         }
 
@@ -118,7 +120,7 @@ const AgencyEditEntertainmentScreen = () => {
 
             await updateEntertainment(id, updatedData, imageUri);
 
-            Alert.alert("Success", "Entertainment updated successfully!", [
+            Alert.alert(t('alertSuccessTitle'), t('entUpdatedSuccess'), [
                 { 
                     text: "OK", 
                     onPress: () => router.back()
@@ -126,7 +128,7 @@ const AgencyEditEntertainmentScreen = () => {
             ]);
         } catch (error) {
             console.error("Update error:", error);
-            Alert.alert("Error", "Failed to update entertainment.");
+            Alert.alert(t('alertErrorTitle'), t('updateFailed'));
         } finally {
             setSubmitting(false);
         }
@@ -143,7 +145,7 @@ const AgencyEditEntertainmentScreen = () => {
     return (
         <KeyboardAvoidingView 
             behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={{ flex: 1, backgroundColor: '#F9FAFB' }} // 🎨 Soft background color
+            style={{ flex: 1, backgroundColor: '#F9FAFB' }} 
         >
             <ScrollView 
                 contentContainerStyle={styles.container}
@@ -162,7 +164,7 @@ const AgencyEditEntertainmentScreen = () => {
                         ) : (
                             <View style={styles.placeholderImage}>
                                 <Ionicons name="image-outline" size={50} color="#B0B0B0" />
-                                <Text style={styles.placeholderText}>Tap to add image</Text>
+                                <Text style={styles.placeholderText}>{t('tapToAddImage')}</Text>
                             </View>
                         )}
                         <View style={styles.editIconBadge}>
@@ -177,13 +179,13 @@ const AgencyEditEntertainmentScreen = () => {
                     {/* Title */}
                     <View style={styles.formGroup}>
                         <View style={styles.labelRow}>
-                            <Text style={styles.label}>{t('entName') || "Title"}</Text>
+                            <Text style={styles.label}>{t('entName')}</Text>
                         </View>
                         <TextInput
                             style={styles.input}
                             value={formData.title}
                             onChangeText={(text) => handleChange('title', text)}
-                            placeholder="Enter entertainment title"
+                            placeholder={t('placeholderEntName')}
                             placeholderTextColor="#999"
                         />
                     </View>
@@ -192,7 +194,7 @@ const AgencyEditEntertainmentScreen = () => {
                     <View style={[styles.formGroup, { zIndex: 9999, marginBottom: 15 }]}>
                         <View style={styles.labelRow}>
                             <Ionicons name="location-outline" size={16} color="#666" style={{marginRight:5}}/>
-                            <Text style={styles.label}>{t('locationSearch') || "Location Search"}</Text>
+                            <Text style={styles.label}>{t('locationSearch')}</Text>
                         </View>
                         
                         <GooglePlacesAutocomplete
@@ -202,7 +204,7 @@ const AgencyEditEntertainmentScreen = () => {
                                 onChangeText: (text) => { console.log(text); }, 
                                 autoCorrect: false, 
                             }}
-                            placeholder={t('placeholderLocSearch') || "Search Location"}
+                            placeholder={t('placeholderLocSearch')}
                             fetchDetails={true}
                             onPress={(data, details = null) => {
                                 setLocation(data.description);
@@ -232,13 +234,13 @@ const AgencyEditEntertainmentScreen = () => {
                     <View style={styles.formGroup}>
                         <View style={styles.labelRow}>
                             <Ionicons name="document-text-outline" size={16} color="#666" style={{marginRight:5}}/>
-                            <Text style={styles.label}>Description</Text>
+                            <Text style={styles.label}>{t('labelDescription')}</Text>
                         </View>
                         <TextInput
                             style={[styles.input, styles.textArea]}
                             value={formData.description}
                             onChangeText={(text) => handleChange('description', text)}
-                            placeholder="Describe this entertainment..."
+                            placeholder={t('placeholderDescPackage')}
                             placeholderTextColor="#999"
                             multiline
                             numberOfLines={4}
@@ -248,7 +250,7 @@ const AgencyEditEntertainmentScreen = () => {
                     {/* Row: Ticket Price & Transport Cost */}
                     <View style={styles.row}>
                         <View style={[styles.formGroup, { flex: 1, marginRight: 10 }]}>
-                            <Text style={styles.label}>{t('ticketPriceRM') || "Ticket Price"}</Text>
+                            <Text style={styles.label}>{t('ticketPriceRM')}</Text>
                             <View style={styles.inputWithIcon}>
                                 <Text style={styles.prefixText}>RM</Text>
                                 <TextInput
@@ -262,7 +264,7 @@ const AgencyEditEntertainmentScreen = () => {
                             </View>
                         </View>
                         <View style={[styles.formGroup, { flex: 1 }]}>
-                            <Text style={styles.label}>{t('transportCost') || "Trans. Cost"}</Text>
+                            <Text style={styles.label}>{t('transportCostLabel')}</Text>
                             <View style={styles.inputWithIcon}>
                                 <Text style={styles.prefixText}>RM</Text>
                                 <TextInput
@@ -281,13 +283,13 @@ const AgencyEditEntertainmentScreen = () => {
                     <View style={styles.formGroup}>
                         <View style={styles.labelRow}>
                             <Ionicons name="bus-outline" size={16} color="#666" style={{marginRight:5}}/>
-                            <Text style={styles.label}>{t('transportType') || "Suggested Transport"}</Text>
+                            <Text style={styles.label}>{t('transportType')}</Text>
                         </View>
                         <TextInput
                             style={styles.input}
                             value={formData.suggestedTransport}
                             onChangeText={(text) => handleChange('suggestedTransport', text)}
-                            placeholder="e.g. Bus, Grab, Taxi"
+                            placeholder={t('placeholderTransport')}
                             placeholderTextColor="#999"
                         />
                     </View>
@@ -308,7 +310,7 @@ const AgencyEditEntertainmentScreen = () => {
                             {submitting ? (
                                 <ActivityIndicator color="#FFF" />
                             ) : (
-                                <Text style={styles.saveButtonText}>{t('save') || "Save Changes"}</Text>
+                                <Text style={styles.saveButtonText}>{t('save')}</Text>
                             )}
                         </LinearGradient>
                     </TouchableOpacity>

@@ -312,7 +312,7 @@ export default function CustomerMainPage() {
                       
                       <View style={styles.menuDivider} />
                       
-                      <TouchableOpacity style={styles.menuItem} onPress={() => alert(t('alertSupport'))}>
+                      <TouchableOpacity style={styles.menuItem} onPress={() => { closeSidebar(); router.push('/help-support'); }}>
                           <Ionicons name="help-circle-outline" size={24} color="#333" />
                           <Text style={styles.menuText}>{t('menuHelp')}</Text>
                       </TouchableOpacity>
