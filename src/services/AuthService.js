@@ -824,18 +824,13 @@ export const updateEntertainment = async (entertainmentId, updatedData, newImage
 
 export const getTopAgencies = (orders, limit = 5) => {
     const map = {};
-
     orders.forEach(o => {
-        if (!map[o.agencyName]) {
-            map[o.agencyName] = { revenue: 0, orders: 0 };
-        }
-        map[o.agencyName].revenue += Number(o.totalAmount || 0);
-        map[o.agencyName].orders += 1;
+        const name = o.agencyName || "Unknown Agency";
+        if (!map[name]) map[name] = { revenue: 0, orders: 0 };
+        map[name].revenue += (Number(o.totalAmount) || 0);
+        map[name].orders += 1;
     });
-
-    return Object.entries(map)
-        .sort((a, b) => b[1].revenue - a[1].revenue)
-        .slice(0, limit);
+    return Object.entries(map).sort((a, b) => b[1].revenue - a[1].revenue).slice(0, limit);
 };
 
 export const getCategoryRevenue = (orders) => {
@@ -843,9 +838,11 @@ export const getCategoryRevenue = (orders) => {
 
     orders.forEach(o => {
         o.items?.forEach(item => {
-            map[item.category] =
-                (map[item.category] || 0) +
-                item.price * item.quantity;
+            const category = item.category || item.type || 'Other';
+            const price = Number(item.price) || 0;
+            const qty = Number(item.quantity) || 1;
+
+            map[category] = (map[category] || 0) + (price * qty);
         });
     });
 
@@ -857,11 +854,15 @@ export const getTopSellingItems = (orders, limit = 5) => {
 
     orders.forEach(o => {
         o.items?.forEach(item => {
-            if (!map[item.title]) {
-                map[item.title] = { qty: 0, revenue: 0 };
+            const title = item.title || "Unknown Item";
+            if (!map[title]) {
+                map[title] = { qty: 0, revenue: 0 };
             }
-            map[item.title].qty += item.quantity;
-            map[item.title].revenue += item.price * item.quantity;
+            const price = Number(item.price) || 0;
+            const qty = Number(item.quantity) || 1;
+
+            map[title].qty += qty;
+            map[title].revenue += (price * qty);
         });
     });
 

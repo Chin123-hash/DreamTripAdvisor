@@ -17,7 +17,7 @@ import {
     PieChart,
 } from 'react-native-chart-kit';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getAllOrders } from '../services/AuthService';
+import { getAllOrders, getCategoryRevenue, getTopAgencies, getTopSellingItems } from '../services/AuthService';
 // 1. Import Hook
 import { useLanguage } from '../context/LanguageContext';
 
@@ -46,6 +46,11 @@ export default function AdminAnalyticsScreen() {
         }
     };
 
+    const getFormattedDate = (createdAt) => {
+        if (!createdAt) return "Unknown";
+        if (createdAt.toDate) return createdAt.toDate().toLocaleDateString(); // Firebase Timestamp
+        return new Date(createdAt).toLocaleDateString(); // ISO String
+    };
     /* =======================
         AGGREGATED STATS
     ======================== */
@@ -67,22 +72,14 @@ export default function AdminAnalyticsScreen() {
     ======================== */
     const revenueTrend = useMemo(() => {
         const map = {};
-
         orders.forEach(o => {
-            const date = o.createdAt?.toDate
-                ? o.createdAt.toDate().toLocaleDateString()
-                : new Date(o.createdAt).toLocaleDateString();
-
-            map[date] = (map[date] || 0) + Number(o.totalAmount || 0);
+            const date = getFormattedDate(o.createdAt);
+            map[date] = (map[date] || 0) + (Number(o.totalAmount) || 0);
         });
 
         const labels = Object.keys(map).slice(-7);
         const values = labels.map(l => map[l]);
-
-        // Fix for empty data causing chart crash
-        if (values.length === 0) return { labels: ["No Data"], values: [0] };
-
-        return { labels, values };
+        return values.length === 0 ? { labels: ["No Data"], values: [0] } : { labels, values };
     }, [orders]);
 
     /* =======================
@@ -129,64 +126,51 @@ export default function AdminAnalyticsScreen() {
         return { labels, values };
     }, [orders]);
 
-    const topAgencies = useMemo(() => {
-        const map = {};
-
-        orders.forEach(o => {
-            if (!o.agencyName) return;
-
-            if (!map[o.agencyName]) {
-                map[o.agencyName] = { revenue: 0, orders: 0 };
-            }
-            map[o.agencyName].revenue += Number(o.totalAmount || 0);
-            map[o.agencyName].orders += 1;
-        });
-
-        return Object.entries(map)
-            .sort((a, b) => b[1].revenue - a[1].revenue)
-            .slice(0, 5);
+    const processedTopAgencies = useMemo(() => {
+        return getTopAgencies(orders);
     }, [orders]);
 
-    const categoryRevenue = useMemo(() => {
-        const map = {};
+    // --- NEW: The missing Top Agencies List UI ---
+    const topAgenciesList = useMemo(() => {
+        return processedTopAgencies.map(([name, data], index) => (
+            <TouchableOpacity
+                key={name}
+                style={styles.rankRow}
+                onPress={() => {
+                    // Navigate to agency details and pass the agency name
+                    router.push({
+                        pathname: '/admin-analysis-agency-profile',
+                        params: { agencyName: name }
+                    });
+                }}
+                activeOpacity={0.7}
+            >
+                <Text style={styles.rankIndex}>#{index + 1}</Text>
+                <View style={{ flex: 1 }}>
+                    <Text style={styles.rankName}>{name}</Text>
+                    <Text style={styles.rankSub}>{data.orders} {t('ordersLabel')}</Text>
+                </View>
+                <Text style={styles.rankName}>RM {Number(data.revenue).toFixed(2)}</Text>
+                <Ionicons name="chevron-forward" size={18} color="#CCC" style={{ marginLeft: 10 }} />
+            </TouchableOpacity>
+        ));
+    }, [processedTopAgencies, t]);
 
-        orders.forEach(o => {
-            o.items?.forEach(item => {
-                const category = item.category || item.type || 'other';
-                map[category] =
-                    (map[category] || 0) +
-                    (Number(item.price) * Number(item.quantity || 1));
-            });
-        });
+    const processedCategoryData = useMemo(() => {
+        const dataMap = getCategoryRevenue(orders);
+        const colors = ['#4DB6AC', '#FF8A65', '#BA68C8', '#648DDB'];
 
-        const colors = ['#4DB6AC', '#FF8A65', '#BA68C8'];
-
-        return Object.keys(map).map((key, index) => ({
+        return Object.keys(dataMap).map((key, index) => ({
             name: key.toUpperCase(),
-            population: map[key],
+            population: dataMap[key],
             color: colors[index % colors.length],
             legendFontColor: '#333',
             legendFontSize: 12,
         }));
     }, [orders]);
 
-    const topItems = useMemo(() => {
-        const map = {};
-
-        orders.forEach(o => {
-            o.items?.forEach(item => {
-                if (!map[item.title]) {
-                    map[item.title] = { qty: 0, revenue: 0 };
-                }
-                map[item.title].qty += Number(item.quantity || 1);
-                map[item.title].revenue +=
-                    Number(item.price) * Number(item.quantity || 1);
-            });
-        });
-
-        return Object.entries(map)
-            .sort((a, b) => b[1].qty - a[1].qty)
-            .slice(0, 5);
+    const processedTopItems = useMemo(() => {
+        return getTopSellingItems(orders);
     }, [orders]);
 
     const customerSegments = useMemo(() => {
@@ -205,14 +189,14 @@ export default function AdminAnalyticsScreen() {
 
         return [
             {
-                name: t('newCustomers'),
+                name: "New Customers",
                 population: newUsers,
                 color: '#81C784',
                 legendFontColor: '#333',
                 legendFontSize: 12,
             },
             {
-                name: t('returningCustomers'),
+                name: "Returning Customers",
                 population: returningUsers,
                 color: '#FFB74D',
                 legendFontColor: '#333',
@@ -245,21 +229,42 @@ export default function AdminAnalyticsScreen() {
                             <Text style={styles.cardValue}>RM {stats.revenue}</Text>
                         </LinearGradient>
 
-                        <View style={styles.lightCard}>
-                            <Text style={styles.lightLabel}>{t('ordersLabel')}</Text>
-                            <Text style={styles.lightValue}>{stats.orders}</Text>
-                        </View>
+                            <TouchableOpacity
+                                style={styles.lightCard}
+                                onPress={() => {
+                                    // Option A: Navigate to a list of orders
+                                    router.push('/admin-order-dashboard');
+                                }}
+                                activeOpacity={0.7} // Adds a nice dimming effect when pressed
+                            >
+                                <Text style={styles.lightLabel}>{t('ordersLabel')}</Text>
+                                <Text style={styles.lightValue}>{stats.orders}</Text>
+                            </TouchableOpacity>
                     </View>
 
                     <View style={styles.row}>
-                        <View style={styles.lightCard}>
-                            <Text style={styles.lightLabel}>{t('agenciesCount')}</Text>
-                            <Text style={styles.lightValue}>{stats.agencies}</Text>
-                        </View>
-                        <View style={styles.lightCard}>
-                            <Text style={styles.lightLabel}>{t('customers')}</Text>
-                            <Text style={styles.lightValue}>{stats.customers}</Text>
-                        </View>
+                            <TouchableOpacity
+                                style={styles.lightCard}
+                                onPress={() => {
+                                    // Option A: Navigate to a list of orders
+                                    router.push('/manage-agency');
+                                }}
+                                activeOpacity={0.7} // Adds a nice dimming effect when pressed
+                            >
+                                <Text style={styles.lightLabel}>{t('agenciesCount')}</Text>
+                                <Text style={styles.lightValue}>{stats.agencies}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.lightCard}
+                                onPress={() => {
+                                    // Option A: Navigate to a list of orders
+                                    router.push('/admin-user-list');
+                                }}
+                                activeOpacity={0.7} // Adds a nice dimming effect when pressed
+                            >
+                                <Text style={styles.lightLabel}>{t('customers')}</Text>
+                                <Text style={styles.lightValue}>{stats.customers}</Text>
+                            </TouchableOpacity>
                     </View>
 
                     {/* Charts */}
@@ -299,6 +304,24 @@ export default function AdminAnalyticsScreen() {
                         chartConfig={chartConfig}
                         style={styles.chart}
                     />
+                        <Text style={styles.sectionTitle}>Top Agencies</Text>
+                        {topAgenciesList}
+                        <Text style={styles.sectionTitle}>Customer Segments</Text>
+                        <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={() => router.push('/admin-analysis-cust-list')} // Navigate to your customer list route
+                        >
+                            <PieChart
+                                data={customerSegments}
+                                width={screenWidth}
+                                height={180}
+                                chartConfig={chartConfig}
+                                accessor="population"
+                                backgroundColor="transparent"
+                                paddingLeft="15"
+                            // absolute // Remove absolute if you want to show percentages like in your image
+                            />
+                        </TouchableOpacity>
                 </ScrollView>
             )}
         </SafeAreaView>
