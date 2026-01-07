@@ -1,4 +1,3 @@
-// src/screens/ExploreScreen.js
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -15,9 +14,13 @@ import {
     View
 } from 'react-native';
 import { getEntertainmentList, getFoodList } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 export default function ExploreScreen() {
     const router = useRouter();
+    // 2. Destructure Hook
+    const { t } = useLanguage();
 
     // --- State ---
     const [entertainmentData, setEntertainmentData] = useState([]);
@@ -111,10 +114,13 @@ export default function ExploreScreen() {
                     </View>
                 </View>
                 <Text style={styles.cardDesc} numberOfLines={2}>
-                    {item.description || "No description available."}
+                    {item.description || t('noDesc')}
                 </Text>
                 <Text style={styles.cardPrice}>
-                    {activeTab === 'food' ? `RM ${item.priceRange || '15-30'}` : `RM ${(parseFloat(item.ticketCost || 0) + parseFloat(item.transportCost || 0)).toFixed(2)}`}
+                    {activeTab === 'food' 
+                        ? `RM ${item.priceRange || '15-30'}` 
+                        : `RM ${(parseFloat(item.ticketCost || 0) + parseFloat(item.transportCost || 0)).toFixed(2)}`
+                    }
                 </Text>
             </View>
         </TouchableOpacity>
@@ -124,18 +130,18 @@ export default function ExploreScreen() {
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={styles.container}>
                 {/* Configure Default Header Title */}
-                <Stack.Screen options={{ headerTitle: 'Explore' }} />
+                <Stack.Screen options={{ headerTitle: t('explore') }} />
 
                 {/* --- SEARCH SECTION --- */}
                 <View style={styles.searchSection}>
-                    <Text style={styles.sectionHeader}>Find your next adventure</Text>
+                    <Text style={styles.sectionHeader}>{t('findAdventure')}</Text>
                     
                     {/* Entertainment Input */}
                     <View style={[styles.searchBar, activeTab === 'entertainment' && styles.activeSearch]}>
                         <Ionicons name="ticket-outline" size={20} color={activeTab === 'entertainment' ? "#5A8AE4" : "#999"} />
                         <TextInput 
                             style={styles.searchInput}
-                            placeholder="Search Entertainment..."
+                            placeholder={t('searchEnt')}
                             value={entSearch}
                             onChangeText={handleEntSearch}
                             onFocus={() => { setActiveTab('entertainment'); setDisplayList(entertainmentData); }}
@@ -147,7 +153,7 @@ export default function ExploreScreen() {
                         <Ionicons name="fast-food-outline" size={20} color={activeTab === 'food' ? "#5A8AE4" : "#999"} />
                         <TextInput 
                             style={styles.searchInput}
-                            placeholder="Search Food..."
+                            placeholder={t('searchFood')}
                             value={foodSearch}
                             onChangeText={handleFoodSearch}
                             onFocus={() => { setActiveTab('food'); setDisplayList(foodData); }}
@@ -159,9 +165,9 @@ export default function ExploreScreen() {
                 <View style={styles.resultsContainer}>
                     <View style={styles.listHeader}>
                         <Text style={styles.resultTitle}>
-                            {activeTab === 'entertainment' ? 'Popular Attractions' : 'Local Delicacies'}
+                            {activeTab === 'entertainment' ? t('popularAttractions') : t('localDelicacies')}
                         </Text>
-                        <Text style={styles.resultCount}>{displayList.length} found</Text>
+                        <Text style={styles.resultCount}>{displayList.length} {t('found')}</Text>
                     </View>
 
                     {loading ? (
@@ -176,7 +182,7 @@ export default function ExploreScreen() {
                             ListEmptyComponent={
                                 <View style={styles.emptyContainer}>
                                     <Ionicons name="search-outline" size={50} color="#DDD" />
-                                    <Text style={styles.emptyText}>No results found.</Text>
+                                    <Text style={styles.emptyText}>{t('noResults')}</Text>
                                 </View>
                             }
                         />

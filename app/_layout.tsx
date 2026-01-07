@@ -1,3 +1,4 @@
+import { LanguageProvider } from '@/src/context/LanguageContext'; // <--- Import this
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -13,6 +14,7 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
+    <LanguageProvider>
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -20,5 +22,6 @@ export default function RootLayout() {
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
+    </LanguageProvider>
   );
 }

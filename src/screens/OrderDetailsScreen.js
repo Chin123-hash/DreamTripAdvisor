@@ -18,10 +18,14 @@ import {
     getFoodById,
     getOrderDetails
 } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 export default function OrderDetailsScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
+    // 2. Destructure Hook
+    const { t } = useLanguage();
     
     const [order, setOrder] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -52,12 +56,12 @@ export default function OrderDetailsScreen() {
                     setOrder(fetchedOrder);
                     await fetchLocationsForItems(fetchedOrder.items);
                 } else {
-                    Alert.alert("Error", "Order ID not found in database.");
+                    Alert.alert(t('alertErrorTitle'), "Order ID not found in database.");
                 }
             } 
         } catch (error) {
             console.error("Error loading order:", error);
-            Alert.alert("Error", "Failed to load order details.");
+            Alert.alert(t('alertErrorTitle'), "Failed to load order details.");
         } finally {
             setLoading(false);
         }
@@ -70,10 +74,6 @@ export default function OrderDetailsScreen() {
         try {
             const promises = items.map(async (item) => {
                 // --- FIX: ALWAYS FETCH FRESH DATA ---
-                // We removed the "if (item.locationURL) return item" check.
-                // This forces the app to get the LATEST location from the DB,
-                // fixing the bug where old plans showed old locations.
-
                 let fullData = null;
                 const itemId = item.itemId || item.id;
 
@@ -142,7 +142,7 @@ export default function OrderDetailsScreen() {
         );
 
         if (validItems.length === 0) {
-            Alert.alert("No Locations", "No valid locations found to map.");
+            Alert.alert(t('noLocationsTitle'), t('noLocationsMsg'));
             return;
         }
 
@@ -169,7 +169,7 @@ export default function OrderDetailsScreen() {
 
         Linking.openURL(url).catch(err => {
             console.error("Error opening map:", err);
-            Alert.alert("Error", "Could not open Google Maps");
+            Alert.alert(t('alertErrorTitle'), t('errorMap'));
         });
     };
 
@@ -186,7 +186,7 @@ export default function OrderDetailsScreen() {
             <SafeAreaView style={styles.container}>
                 <View style={styles.center}>
                     <ActivityIndicator size="large" color="#648DDB" />
-                    <Text style={{ color: '#999', marginTop: 10 }}>Loading order...</Text>
+                    <Text style={{ color: '#999', marginTop: 10 }}>{t('loadingOrder')}</Text>
                 </View>
             </SafeAreaView>
         );
@@ -197,9 +197,9 @@ export default function OrderDetailsScreen() {
             <SafeAreaView style={styles.container}>
                 <View style={styles.center}>
                     <Ionicons name="alert-circle-outline" size={50} color="#ccc" />
-                    <Text style={{ color: '#999', marginTop: 10 }}>Order not found.</Text>
+                    <Text style={{ color: '#999', marginTop: 10 }}>{t('orderNotFound')}</Text>
                     <TouchableOpacity onPress={() => router.back()} style={{marginTop: 20}}>
-                        <Text style={{color: '#648DDB'}}>Go Back</Text>
+                        <Text style={{color: '#648DDB'}}>{t('goBack')}</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -207,8 +207,6 @@ export default function OrderDetailsScreen() {
     }
 
     // Determine which list to render:
-    // If we have fetched fresh data (enrichedItems), use that.
-    // Otherwise, fallback to the snapshot (order.items).
     const displayItems = enrichedItems.length > 0 ? enrichedItems : order.items;
 
     return (
@@ -218,7 +216,9 @@ export default function OrderDetailsScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                     <Ionicons name="arrow-back" size={24} color="#333" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Order #{order.id ? order.id.slice(0, 8).toUpperCase() : 'Details'}</Text>
+                <Text style={styles.headerTitle}>
+                    {t('orderDetails')} #{order.id ? order.id.slice(0, 8).toUpperCase() : ''}
+                </Text>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -234,14 +234,14 @@ export default function OrderDetailsScreen() {
                     ) : (
                         <>
                             <Ionicons name="map" size={20} color="#FFF" style={{ marginRight: 8 }} />
-                            <Text style={styles.routeButtonText}>View Trip Route</Text>
+                            <Text style={styles.routeButtonText}>{t('viewRoute')}</Text>
                         </>
                     )}
                 </TouchableOpacity>
 
                 {/* Customer Info */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>Customer Information</Text>
+                    <Text style={styles.sectionLabel}>{t('customerInfo')}</Text>
                     <View style={styles.infoCard}>
                         <View style={styles.infoRow}>
                             <Ionicons name="person-outline" size={18} color="#666" />
@@ -260,31 +260,31 @@ export default function OrderDetailsScreen() {
 
                 {/* Trip Details */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>Trip Details</Text>
+                    <Text style={styles.sectionLabel}>{t('tripInfo')}</Text>
                     <View style={styles.infoCard}>
                         <Text style={styles.planTitle}>{order.planName}</Text>
                         <View style={styles.row}>
                             <View style={styles.half}>
-                                <Text style={styles.subLabel}>Travel Date</Text>
+                                <Text style={styles.subLabel}>{t('travelDate')}</Text>
                                 <Text style={styles.subValue}>{formatDate(order.travelDate)}</Text>
                             </View>
                             <View style={styles.half}>
-                                <Text style={styles.subLabel}>Pax</Text>
-                                <Text style={styles.subValue}>{order.pax} Person(s)</Text>
+                                <Text style={styles.subLabel}>{t('pax')}</Text>
+                                <Text style={styles.subValue}>{order.pax} {t('pax')}</Text>
                             </View>
                         </View>
                         {order.specialRequest ? (
                             <View style={{ marginTop: 10 }}>
-                                <Text style={styles.subLabel}>Special Request</Text>
+                                <Text style={styles.subLabel}>{t('specialRequests')}</Text>
                                 <Text style={styles.requestText}>{order.specialRequest}</Text>
                             </View>
                         ) : null}
                     </View>
                 </View>
 
-                {/* Items Purchased (RENDER FRESH DATA) */}
+                {/* Items Purchased */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>Itinerary Items</Text>
+                    <Text style={styles.sectionLabel}>{t('itineraryItems')}</Text>
                     {displayItems?.map((item, index) => (
                         <View key={index} style={styles.itemRow}>
                             {item.image ? (
@@ -306,7 +306,7 @@ export default function OrderDetailsScreen() {
                 {/* Summary */}
                 <View style={styles.summaryBox}>
                     <View style={styles.totalRow}>
-                        <Text style={styles.totalLabel}>Total Paid</Text>
+                        <Text style={styles.totalLabel}>{t('totalPaid')}</Text>
                         <Text style={styles.totalValue}>RM {(parseFloat(order.totalAmount) || 0).toFixed(2)}</Text>
                     </View>
                 </View>

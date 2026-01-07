@@ -1,5 +1,3 @@
-// src/screens/AdminUserListScreen.js
-
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
@@ -27,10 +25,14 @@ import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { storage } from '../../firebaseConfig';
 
 import { adminUpdateUser, deleteUserFromFirestore, getAllUsers } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 export default function AdminUserListScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme(); 
+    // 2. Destructure Hook
+    const { t } = useLanguage();
 
     // --- State ---
     const [users, setUsers] = useState([]);
@@ -71,9 +73,7 @@ export default function AdminUserListScreen() {
         try {
             const data = await getAllUsers();
             
-            // --- FILTER LOGIC ADDED HERE ---
-            // 1. If role is NOT agency, keep it (Admins, Travellers).
-            // 2. If role IS agency, only keep if status is 'approved'.
+            // Filter Logic
             const approvedOnlyData = data.filter(user => {
                 if (user.role === 'agency') {
                     return user.status === 'approved';
@@ -149,7 +149,7 @@ export default function AdminUserListScreen() {
     const pickImage = async () => {
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (permissionResult.granted === false) {
-            Alert.alert("Permission Required", "Need gallery access to change photo.");
+            Alert.alert(t('permissionRequired'), t('galleryAccess'));
             return;
         }
 
@@ -222,12 +222,12 @@ export default function AdminUserListScreen() {
             
             await adminUpdateUser(selectedUser.id, updateData);
             
-            Alert.alert("Success", "User details updated successfully.");
+            Alert.alert(t('updateSuccess'), t('userUpdated'));
             setModalVisible(false);
             fetchUsers(); 
         } catch (error) {
             console.error(error);
-            Alert.alert("Error", "Failed to update user.");
+            Alert.alert(t('alertErrorTitle'), t('updateFail'));
         } finally {
             setUpdating(false);
         }
@@ -236,17 +236,17 @@ export default function AdminUserListScreen() {
     // 5. Delete User
     const handleDeleteUser = () => {
         if (selectedUser?.role === 'admin') {
-            Alert.alert("Action Denied", "Admin accounts cannot be deleted.");
+            Alert.alert(t('actionDenied'), t('adminDeleteError'));
             return;
         }
 
         Alert.alert(
-            "Confirm Delete",
-            `Are you sure you want to remove ${editName}?`,
+            t('confirmDelete'),
+            `${t('deleteUserMsg')} ${editName}?`,
             [
-                { text: "Cancel", style: "cancel" },
+                { text: t('cancel'), style: "cancel" },
                 { 
-                    text: "Delete", 
+                    text: t('delete'), 
                     style: "destructive",
                     onPress: async () => {
                         try {
@@ -258,9 +258,9 @@ export default function AdminUserListScreen() {
                             setFilteredUsers(newList); 
                             
                             setModalVisible(false);
-                            Alert.alert("Deleted", "User has been removed.");
+                            Alert.alert(t('updateSuccess'), t('userDeleted'));
                         } catch (error) {
-                            Alert.alert("Error", "Failed to delete user.");
+                            Alert.alert(t('alertErrorTitle'), t('deleteFail'));
                         } finally {
                             setUpdating(false);
                         }
@@ -322,7 +322,9 @@ export default function AdminUserListScreen() {
                             role === 'agency' ? styles.textAgency : 
                             styles.textTraveller
                         ]}>
-                            {role.toUpperCase()}
+                            {role.toUpperCase() === 'AGENCY' ? t('agency').toUpperCase() : 
+                             role.toUpperCase() === 'TRAVELLER' ? t('traveller').toUpperCase() : 
+                             role.toUpperCase()}
                         </Text>
                     </View>
                 </View>
@@ -337,34 +339,34 @@ export default function AdminUserListScreen() {
         return (
             <>
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>User ID (Read-Only)</Text>
+                    <Text style={styles.label}>{t('userIdReadOnly')}</Text>
                     <Text style={styles.readOnlyValue}>{selectedUser?.id}</Text>
                 </View>
 
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>{isAgency ? "Agency Name" : "Full Name"}</Text>
+                    <Text style={styles.label}>{isAgency ? t('agencyNameLabel') : t('fullName')}</Text>
                     <TextInput
                         style={styles.input}
                         value={editName}
                         onChangeText={setEditName}
-                        placeholder={isAgency ? "Enter Agency Name" : "Enter Full Name"}
+                        placeholder={isAgency ? t('enterAgencyName') : t('enterFullName')}
                     />
                 </View>
 
                 {isAgency && (
                     <>
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>SSM License No.</Text>
+                            <Text style={styles.label}>{t('ssmLicense')}</Text>
                             <TextInput
                                 style={styles.input}
                                 value={editLicenseNo}
                                 onChangeText={setEditLicenseNo}
-                                placeholder="e.g. 202401000123"
+                                placeholder={t('enterSsm')}
                             />
                         </View>
 
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Company Website URL</Text>
+                            <Text style={styles.label}>{t('companyUrl')}</Text>
                             <TextInput
                                 style={styles.input}
                                 value={editCompanyUrl}
@@ -375,7 +377,7 @@ export default function AdminUserListScreen() {
                         </View>
 
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Company Logo</Text>
+                            <Text style={styles.label}>{t('companyLogo')}</Text>
                             <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
                                 {editLogoUrl ? (
                                     <View style={{width: '100%', height: '100%'}}>
@@ -391,7 +393,7 @@ export default function AdminUserListScreen() {
                                 ) : (
                                     <View style={styles.uploadPlaceholder}>
                                         <Ionicons name="camera-outline" size={32} color="#648DDB" />
-                                        <Text style={{color: '#648DDB', marginTop: 5, fontSize: 12}}>Tap to Upload Logo</Text>
+                                        <Text style={{color: '#648DDB', marginTop: 5, fontSize: 12}}>{t('tapToUploadLogo')}</Text>
                                     </View>
                                 )}
                             </TouchableOpacity>
@@ -400,40 +402,40 @@ export default function AdminUserListScreen() {
                 )}
 
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Username</Text>
+                    <Text style={styles.label}>{t('username')}</Text>
                     <TextInput
                         style={styles.input}
                         value={editUsername}
                         onChangeText={setEditUsername}
-                        placeholder="Enter Username"
+                        placeholder={t('enterUsername')}
                     />
                 </View>
 
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Email Address</Text>
+                    <Text style={styles.label}>{t('email')}</Text>
                     <TextInput
                         style={styles.input}
                         value={editEmail}
                         onChangeText={setEditEmail}
-                        placeholder="Enter Email"
+                        placeholder={t('enterEmail')}
                         keyboardType="email-address"
                         autoCapitalize="none"
                     />
                 </View>
 
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Phone Number</Text>
+                    <Text style={styles.label}>{t('phone')}</Text>
                     <TextInput
                         style={styles.input}
                         value={editPhone}
                         onChangeText={setEditPhone}
-                        placeholder="Enter Phone No"
+                        placeholder={t('enterPhone')}
                         keyboardType="phone-pad"
                     />
                 </View>
 
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Date of Birth</Text>
+                    <Text style={styles.label}>{t('dob')}</Text>
                     
                     <TouchableOpacity 
                         style={[styles.input, { justifyContent: 'center' }]} 
@@ -468,7 +470,7 @@ export default function AdminUserListScreen() {
 
                 {!isAgency && (
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Profile Image</Text>
+                        <Text style={styles.label}>{t('profileImage')}</Text>
                         <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
                             {editProfileImage ? (
                                 <View style={{width: '100%', height: '100%'}}>
@@ -484,7 +486,7 @@ export default function AdminUserListScreen() {
                             ) : (
                                 <View style={styles.uploadPlaceholder}>
                                     <Ionicons name="person-circle-outline" size={32} color="#648DDB" />
-                                    <Text style={{color: '#648DDB', marginTop: 5, fontSize: 12}}>Set Profile Photo</Text>
+                                    <Text style={{color: '#648DDB', marginTop: 5, fontSize: 12}}>{t('setProfilePhoto')}</Text>
                                 </View>
                             )}
                         </TouchableOpacity>
@@ -501,7 +503,7 @@ export default function AdminUserListScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#333" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>User Management</Text>
+                <Text style={styles.headerTitle}>{t('userManagement')}</Text>
                 <View style={{ width: 24 }} />
             </View>
 
@@ -510,7 +512,7 @@ export default function AdminUserListScreen() {
                 <Ionicons name="search" size={20} color="#999" style={{ marginRight: 8 }} />
                 <TextInput
                     style={styles.searchInput}
-                    placeholder="Search Name, SSM or Email..."
+                    placeholder={t('searchUsers')}
                     placeholderTextColor="#999"
                     value={searchText}
                     onChangeText={handleSearch}
@@ -529,7 +531,7 @@ export default function AdminUserListScreen() {
                     contentContainerStyle={styles.listContent}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>No users found.</Text>
+                            <Text style={styles.emptyText}>{t('noUsersFound')}</Text>
                         </View>
                     }
                 />
@@ -549,7 +551,7 @@ export default function AdminUserListScreen() {
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>
-                                {selectedUser?.role === 'agency' ? 'Edit Agency' : 'Edit User'}
+                                {selectedUser?.role === 'agency' ? t('editAgency') : t('editUser')}
                             </Text>
                             <TouchableOpacity onPress={() => setModalVisible(false)}>
                                 <Ionicons name="close" size={24} color="#333" />
@@ -566,18 +568,18 @@ export default function AdminUserListScreen() {
                             ) : (
                                 <>
                                     <TouchableOpacity style={styles.saveButton} onPress={handleSaveEdit}>
-                                        <Text style={styles.saveButtonText}>Save Changes</Text>
+                                        <Text style={styles.saveButtonText}>{t('saveChanges')}</Text>
                                     </TouchableOpacity>
 
                                     {selectedUser?.role !== 'admin' ? (
                                         <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteUser}>
                                             <Ionicons name="trash-outline" size={18} color="#D32F2F" style={{marginRight: 8}}/>
-                                            <Text style={styles.deleteButtonText}>Delete User</Text>
+                                            <Text style={styles.deleteButtonText}>{t('deleteUser')}</Text>
                                         </TouchableOpacity>
                                     ) : (
                                         <View style={styles.adminNote}>
                                             <Ionicons name="shield-checkmark" size={16} color="#666" />
-                                            <Text style={styles.adminNoteText}>Admin accounts cannot be deleted.</Text>
+                                            <Text style={styles.adminNoteText}>{t('adminAccountNote')}</Text>
                                         </View>
                                     )}
                                 </>

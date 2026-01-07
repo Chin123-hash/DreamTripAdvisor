@@ -1,12 +1,9 @@
-import { Ionicons } from '@expo/vector-icons'; // For the upload arrow
-import * as ImagePicker from 'expo-image-picker'; // The library we just installed
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Image // Needed to show the selected photo
-  ,
-
-
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -18,12 +15,18 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { registerAgency } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
+
 export default function AgencyDetailsScreen() {
   const { email, password } = useLocalSearchParams();
+  // 2. Destructure Hook
+  const { t } = useLanguage();
+
   const [agencyName, setAgencyName] = useState('');
-  const [companyUrl, setCompanyUrl] = useState(''); // Changed from address to URL
+  const [companyUrl, setCompanyUrl] = useState(''); 
   const [licenseNo, setLicenseNo] = useState('');
-  const [logo, setLogo] = useState(null); // Stores the uploaded image URI
+  const [logo, setLogo] = useState(null); 
 
   const isFormValid =
     agencyName.trim() &&
@@ -31,33 +34,26 @@ export default function AgencyDetailsScreen() {
     licenseNo.trim() &&
     logo;
 
-  // --- FUNCTION: Pick Image from Gallery ---
   // --- FUNCTION: Pick Image (JPG/PNG Only) ---
   const pickImage = async () => {
-    // 1. Request Permission & Open Gallery
     let result = await ImagePicker.launchImageLibraryAsync({
-      // Use MediaTypeOptions for current Expo version; MediaType not available here
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 1,
     });
 
-    // 2. Check if user canceled
     if (result.canceled) {
       return;
     }
 
-    // 3. VALIDATION: Check file extension
     const asset = result.assets[0];
     const uri = asset.uri.toLowerCase();
 
-    // Check if the file ends with .jpg, .jpeg, or .png
     if (uri.endsWith('.jpg') || uri.endsWith('.jpeg') || uri.endsWith('.png')) {
-      setLogo(asset.uri); // Success! Save it.
+      setLogo(asset.uri); 
     } else {
-      // Failure! Show error.
-      alert('Invalid File Type.\nPlease upload a JPG or PNG image only.');
+      alert(t('alertInvalidFileType'));
       setLogo(null);
     }
   };
@@ -65,38 +61,31 @@ export default function AgencyDetailsScreen() {
   const handleRegister = async () => {
     // --- STEP 1: Basic Empty Check ---
     if (!agencyName.trim() || !companyUrl.trim() || !licenseNo.trim() || !logo) {
-      alert("Please fill in all fields and upload a logo.");
-      return; // Stop the function here
+      alert(t('alertFillFieldsLogo'));
+      return; 
     }
 
     // --- STEP 2: SSM License Validation (12 Digits) ---
-    // The Regex /^\d{12}$/ means:
-    // ^ = Start of line
-    // \d = Digit (0-9)
-    // {12} = Exactly 12 times
-    // $ = End of line
     const ssmRegex = /^\d{12}$/;
     if (!ssmRegex.test(licenseNo)) {
-      alert("Invalid SSM License Number.\nPlease enter the 12-digit format (e.g., 202301000001) without dashes.");
-      return; // Stop! Do not send to database.
+      alert(t('alertInvalidSSM'));
+      return; 
     }
-    // --- STEP 3: URL Validation (Optional but good) ---
+    // --- STEP 3: URL Validation ---
     if (!companyUrl.includes('.') || companyUrl.length < 5) {
-      alert("Please enter a valid Company URL.");
+      alert(t('alertInvalidURL'));
       return;
     }
+    
     // --- STEP 4: Success! ---
-    console.log("Validation Passed!", { agencyName, companyUrl, licenseNo });
-    // TODO: Here is where you call the Firebase Function later
-    alert("Registration Successful!");
     try {
       await registerAgency(
         email, 
         password, 
         { agencyName, licenseNo, companyUrl }, 
-        logo // The image URI
+        logo 
       );
-      alert("Agency Registration Complete!");
+      alert(t('alertAgencyRegComplete'));
       router.replace('/');
     } catch (error) {
       alert(error.message);
@@ -111,51 +100,49 @@ export default function AgencyDetailsScreen() {
       >
         <ScrollView contentContainerStyle={styles.scrollContainer}>
           
-          {/* TOP TABS (Visual only to match design consistency) */}
+          {/* TOP TABS */}
           <View style={styles.tabContainer}>
-            <Text style={styles.headerTitle}>Sign up</Text>
+            <Text style={styles.headerTitle}>{t('signup')}</Text>
             <View style={styles.blueUnderline} />
           </View>
 
           <View style={styles.formContainer}>
             
-            <Text style={styles.label}>Agency Name</Text>
+            <Text style={styles.label}>{t('agencyNameLabel')}</Text>
             <TextInput 
               style={styles.inputField} 
-              placeholder="XXXX" 
+              placeholder={t('placeholderAgencyName')}
               value={agencyName} 
               onChangeText={setAgencyName} 
             />
 
-            <Text style={styles.label}>Company URL</Text>
+            <Text style={styles.label}>{t('companyUrlLabel')}</Text>
             <TextInput 
               style={styles.inputField} 
-              placeholder="e.g. www.dreamtravel.com" 
+              placeholder={t('placeholderUrl')}
               value={companyUrl} 
               onChangeText={setCompanyUrl} 
               autoCapitalize="none"
               keyboardType="url"
             />
 
-            <Text style={styles.label}>SSM License Number</Text>
+            <Text style={styles.label}>{t('ssmLicenseLabel')}</Text>
             <TextInput 
               style={styles.inputField} 
               placeholder="202301000001" 
               value={licenseNo} 
               onChangeText={setLicenseNo}
-              keyboardType="numeric"    // <--- Added this to show number pad
-              maxLength={12}            // <--- Added this to stop them at 12 digits 
+              keyboardType="numeric"    
+              maxLength={12}            
             />
 
             {/* --- UPLOAD SECTION --- */}
-            <Text style={styles.label}>Company Logo</Text>
+            <Text style={styles.label}>{t('companyLogoLabel')}</Text>
             
             <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
               {logo ? (
-                // If image selected, show it
                 <Image source={{ uri: logo }} style={styles.uploadedImage} />
               ) : (
-                // If no image, show the Upload Icon (Arrow Up)
                 <View style={styles.uploadPlaceholder}>
                   <Ionicons name="image-outline" size={40} color="#648DDB" />
                 </View>
@@ -170,14 +157,14 @@ export default function AgencyDetailsScreen() {
             onPress={handleRegister}
             disabled={!isFormValid}
           >
-            <Text style={styles.mainButtonText}>Sign Up</Text>
+            <Text style={styles.mainButtonText}>{t('signup')}</Text>
           </TouchableOpacity>
 
           {/* FOOTER */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Already have an account? </Text>
+            <Text style={styles.footerText}>{t('haveAccount')} </Text>
             <TouchableOpacity onPress={() => router.push('/')}>
-              <Text style={styles.linkText}>Sign in</Text>
+              <Text style={styles.linkText}>{t('login')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -230,7 +217,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 50,
     borderWidth: 1.5,
-    borderColor: '#E1E1E1', // Gray border like Figma
+    borderColor: '#E1E1E1', 
     borderRadius: 12,
     paddingHorizontal: 16,
     backgroundColor: '#FFFFFF',
@@ -241,7 +228,7 @@ const styles = StyleSheet.create({
   // === UPLOAD BOX ===
   uploadBox: {
     width: '100%',
-    height: 120, // Tall box like in the screenshot
+    height: 120, 
     borderWidth: 1.5,
     borderColor: '#E1E1E1',
     borderRadius: 12,
@@ -258,7 +245,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 12,
-    resizeMode: 'cover', // Fills the box
+    resizeMode: 'cover', 
   },
 
   // === BUTTON ===

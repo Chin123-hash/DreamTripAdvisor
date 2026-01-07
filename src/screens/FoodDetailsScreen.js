@@ -1,5 +1,3 @@
-// src/screens/FoodDetailsScreen.js
-
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -11,8 +9,7 @@ import {
     Image,
     Linking,
     Modal,
-    Platform // <--- Added Platform
-    ,
+    Platform,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -24,12 +21,16 @@ import {
 import { WebView } from 'react-native-webview';
 
 import { addItemToPlan, createNewPlan, getFoodById, getUserPlans } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 const { width, height } = Dimensions.get('window');
 
 const FoodDetailsScreen = () => {
     const router = useRouter();
     const { id } = useLocalSearchParams();
+    // 2. Destructure Hook
+    const { t } = useLanguage();
 
     // Data State
     const [data, setData] = useState(null);
@@ -87,7 +88,6 @@ const FoodDetailsScreen = () => {
     // --- HELPER: CONVERT SAVED URL TO WEBVIEW URL ---
     const getPreviewUrl = (savedUrl) => {
         if (!savedUrl) return null;
-        // Convert "q=lat,lng" to "maps.google.com/1{lat,lng}" for the WebView
         if (savedUrl.includes('q=')) {
             const match = savedUrl.match(/[?&]q=([^&]+)/);
             if (match && match[1]) {
@@ -97,15 +97,14 @@ const FoodDetailsScreen = () => {
         return savedUrl;
     };
 
-    // --- NAVIGATION HANDLER (Deep Link with Custom Label) ---
+    // --- NAVIGATION HANDLER (Deep Link) ---
     const openNavigationApp = () => {
         const url = data?.locationURL;
         if (!url) {
-            Alert.alert('No Location', 'No location link provided.');
+            Alert.alert(t('alertNoLocation'), t('alertNoLocationMsg'));
             return;
         }
 
-        // 1. Extract coordinates
         let latLng = null;
         if (url.includes('q=')) {
             const match = url.match(/[?&]q=([^&]+)/);
@@ -114,20 +113,16 @@ const FoodDetailsScreen = () => {
             }
         }
 
-        // 2. Construct Deep Link WITH Label (As requested)
         let targetUrl = url;
 
         if (latLng) {
             const label = encodeURIComponent(data.title || 'Food Spot');
             if (Platform.OS === 'ios') {
-                // iOS Scheme: maps:0,0?q=Label@lat,lng
                 targetUrl = `maps:0,0?q=${label}@${latLng}`;
             } else {
-                // Android Geo Scheme: geo:0,0?q=lat,lng(Label)
                 targetUrl = `geo:0,0?q=${latLng}(${label})`;
             }
         } else {
-            // Fallback: Search by title
             const query = encodeURIComponent(data.title || '');
             if (Platform.OS === 'ios') {
                 targetUrl = `maps:0,0?q=${query}`;
@@ -136,7 +131,6 @@ const FoodDetailsScreen = () => {
             }
         }
 
-        // 3. Open
         Linking.canOpenURL(targetUrl)
             .then((supported) => {
                 if (supported) {
@@ -152,7 +146,7 @@ const FoodDetailsScreen = () => {
             });
     };
 
-    // --- ACTION: Open Modal & Fetch Plans ---
+    // --- ACTIONS ---
     const handleAddToPlanClick = async () => {
         setModalVisible(true);
         setLoadingPlans(true);
@@ -160,33 +154,30 @@ const FoodDetailsScreen = () => {
             const userPlans = await getUserPlans();
             setPlans(userPlans);
         } catch (error) {
-            Alert.alert("Error", "Could not fetch your plans.");
+            Alert.alert(t('alertErrorTitle'), t('alertFetchPlanFail'));
         } finally {
             setLoadingPlans(false);
         }
     };
 
-    // --- ACTION: Create New Plan & Auto-Select ---
     const handleCreatePlan = async () => {
         if (!newPlanName.trim()) {
-            Alert.alert("Required", "Please enter a trip name.");
+            Alert.alert(t('alertRequiredTitle'), t('alertTripNameReq'));
             return;
         }
         try {
             const newPlanId = await createNewPlan(newPlanName);
             await handleSelectItem({ id: newPlanId, planName: newPlanName });
         } catch (error) {
-            Alert.alert("Error", "Failed to create plan.");
+            Alert.alert(t('alertErrorTitle'), t('alertCreateFail'));
         }
     };
 
-    // --- ACTION: Add Item to Selected Plan ---
     const handleSelectItem = async (plan) => {
         try {
             const itemToSave = {
                 id: data.id,
                 title: data.title,
-                // Using estimatedTotalExpenses logic
                 price: parseFloat(data.estimatedTotalExpenses) || parseFloat(data.price) || 0, 
                 imageUrl: data.imageUrl,
                 type: 'food',
@@ -199,9 +190,9 @@ const FoodDetailsScreen = () => {
             setNewPlanName('');
             setIsCreatingPlan(false);
 
-            Alert.alert("Success", `Added to ${plan.planName}!`);
+            Alert.alert(t('alertSuccessTitle'), `${t('alertAddedTo')} ${plan.planName}!`);
         } catch (error) {
-            Alert.alert("Error", "Could not add to plan.");
+            Alert.alert(t('alertErrorTitle'), t('alertAddToPlanFail'));
         }
     };
 
@@ -215,14 +206,12 @@ const FoodDetailsScreen = () => {
 
     if (!data) return <View style={styles.loadingContainer}><Text>Food Not Found</Text></View>;
 
-    // Safe extraction of variables
     const bgImage = data.imageUrl || 'https://via.placeholder.com/400';
     const priceRange = data.priceRange || "RM 10 - RM 30"; 
     const transportPrice = parseFloat(data.transportCost) || 0;
     const estimatedExp = parseFloat(data.estimatedTotalExpenses) || 0;
     const rating = data.rating || 4.5;
 
-    // Get Clean Preview URL for WebView
     const previewUrl = getPreviewUrl(data.locationURL);
 
     return (
@@ -240,31 +229,31 @@ const FoodDetailsScreen = () => {
                         <Text style={styles.title}>{data.title}</Text>
                         <View style={styles.ratingRow}>
                             <Ionicons name="star" size={18} color="#FFD700" />
-                            <Text style={styles.ratingText}>{rating} (Foodie Rating)</Text>
+                            <Text style={styles.ratingText}>{rating} ({t('foodieRating')})</Text>
                         </View>
                     </View>
 
                     <View style={styles.divider} />
 
-                    <Text style={styles.sectionTitle}>About this Spot</Text>
+                    <Text style={styles.sectionTitle}>{t('aboutSpot')}</Text>
                     <Text style={styles.descriptionText}>{data.description}</Text>
 
                     <View style={styles.divider} />
 
-                    <Text style={styles.sectionTitle}>Estimated Costs</Text>
+                    <Text style={styles.sectionTitle}>{t('estimatedCosts')}</Text>
                     <View style={styles.costRow}>
-                        <Text style={styles.costLabel}>Price Range</Text>
+                        <Text style={styles.costLabel}>{t('priceRange')}</Text>
                         <Text style={styles.costValue}>{priceRange}</Text>
                     </View>
                     <View style={styles.costRow}>
-                        <Text style={styles.costLabel}>Transport ({data.suggestedTransport || 'Grab'})</Text>
+                        <Text style={styles.costLabel}>{t('transport')} ({data.suggestedTransport || 'Grab'})</Text>
                         <Text style={styles.costValue}>RM {transportPrice.toFixed(2)}</Text>
                     </View>
 
                     <View style={styles.divider} />
 
                     {/* === MAP SECTION === */}
-                    <Text style={styles.sectionTitle}>Location Preview</Text>
+                    <Text style={styles.sectionTitle}>{t('locationPreview')}</Text>
                     <View style={styles.mapContainer}>
                         {previewUrl ? (
                             <WebView
@@ -293,13 +282,13 @@ const FoodDetailsScreen = () => {
                         ) : (
                             <View style={styles.noMapContainer}>
                                 <Ionicons name="map-outline" size={30} color="#ccc" />
-                                <Text style={styles.noMapText}>No location map available</Text>
+                                <Text style={styles.noMapText}>{t('noMap')}</Text>
                             </View>
                         )}
 
                         <TouchableOpacity style={styles.navigateFab} onPress={openNavigationApp}>
                             <Ionicons name="navigate" size={20} color="#FFF" />
-                            <Text style={styles.navigateFabText}>Go</Text>
+                            <Text style={styles.navigateFabText}>{t('go')}</Text>
                         </TouchableOpacity>
                     </View>
                     {/* ============================= */}
@@ -311,11 +300,11 @@ const FoodDetailsScreen = () => {
             {/* BOTTOM BAR */}
             <View style={styles.bottomBar}>
                 <View>
-                    <Text style={styles.totalLabel}>Estimated Total</Text>
+                    <Text style={styles.totalLabel}>{t('estimatedTotal')}</Text>
                     <Text style={styles.totalPrice}>RM {estimatedExp.toFixed(2)}</Text>
                 </View>
                 <TouchableOpacity style={[styles.addButton, { backgroundColor: '#FF7C5E' }]} onPress={handleAddToPlanClick}>
-                    <Text style={styles.addButtonText}>Add to Plan</Text>
+                    <Text style={styles.addButtonText}>{t('addToPlan')}</Text>
                 </TouchableOpacity>
             </View>
 
@@ -330,7 +319,7 @@ const FoodDetailsScreen = () => {
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>
-                                {isCreatingPlan ? "New Trip Name" : "Select a Trip"}
+                                {isCreatingPlan ? t('newTripName') : t('selectTrip')}
                             </Text>
                             <TouchableOpacity onPress={() => {
                                 setModalVisible(false);
@@ -359,18 +348,18 @@ const FoodDetailsScreen = () => {
                                                     </View>
                                                     <View>
                                                         <Text style={styles.planName}>{item.planName}</Text>
-                                                        <Text style={styles.planSub}>{item.items?.length || 0} items</Text>
+                                                        <Text style={styles.planSub}>{item.items?.length || 0} {t('itemsCount')}</Text>
                                                     </View>
                                                     <Ionicons name="add-circle-outline" size={24} color="#FF7C5E" style={{ marginLeft: 'auto' }} />
                                                 </TouchableOpacity>
                                             )}
-                                            ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#999', margin: 20 }}>No active plans.</Text>}
+                                            ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#999', margin: 20 }}>{t('noActivePlans')}</Text>}
                                         />
                                     </View>
                                 )}
                                 <TouchableOpacity style={styles.createPlanBtn} onPress={() => setIsCreatingPlan(true)}>
                                     <Ionicons name="add" size={20} color="#FFF" />
-                                    <Text style={styles.createPlanText}>Create New Plan</Text>
+                                    <Text style={styles.createPlanText}>{t('createNewPlan')}</Text>
                                 </TouchableOpacity>
                             </>
                         )}
@@ -379,17 +368,17 @@ const FoodDetailsScreen = () => {
                             <View style={{ width: '100%' }}>
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="e.g. Weekend Feast"
+                                    placeholder={t('placeholderPlanName')}
                                     value={newPlanName}
                                     onChangeText={setNewPlanName}
                                     autoFocus
                                 />
                                 <View style={styles.modalActionRow}>
                                     <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#f0f0f0' }]} onPress={() => setIsCreatingPlan(false)}>
-                                        <Text style={{ color: '#666' }}>Back</Text>
+                                        <Text style={{ color: '#666' }}>{t('back')}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#FF7C5E' }]} onPress={handleCreatePlan}>
-                                        <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Create & Add</Text>
+                                        <Text style={{ color: '#FFF', fontWeight: 'bold' }}>{t('createAndAdd')}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -457,11 +446,49 @@ const styles = StyleSheet.create({
         justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0'
     },
 
-    bottomBar: { position: 'absolute', bottom: 0, width: '100%', height: 120, backgroundColor: '#FFF', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 30, paddingBottom: 20, borderTopWidth: 1, borderColor: '#F0F0F0', elevation: 20 },
-    totalLabel: { fontSize: 14, color: '#888', textTransform: 'uppercase' },
-    totalPrice: { fontSize: 28, fontWeight: '800', color: '#FF7C5E' },
-    addButton: { paddingVertical: 18, paddingHorizontal: 32, borderRadius: 20, elevation: 5 },
-    addButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
+    bottomBar: { 
+        position: 'absolute', 
+        bottom: 0, 
+        width: '100%', 
+        height: 120, 
+        backgroundColor: '#FFF', 
+        flexDirection: 'row', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        paddingHorizontal: 30, 
+        paddingBottom: 20, 
+        borderTopWidth: 1, 
+        borderColor: '#F0F0F0', 
+        elevation: 20 
+    },
+    totalLabel: { 
+        fontSize: 14, 
+        color: '#888', 
+        textTransform: 'uppercase',
+        maxWidth: '90%'
+    },
+    totalPrice: { 
+        fontSize: 28, 
+        fontWeight: '800', 
+        color: '#FF7C5E',
+    },
+    // --- DYNAMIC BUTTON STYLES ---
+    addButton: { 
+        paddingVertical: 18, 
+        paddingHorizontal: 20, // Reduced from 32
+        minWidth: 160,         // Added minWidth for English
+        borderRadius: 20, 
+        elevation: 5,
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+    addButtonText: { 
+        color: '#FFF', 
+        fontSize: 17,          // Reduced from 18
+        fontWeight: 'bold',
+        textAlign: 'center'
+    },
+    
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
     modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 25, minHeight: 300 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },

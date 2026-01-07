@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { getAuth } from 'firebase/auth'; // Added for User Info
+import { getAuth } from 'firebase/auth';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -18,8 +18,9 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-// Ensure createOrder is imported
 import { createOrder, deleteItemFromPlan, deletePlan, getAgencies, getCartPlanDetails } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 const { width } = Dimensions.get('window');
 
@@ -27,11 +28,13 @@ export default function PlanDetailsScreen() {
     const router = useRouter();
     const params = useLocalSearchParams(); 
     const { planId } = params;
-    const auth = getAuth(); // Get current user
+    const auth = getAuth(); 
+    // 2. Destructure Hook
+    const { t } = useLanguage();
     
     // --- STATE ---
     const [loading, setLoading] = useState(true);
-    const [submitting, setSubmitting] = useState(false); // New state for submission loading
+    const [submitting, setSubmitting] = useState(false); 
     const [isEditing, setIsEditing] = useState(false);
 
     // Data State
@@ -50,7 +53,7 @@ export default function PlanDetailsScreen() {
     const [toDate, setToDate] = useState(new Date());     
     const [totalExpense, setTotalExpense] = useState(0);
 
-    // Form State (Customer Details - SPRINT 5 REQUIREMENT)
+    // Form State (Customer Details)
     const [customerName, setCustomerName] = useState('');
     const [customerEmail, setCustomerEmail] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
@@ -66,10 +69,8 @@ export default function PlanDetailsScreen() {
             if (planId) await loadPlanData(planId);
             await fetchAgencies();
             
-            // Pre-fill user data if available
             if (auth.currentUser) {
                 setCustomerEmail(auth.currentUser.email);
-                // If you have stored display name:
                 if (auth.currentUser.displayName) setCustomerName(auth.currentUser.displayName);
             }
             
@@ -92,14 +93,14 @@ export default function PlanDetailsScreen() {
         try {
             const planData = await getCartPlanDetails(id);
             if (planData && planData.items) {
-                setPlanName(planData.planName || "My Trip");
+                setPlanName(planData.planName || t('myTrip'));
                 setRawItems(planData.items);
                 generateSchedule(planData.items);
                 calculateTotal(planData.items);
             }
         } catch (error) {
             console.log("Error loading plan", error);
-            Alert.alert("Error", "Could not load plan details");
+            Alert.alert(t('alertErrorTitle'), t('alertLoadFail'));
         }
     };
 
@@ -109,21 +110,21 @@ export default function PlanDetailsScreen() {
         setTotalExpense(sum * paxNum);
     };
 
-    // --- SUBMIT ORDER LOGIC (SPRINT 5) ---
+    // --- SUBMIT ORDER LOGIC ---
     const handleConfirmOrder = async () => {
         // Validation
         if (!selectedAgency) {
-            Alert.alert("Missing Agency", "Please select a Travel Agency.");
+            Alert.alert(t('missingAgencyTitle'), t('alertSelectAgency'));
             return;
         }
 
         Alert.alert(
-            "Confirm Booking",
-            `Total Price: RM ${totalExpense.toFixed(2)}\nProceed with order?`,
+            t('confirmBookingTitle'),
+            `${t('totalExpenses')}: RM ${totalExpense.toFixed(2)}\n${t('proceedOrder')}`,
             [
-                { text: "Cancel", style: "cancel" },
+                { text: t('cancel'), style: "cancel" },
                 { 
-                    text: "Confirm", 
+                    text: t('confirmOrder'), // Or just "Confirm" if you prefer short
                     onPress: async () => {
                         try {
                             setSubmitting(true);
@@ -144,14 +145,14 @@ export default function PlanDetailsScreen() {
                             // 1. Create the Order
                             await createOrder(orderPayload);
 
-                            // 2. DELETE FROM CART (New Logic)
+                            // 2. DELETE FROM CART
                             await deletePlan(planId); 
 
-                            Alert.alert("Success", "Your order has been placed successfully!", [
+                            Alert.alert(t('alertSuccessTitle'), t('orderPlacedSuccess'), [
                                 { text: "OK", onPress: () => router.push('/customer-main') } 
                             ]);
                         } catch (error) {
-                            Alert.alert("Error", "Failed to place order. Please try again.");
+                            Alert.alert(t('alertErrorTitle'), t('orderPlaceFail'));
                             console.error(error);
                         } finally {
                             setSubmitting(false);
@@ -161,12 +162,13 @@ export default function PlanDetailsScreen() {
             ]
         );
     };
-// --- DELETE ITEM LOGIC ---
+
+    // --- DELETE ITEM LOGIC ---
     const handleDeleteItem = (cartId) => {
-        Alert.alert("Remove Item", "Are you sure you want to remove this activity?", [
-            { text: "Cancel", style: "cancel" },
+        Alert.alert(t('removeItemTitle'), t('removeItemMsg'), [
+            { text: t('cancel'), style: "cancel" },
             {
-                text: "Remove",
+                text: t('remove'),
                 style: "destructive",
                 onPress: async () => {
                     try {
@@ -175,7 +177,7 @@ export default function PlanDetailsScreen() {
                         // Reload data to reflect changes
                         await loadPlanData(planId); 
                     } catch (error) {
-                        Alert.alert("Error", "Failed to remove item.");
+                        Alert.alert(t('alertErrorTitle'), t('itemRemoveFail'));
                     } finally {
                         setLoading(false);
                     }
@@ -183,6 +185,7 @@ export default function PlanDetailsScreen() {
             }
         ]);
     };
+
     // --- SCHEDULE LOGIC ---
     const generateSchedule = (items) => {
         // Create separate queues for items
@@ -202,47 +205,39 @@ export default function PlanDetailsScreen() {
 
             // --- 1. HANDLE LUNCH BREAK (1:00 PM) ---
             if (hour === 13) {
-                // Check if we have too many items left for the remaining slots (14,15,16,17,18 = 5 slots)
                 const itemsLeft = entertainment.length + food.length;
-                
                 if (itemsLeft > 5) {
-                    // If we have > 5 items, we MUST use this slot, so we take a food item (or ent)
                     if (food.length > 0) item = food.shift();
                     else if (entertainment.length > 0) item = entertainment.shift();
                 } else {
-                    // Otherwise, we have enough space to keep the default Lunch Break
-                    item = { title: 'Lunch Break', type: 'Food', price: 0, isPlaceholder: true };
+                    item = { title: t('lunchBreak'), type: 'Food', price: 0, isPlaceholder: true };
                 }
-                entCount = 0; // Reset the rhythm after lunch
+                entCount = 0; 
             } 
             // --- 2. HANDLE NORMAL SLOTS ---
             else {
-                // Logic: Prioritize showing REAL items before falling back to placeholders
-                // Rhythm preference: 2 Ents, then 1 Food/Rest
                 const preferEnt = entCount < 2;
 
                 if (preferEnt) {
-                    // Preference: Entertainment -> Food -> Free & Easy
                     if (entertainment.length > 0) {
                         item = entertainment.shift();
                         entCount++;
                     } else if (food.length > 0) {
                         item = food.shift();
-                        entCount = 0; // Reset count because we inserted food
+                        entCount = 0; 
                     } else {
-                        item = { title: 'Free & Easy', type: 'Entertainment', price: 0, isPlaceholder: true };
+                        item = { title: t('freeEasy'), type: 'Entertainment', price: 0, isPlaceholder: true };
                         entCount++;
                     }
                 } else {
-                    // Preference: Food -> Entertainment -> Rest Time
                     if (food.length > 0) {
                         item = food.shift();
                     } else if (entertainment.length > 0) {
                         item = entertainment.shift();
                     } else {
-                        item = { title: 'Rest Time', type: 'Entertainment', price: 0, isPlaceholder: true };
+                        item = { title: t('restTime'), type: 'Entertainment', price: 0, isPlaceholder: true };
                     }
-                    entCount = 0; // Reset count after the "Rest/Food" slot
+                    entCount = 0; 
                 }
             }
 
@@ -250,8 +245,8 @@ export default function PlanDetailsScreen() {
                 time: fmtTime(hour), 
                 ...item, 
                 price: item.price || 0, 
-                title: item.title || "Activity",
-                itemId: item.itemId, // Maintain ID for delete function
+                title: item.title || t('activity'),
+                itemId: item.itemId, 
                 cartId: item.cartId
             });
         }
@@ -303,20 +298,19 @@ export default function PlanDetailsScreen() {
                     {hotelPct > 0 && <View style={[styles.slice, { backgroundColor: '#64B5F6', width: `${hotelPct}%` }]} />}
                     {transPct > 0 && <View style={[styles.slice, { backgroundColor: '#FFD54F', width: `${transPct}%` }]} />}
                     
-                    {/* Fallback grey circle if total is 0 */}
                     {grandTotal === 1 && <View style={[styles.slice, { backgroundColor: '#EEE', width: '100%' }]} />}
 
                     <View style={styles.chartOverlay}>
                         <Text style={styles.chartTotalText}>RM {(grandTotal === 1 ? 0 : grandTotal).toFixed(0)}</Text>
-                        <Text style={styles.chartTotalLabel}>Total</Text>
+                        <Text style={styles.chartTotalLabel}>{t('total')}</Text>
                     </View>
                 </View>
 
                 <View style={styles.legendContainer}>
-                    {foodPct > 0 && <LegendItem color="#81C784" label="Food" />}
-                    {entPct > 0 && <LegendItem color="#FF8A65" label="Entertainment" />}
-                    {hotelPct > 0 && <LegendItem color="#64B5F6" label="Hotel" />}
-                    {transPct > 0 && <LegendItem color="#FFD54F" label="Transport" />}
+                    {foodPct > 0 && <LegendItem color="#81C784" label={t('legendFood')} />}
+                    {entPct > 0 && <LegendItem color="#FF8A65" label={t('legendEnt')} />}
+                    {hotelPct > 0 && <LegendItem color="#64B5F6" label={t('legendHotel')} />}
+                    {transPct > 0 && <LegendItem color="#FFD54F" label={t('legendTransport')} />}
                 </View>
             </View>
         );
@@ -354,10 +348,12 @@ export default function PlanDetailsScreen() {
                     <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                         <Ionicons name="arrow-back" size={24} color="#333" />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>{isEditing ? "Edit Itinerary" : (planName || "Order Form")}</Text>
+                    <Text style={styles.headerTitle}>
+                        {isEditing ? t('editItinerary') : (planName || t('orderForm'))}
+                    </Text>
                     {isEditing ? (
-                        <TouchableOpacity style={styles.saveHeaderBtn} onPress={() => { Alert.alert("Saved locally"); setIsEditing(false); }}>
-                            <Text style={{color: '#FFF', fontWeight: 'bold'}}>Save</Text>
+                        <TouchableOpacity style={styles.saveHeaderBtn} onPress={() => { Alert.alert(t('savedLocally')); setIsEditing(false); }}>
+                            <Text style={{color: '#FFF', fontWeight: 'bold'}}>{t('save')}</Text>
                         </TouchableOpacity>
                     ) : (
                         <TouchableOpacity style={styles.editHeaderIcon} onPress={() => setIsEditing(true)}>
@@ -383,61 +379,59 @@ export default function PlanDetailsScreen() {
                                 {index < schedule.length - 1 && <View style={styles.dottedLine} />}
                             </View>
                             {/* Content Column */}
-    <View style={styles.contentCol}>
-        <Text style={styles.contentTitle}>{item.title}</Text>
-        <Text style={styles.contentDesc}>{item.isPlaceholder ? item.type : `RM ${item.price}`}</Text>
-    </View>
+                            <View style={styles.contentCol}>
+                                <Text style={styles.contentTitle}>{item.title}</Text>
+                                <Text style={styles.contentDesc}>{item.isPlaceholder ? item.type : `RM ${item.price}`}</Text>
+                            </View>
 
-    {/* EDITING CONTROLS */}
-    {isEditing && (
-        <View style={styles.reorderCol}>
-            {/* 1. Delete Button (Only for real items) */}
-            {!item.isPlaceholder && (
-                <TouchableOpacity 
-                    onPress={() => handleDeleteItem(item.cartId || item.itemId)} // Ensure your item has itemId
-                    style={{ marginBottom: 5 }}
-                >
-                    <Ionicons name="trash-outline" size={20} color="#FF3B30" />
-                </TouchableOpacity>
-            )}
+                            {/* EDITING CONTROLS */}
+                            {isEditing && (
+                                <View style={styles.reorderCol}>
+                                    {!item.isPlaceholder && (
+                                        <TouchableOpacity 
+                                            onPress={() => handleDeleteItem(item.cartId || item.itemId)} 
+                                            style={{ marginBottom: 5 }}
+                                        >
+                                            <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+                                        </TouchableOpacity>
+                                    )}
 
-            {/* 2. Reorder Arrows (Existing) */}
-            {index > 0 && (
-                <TouchableOpacity onPress={() => moveItem(index, -1)}>
-                    <Ionicons name="chevron-up" size={20} color="#648DDB" />
-                </TouchableOpacity>
-            )}
-            {index < schedule.length - 1 && (
-                <TouchableOpacity onPress={() => moveItem(index, 1)}>
-                    <Ionicons name="chevron-down" size={20} color="#648DDB" />
-                </TouchableOpacity>
-            )}
-        </View>
-    )}
+                                    {index > 0 && (
+                                        <TouchableOpacity onPress={() => moveItem(index, -1)}>
+                                            <Ionicons name="chevron-up" size={20} color="#648DDB" />
+                                        </TouchableOpacity>
+                                    )}
+                                    {index < schedule.length - 1 && (
+                                        <TouchableOpacity onPress={() => moveItem(index, 1)}>
+                                            <Ionicons name="chevron-down" size={20} color="#648DDB" />
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            )}
                         </View>
                     ))}
                 </View>
 
                 {/* TRIP DETAILS FORM */}
                 <View style={styles.formSection}>
-                    <Text style={styles.sectionHeader}>Trip Details</Text>
+                    <Text style={styles.sectionHeader}>{t('tripDetails')}</Text>
 
                     <View style={styles.formRow}>
-                        <Text style={styles.label}>From:</Text>
+                        <Text style={styles.label}>{t('from')}</Text>
                         <TouchableOpacity onPress={() => openDatePicker('from')} disabled={!isEditing} style={styles.dateInput}>
                             <Text>{fromDate.toLocaleDateString()}</Text>
                         </TouchableOpacity>
                     </View>
 
                     <View style={styles.formRow}>
-                        <Text style={styles.label}>To:</Text>
+                        <Text style={styles.label}>{t('to')}</Text>
                         <TouchableOpacity onPress={() => openDatePicker('to')} disabled={!isEditing} style={styles.dateInput}>
                             <Text>{toDate.toLocaleDateString()}</Text>
                         </TouchableOpacity>
                     </View>
 
                     <View style={styles.formRow}>
-                        <Text style={styles.label}>No of Pax:</Text>
+                        <Text style={styles.label}>{t('noOfPax')}</Text>
                         <TextInput 
                             style={styles.paxInput} 
                             value={pax} 
@@ -447,34 +441,34 @@ export default function PlanDetailsScreen() {
                         />
                     </View>
 
-                    <Text style={[styles.label, {marginTop: 10}]}>Travel Agency:</Text>
+                    <Text style={[styles.label, {marginTop: 10}]}>{t('travelAgencyLabel')}</Text>
                     <TouchableOpacity 
                         style={styles.dropdown}
                         onPress={() => isEditing && setShowAgencyModal(true)}
                         disabled={!isEditing}
                     >
                         <Text style={styles.dropdownText}>
-                            {selectedAgency ? selectedAgency.name : "Select Agency..."}
+                            {selectedAgency ? selectedAgency.name : t('selectAgencyPlaceholder')}
                         </Text>
                         <Ionicons name="chevron-down" size={20} color="#333" />
                     </TouchableOpacity>
 
-                    <Text style={styles.label}>Special Requests:</Text>
+                    <Text style={styles.label}>{t('specialRequests')}</Text>
                     <TextInput 
                         style={[styles.textInput, {height: 80, textAlignVertical: 'top'}]} 
-                        placeholder="Any allergies or special requirements?"
+                        placeholder={t('specialReqPlaceholder')}
                         multiline
                         value={specialRequest} 
                         onChangeText={setSpecialRequest}
                     />
 
                     <View style={styles.totalRow}>
-                        <Text style={styles.totalLabel}>Total Expenses</Text>
+                        <Text style={styles.totalLabel}>{t('totalExpenses')}</Text>
                         <Text style={styles.totalValue}>RM {totalExpense.toFixed(2)}</Text>
                     </View>
                 </View>
 
-                <Text style={styles.handwrittenTitle}>Estimated Expenses</Text>
+                <Text style={styles.handwrittenTitle}>{t('estimatedExpenses')}</Text>
                 {renderPieChart()}
 
                 {/* CONFIRM BUTTON */}
@@ -487,7 +481,7 @@ export default function PlanDetailsScreen() {
                         {submitting ? (
                             <ActivityIndicator color="#FFF" />
                         ) : (
-                            <Text style={styles.confirmText}>Confirm Order</Text>
+                            <Text style={styles.confirmText}>{t('confirmOrder')}</Text>
                         )}
                     </TouchableOpacity>
                 )}
@@ -500,7 +494,7 @@ export default function PlanDetailsScreen() {
             <Modal visible={showAgencyModal} transparent={true} animationType="slide">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
-                        <Text style={styles.modalTitle}>Select Agency</Text>
+                        <Text style={styles.modalTitle}>{t('selectAgencyTitle')}</Text>
                         <ScrollView>
                             {agencyList.map((agency) => (
                                 <TouchableOpacity 
@@ -515,10 +509,10 @@ export default function PlanDetailsScreen() {
                                     {selectedAgency?.id === agency.id && <Ionicons name="checkmark" size={20} color="green" />}
                                 </TouchableOpacity>
                             ))}
-                            {agencyList.length === 0 && <Text style={{padding:20, textAlign:'center'}}>No agencies found.</Text>}
+                            {agencyList.length === 0 && <Text style={{padding:20, textAlign:'center'}}>{t('noAgencies')}</Text>}
                         </ScrollView>
                         <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowAgencyModal(false)}>
-                            <Text style={{color:'#FFF'}}>Close</Text>
+                            <Text style={{color:'#FFF'}}>{t('close')}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -559,7 +553,6 @@ const styles = StyleSheet.create({
     formSection: { backgroundColor: '#F2F2F2', borderRadius: 16, padding: 20, marginBottom: 20 },
     sectionHeader: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, color: '#444' },
     
-    // Updated Form Styles
     label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 5 },
     textInput: { backgroundColor: '#FFF', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#E0E0E0', marginBottom: 15 },
     

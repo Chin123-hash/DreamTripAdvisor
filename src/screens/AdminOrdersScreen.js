@@ -15,28 +15,34 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getAgencies, getAllOrders, getUserProfile } from '../services/AuthService'; // Change this to fetch all
-
-const DATE_FILTERS = [
-    { label: 'All Time', value: 'all' },
-    { label: 'Last 3 Days', value: 3 },
-    { label: 'Last Week', value: 7 },
-    { label: 'Last Month', value: 30 },
-    { label: 'Last 6 Months', value: 180 },
-];
+import { getAgencies, getAllOrders, getUserProfile } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 export default function AdminOrdersScreen() {
     const router = useRouter();
+    // 2. Destructure Hook
+    const { t } = useLanguage();
+
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     // Filters
     const [selectedDateFilter, setSelectedDateFilter] = useState('all');
-    const [selectedAgencies, setSelectedAgencies] = useState([]); // Array for multi-select
+    const [selectedAgencies, setSelectedAgencies] = useState([]); 
     const [agencyModalVisible, setAgencyModalVisible] = useState(false);
     const [agencySearch, setAgencySearch] = useState('');
     const [tempSelectedAgencies, setTempSelectedAgencies] = useState([]); 
     const [agencyList, setAgencyList] = useState([]);
+
+    // --- Dynamic Filters based on Language ---
+    const DATE_FILTERS = [
+        { label: t('allTime'), value: 'all' },
+        { label: t('last3Days'), value: 3 },
+        { label: t('lastWeek'), value: 7 },
+        { label: t('lastMonth'), value: 30 },
+        { label: t('last6Months'), value: 180 },
+    ];
 
     const loadData = async () => {
         try {
@@ -60,7 +66,7 @@ export default function AdminOrdersScreen() {
                 const profile = profilesMap[order.customerId];
                 return {
                     ...order,
-                    customerName: profile?.fullName || profile?.username || order.customerName || 'Guest',
+                    customerName: profile?.fullName || profile?.username || order.customerName || t('guest'),
                     customerEmail: profile?.email || order.customerEmail || 'No Email',
                     customerPhone: profile?.phone || order.customerPhone || 'No Phone'
                 };
@@ -94,12 +100,10 @@ export default function AdminOrdersScreen() {
 
     const toggleAgency = (name) => {
         if (selectedAgencies.includes(name)) {
-            // Allow deselecting as long as it's not the only one left? 
-            // Or just allow 0 and handle it as "Select Agency"
             setSelectedAgencies(prev => prev.filter(a => a !== name));
         } else {
             if (selectedAgencies.length >= 3) {
-                Alert.alert("Limit Reached", "You can select up to 3 agencies only.");
+                Alert.alert(t('limitReached'), t('limitMsg'));
                 return;
             }
             setSelectedAgencies(prev => [...prev, name]);
@@ -143,7 +147,7 @@ export default function AdminOrdersScreen() {
 
     const FilterSection = () => (
         <View style={styles.filterSection}>
-            <Text style={styles.filterLabel}>Filter by Date</Text>
+            <Text style={styles.filterLabel}>{t('filterByDate')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rowMargin}>
                 {DATE_FILTERS.map((opt) => (
                     <TouchableOpacity
@@ -156,7 +160,7 @@ export default function AdminOrdersScreen() {
                 ))}
             </ScrollView>
 
-            <Text style={styles.filterLabel}>Filter by Agency</Text>
+            <Text style={styles.filterLabel}>{t('filterByAgency')}</Text>
 
             <TouchableOpacity
                 style={styles.openFilterButton}
@@ -167,8 +171,8 @@ export default function AdminOrdersScreen() {
             >
                 <Text style={styles.openFilterText}>
                     {selectedAgencies.length > 0
-                        ? `${selectedAgencies.length} Agencies Selected`
-                        : 'Select Agencies'}
+                        ? `${selectedAgencies.length} ${t('agenciesSelected')}`
+                        : t('selectAgencies')}
                 </Text>
                 <Ionicons name="chevron-down" size={18} color="#555" />
             </TouchableOpacity>
@@ -178,7 +182,7 @@ export default function AdminOrdersScreen() {
                     style={[styles.chip, selectedAgencies.length === 0 && styles.activeChip]}
                     onPress={() => setSelectedAgencies([])}
                 >
-                    <Text style={[styles.chipText, selectedAgencies.length === 0 && styles.activeChipText]}>All Agencies</Text>
+                    <Text style={[styles.chipText, selectedAgencies.length === 0 && styles.activeChipText]}>{t('allAgencies')}</Text>
                 </TouchableOpacity>
                 {agencyList.map((name) => (
                     <TouchableOpacity
@@ -197,24 +201,24 @@ export default function AdminOrdersScreen() {
     const SummarySection = () => (
         <View style={styles.summaryContainer}>
             <LinearGradient colors={['#333', '#555']} style={styles.mainStatCard}>
-                <Text style={styles.statLabel}>Total Revenue</Text>
+                <Text style={styles.statLabel}>{t('totalRevenue')}</Text>
                 <Text style={styles.statValue}>RM {stats.revenue}</Text>
                 <Ionicons name="stats-chart" size={40} color="rgba(255,255,255,0.2)" style={styles.statIcon} />
             </LinearGradient>
 
             <View style={styles.row}>
                 <View style={[styles.miniStatCard, { backgroundColor: '#F8F9FA' }]}>
-                    <Text style={styles.miniLabel}>Bookings</Text>
+                    <Text style={styles.miniLabel}>{t('bookings')}</Text>
                     <Text style={styles.miniValue}>{stats.bookings}</Text>
                 </View>
                 <View style={[styles.miniStatCard, { backgroundColor: '#F8F9FA' }]}>
-                    <Text style={styles.miniLabel}>Customers</Text>
+                    <Text style={styles.miniLabel}>{t('customers')}</Text>
                     <Text style={styles.miniValue}>{stats.customers}</Text>
                 </View>
             </View>
 
             <FilterSection />
-            <Text style={styles.sectionTitle}>Order History</Text>
+            <Text style={styles.sectionTitle}>{t('orderHistory')}</Text>
         </View>
     );
 
@@ -235,12 +239,12 @@ export default function AdminOrdersScreen() {
 
                     {/* Admin Specific Agency Badge */}
                     <View style={styles.agencyBadge}>
-                        <Text style={styles.agencyText}>{item.agencyName || 'Unknown Agency'}</Text>
+                        <Text style={styles.agencyText}>{item.agencyName || t('unknownAgency')}</Text>
                     </View>
                 </View>
 
                 <View style={styles.amountContainer}>
-                    <Text style={styles.amountText}>RM {parseFloat(item.totalAmount || 0).toFixed(2)}</Text>
+                    <Text style={styles.amountText}>+RM {parseFloat(item.totalAmount || 0).toFixed(2)}</Text>
                     <Text style={styles.dateText}>
                         {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString() : 'Recent'}
                     </Text>
@@ -258,7 +262,7 @@ export default function AdminOrdersScreen() {
             setTempSelectedAgencies(prev => prev.filter(a => a !== name));
         } else {
             if (tempSelectedAgencies.length >= 3) {
-                Alert.alert("Limit Reached", "You can select up to 3 agencies only.");
+                Alert.alert(t('limitReached'), t('limitMsg'));
                 return;
             }
             setTempSelectedAgencies(prev => [...prev, name]);
@@ -274,7 +278,7 @@ export default function AdminOrdersScreen() {
                 </TouchableOpacity>
 
                 {/* Title */}
-                <Text style={styles.headerTitle}>Admin Control Center</Text>
+                <Text style={styles.headerTitle}>{t('adminControlCenter')}</Text>
 
                 {/* Analytics Button */}
                 <TouchableOpacity
@@ -298,7 +302,7 @@ export default function AdminOrdersScreen() {
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Ionicons name="receipt-outline" size={50} color="#CCC" />
-                            <Text style={styles.emptyText}>No matching orders found.</Text>
+                            <Text style={styles.emptyText}>{t('noMatchingOrders')}</Text>
                         </View>
                     }
                 />
@@ -308,12 +312,12 @@ export default function AdminOrdersScreen() {
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
 
-                        <Text style={styles.modalTitle}>Select Agencies</Text>
+                        <Text style={styles.modalTitle}>{t('selectAgencies')}</Text>
 
                         <View style={styles.searchBox}>
                             <Ionicons name="search" size={18} color="#999" />
                             <TextInput
-                                placeholder="Search agency..."
+                                placeholder={t('searchAgency')}
                                 value={agencySearch}
                                 onChangeText={setAgencySearch}
                                 style={styles.searchInput}
@@ -345,7 +349,7 @@ export default function AdminOrdersScreen() {
                                 style={styles.resetButton}
                                 onPress={() => setTempSelectedAgencies([])}
                             >
-                                <Text style={styles.resetText}>Reset</Text>
+                                <Text style={styles.resetText}>{t('reset')}</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -355,7 +359,7 @@ export default function AdminOrdersScreen() {
                                     setAgencyModalVisible(false);
                                 }}
                             >
-                                <Text style={styles.applyText}>Apply</Text>
+                                <Text style={styles.applyText}>{t('apply')}</Text>
                             </TouchableOpacity>
                         </View>
 

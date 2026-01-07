@@ -1,5 +1,3 @@
-// src/screens/AgencyFoodDetailsScreen.js
-
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -21,12 +19,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 import { getFoodById } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 const { width } = Dimensions.get('window');
 
 const AgencyFoodDetailsScreen = () => {
     const router = useRouter();
     const { id } = useLocalSearchParams(); 
+    // 2. Destructure Hook
+    const { t } = useLanguage();
     
     const [item, setItem] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -50,16 +52,15 @@ const AgencyFoodDetailsScreen = () => {
     const openNavigationApp = () => {
         if (item?.locationURL) {
             Linking.openURL(item.locationURL).catch(() => {
-                Alert.alert('Error', 'Could not open map application.');
+                Alert.alert(t('alertErrorTitle'), t('errorMapApp'));
             });
         } else {
-            Alert.alert('No Location', 'No location link provided.');
+            Alert.alert(t('noLocationTitle'), t('noLocationMsg'));
         }
     };
 
     // =================================================================
     // 🧹 AGGRESSIVE CLEANING SCRIPT 🧹
-    // Removes Google Search Bars, Bottom Cards, and Headers
     // =================================================================
     const mobileCleanScript = `
       (function() {
@@ -103,9 +104,9 @@ const AgencyFoodDetailsScreen = () => {
     if (!item) {
         return (
             <View style={styles.loaderContainer}>
-                <Text style={styles.errorText}>Food details not found.</Text>
+                <Text style={styles.errorText}>{t('foodNotFound')}</Text>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
-                    <Text style={{color: '#A58383'}}>Go Back</Text>
+                    <Text style={{color: '#A58383'}}>{t('goBack')}</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -145,24 +146,24 @@ const AgencyFoodDetailsScreen = () => {
 
                         {/* DATA CARD */}
                         <View style={styles.infoCard}>
-                            <Text style={styles.cardLabel}>Dining Details</Text>
+                            <Text style={styles.cardLabel}>{t('diningDetails')}</Text>
                             
                             <View style={styles.dataRow}>
                                 <Ionicons name="pricetag-outline" size={20} color="#666" />
-                                <Text style={styles.dataValue}>Price Range: {item.priceRange}</Text>
+                                <Text style={styles.dataValue}>{t('priceRangeLabel')} {item.priceRange}</Text>
                             </View>
 
                             <View style={styles.dataRow}>
                                 <Ionicons name="bus-outline" size={20} color="#666" />
                                 <Text style={styles.dataValue}>
-                                    Transport: {item.suggestedTransport} (RM {item.transportCost?.toFixed(2)})
+                                    {t('transportLabel')} {item.suggestedTransport} (RM {item.transportCost?.toFixed(2)})
                                 </Text>
                             </View>
 
                             <View style={styles.divider} />
 
                             {/* --- MAP SECTION --- */}
-                            <Text style={[styles.cardLabel, {fontSize: 14, marginBottom: 10, color: '#888'}]}>Location Preview</Text>
+                            <Text style={[styles.cardLabel, {fontSize: 14, marginBottom: 10, color: '#888'}]}>{t('locationPreview')}</Text>
 
                             <View style={styles.mapContainer}>
                                 {item.locationURL ? (
@@ -204,24 +205,24 @@ const AgencyFoodDetailsScreen = () => {
                                 ) : (
                                     <View style={styles.noMapContainer}>
                                         <Ionicons name="map-outline" size={30} color="#ccc" />
-                                        <Text style={styles.noMapText}>No location map available</Text>
+                                        <Text style={styles.noMapText}>{t('noMap')}</Text>
                                     </View>
                                 )}
 
                                 <TouchableOpacity style={styles.navigateFab} onPress={openNavigationApp}>
                                     <Ionicons name="navigate" size={20} color="#FFF" />
-                                    <Text style={styles.navigateFabText}>Go</Text>
+                                    <Text style={styles.navigateFabText}>{t('go')}</Text>
                                 </TouchableOpacity>
                             </View>
                             {/* ------------------------ */}
 
                             <View style={styles.divider} />
 
-                            <Text style={styles.descriptionLabel}>Description</Text>
+                            <Text style={styles.descriptionLabel}>{t('labelDescription')}</Text>
                             <Text style={styles.descriptionText}>{item.description}</Text>
 
                             <View style={styles.footerRow}>
-                                <Text style={styles.totalLabel}>Est. Total Expenses</Text>
+                                <Text style={styles.totalLabel}>{t('estTotalRM')}</Text>
                                 <Text style={styles.totalAmount}>RM {item.estimatedTotalExpenses?.toFixed(2)}</Text>
                             </View>
                         </View>

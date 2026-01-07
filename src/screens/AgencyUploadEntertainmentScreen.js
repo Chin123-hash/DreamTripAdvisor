@@ -1,5 +1,3 @@
-// src/screens/AgencyUploadEntertainmentScreen.js
-
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,6 +22,8 @@ import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplet
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { addEntertainment } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 LogBox.ignoreLogs(['VirtualizedLists should never be nested']);
 
@@ -41,6 +41,8 @@ export default function AgencyUploadEntertainmentScreen() {
     const auth = getAuth();
     const currentUser = auth.currentUser;
     const locationRef = useRef();
+    // 2. Destructure Hook
+    const { t } = useLanguage();
 
     const [entertainmentId] = useState(generateEntertainmentId());
     
@@ -96,18 +98,18 @@ export default function AgencyUploadEntertainmentScreen() {
 
     const handleSave = async () => {
         if (!currentUser) {
-            Alert.alert("Error", "You must be logged in to upload content.");
+            Alert.alert(t('alertErrorTitle'), t('alertLoginUpload'));
             return;
         }
 
         // Basic Validation
         if (!title || !ticketPrice || !description || !imageUri || !locationUrl) {
-            Alert.alert("Error", "Please fill in Name, Ticket Price, Description, Location, and upload a Picture.");
+            Alert.alert(t('alertErrorTitle'), t('alertFillAllUpload'));
             return;
         }
 
         if (isNaN(parseFloat(ticketPrice)) || (transportPrice && isNaN(parseFloat(transportPrice)))) {
-            Alert.alert("Error", "Ticket Price and Transport Price must be valid numbers.");
+            Alert.alert(t('alertErrorTitle'), t('alertValidNumbers'));
             return;
         }
         
@@ -132,11 +134,11 @@ export default function AgencyUploadEntertainmentScreen() {
         setLoading(true);
         try {
             await addEntertainment(entertainmentData, imageUri);
-            Alert.alert("Success", "Entertainment Package Uploaded!");
+            Alert.alert(t('alertSuccessTitle'), t('alertEntUploaded'));
             handleReset(); 
         } catch (error) {
             console.error("Upload Error:", error);
-            Alert.alert("Upload Failed", error.message || "An unknown error occurred during upload.");
+            Alert.alert(t('alertUploadFailed'), error.message || t('alertUnknownError'));
         } finally {
             setLoading(false);
         }
@@ -148,7 +150,7 @@ export default function AgencyUploadEntertainmentScreen() {
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={28} color="#333" /> 
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Upload Entertainment</Text>
+                <Text style={styles.headerTitle}>{t('uploadEntTitle')}</Text>
                 <View style={{ width: 33 }} />
             </View>
 
@@ -163,7 +165,7 @@ export default function AgencyUploadEntertainmentScreen() {
                 >
                     
                     <Text style={styles.idText}>
-                        Entertainment ID: <Text style={{ fontWeight: '600' }}>{entertainmentId}</Text>
+                        {t('entId')} <Text style={{ fontWeight: '600' }}>{entertainmentId}</Text>
                     </Text>
 
                     <View style={styles.imageContainer}>
@@ -189,17 +191,17 @@ export default function AgencyUploadEntertainmentScreen() {
                             >
                             <Ionicons name="cloud-upload-outline" size={20} color="#FFF" />
                             <Text style={styles.changePictureText}>
-                                {imageUri ? "Change Picture" : "Upload Picture"}
+                                {imageUri ? t('changePic') : t('uploadPic')}
                             </Text>
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
 
                     <View style={styles.formContainer}>
-                        <Text style={styles.label}>Entertainment Name</Text>
+                        <Text style={styles.label}>{t('entName')}</Text>
                         <TextInput 
                             style={styles.inputField} 
-                            placeholder="e.g. Sunway Lagoon Ticket"
+                            placeholder={t('placeholderEntName')}
                             placeholderTextColor="#888"
                             value={title} 
                             onChangeText={setTitle} 
@@ -207,10 +209,10 @@ export default function AgencyUploadEntertainmentScreen() {
                         
                         <View style={styles.row}>
                             <View style={styles.col}>
-                                <Text style={styles.label}>Ticket Price (RM)</Text>
+                                <Text style={styles.label}>{t('ticketPriceRM')}</Text>
                                 <TextInput 
                                     style={styles.inputField} 
-                                    placeholder="e.g. 120" 
+                                    placeholder={t('placeholderPrice')}
                                     placeholderTextColor="#888"
                                     keyboardType="numeric"
                                     value={ticketPrice} 
@@ -218,10 +220,10 @@ export default function AgencyUploadEntertainmentScreen() {
                                 />
                             </View>
                             <View style={styles.col}>
-                                <Text style={styles.label}>Transport Type</Text>
+                                <Text style={styles.label}>{t('transportType')}</Text>
                                 <TextInput 
                                     style={styles.inputField} 
-                                    placeholder="e.g. Bus/Taxi" 
+                                    placeholder={t('placeholderTransport')}
                                     placeholderTextColor="#888"
                                     value={transportType} 
                                     onChangeText={setTransportType} 
@@ -231,7 +233,7 @@ export default function AgencyUploadEntertainmentScreen() {
 
                         <View style={styles.row}>
                             <View style={styles.col}>
-                                <Text style={styles.label}>Transport Cost</Text>
+                                <Text style={styles.label}>{t('transportCost')}</Text>
                                 <TextInput 
                                     style={styles.inputField} 
                                     placeholder="e.g. 50" 
@@ -242,7 +244,7 @@ export default function AgencyUploadEntertainmentScreen() {
                                 />
                             </View>
                              <View style={styles.col}>
-                                <Text style={styles.label}>Est. Total (RM)</Text>
+                                <Text style={styles.label}>{t('estTotalRM')}</Text>
                                 <TextInput 
                                     style={styles.inputField} 
                                     placeholder={totalPlaceholder}
@@ -259,7 +261,7 @@ export default function AgencyUploadEntertainmentScreen() {
                             </View>
                         </View>
 
-                        <Text style={styles.label}>Location Search</Text>
+                        <Text style={styles.label}>{t('locationSearch')}</Text>
                         <View style={{ zIndex: 9999, marginBottom: 15 }}>
                             <GooglePlacesAutocomplete
                                 ref={locationRef}
@@ -268,29 +270,20 @@ export default function AgencyUploadEntertainmentScreen() {
                                     onChangeText: (text) => { console.log(text); }, 
                                     autoCorrect: false, 
                                 }}
-                                placeholder="Search Entertainment Location..."
+                                placeholder={t('placeholderLocSearch')}
                                 fetchDetails={true}
-                                // --- [FIX START] ---
                                 onPress={(data, details = null) => {
                                     setLocation(data.description);
-                                    
-                                    // 1. Prefer Coordinates for Routing Accuracy
                                     if (details?.geometry?.location) {
                                         const { lat, lng } = details.geometry.location;
-                                        
-                                        // Construct the Standard Google Maps Query URL
-                                        // This format is safe for DB storage and routing
                                         const cleanUrl = `http://googleusercontent.com/maps.google.com/maps?q=${lat},${lng}`;
-                                        
                                         setLocationUrl(cleanUrl);
                                         console.log("Saved Clean URL:", cleanUrl);
                                     } 
-                                    // 2. Fallback to Google's provided URL
                                     else if (details?.url) {
                                         setLocationUrl(details.url);
                                     }
                                 }}
-                                // --- [FIX END] ---
                                 query={{
                                     key: GOOGLE_PLACES_API_KEY,
                                     language: 'en',
@@ -304,10 +297,10 @@ export default function AgencyUploadEntertainmentScreen() {
                             />
                         </View>
 
-                        <Text style={styles.label}>Description</Text>
+                        <Text style={styles.label}>{t('labelDescription')}</Text>
                         <TextInput 
                             style={[styles.inputField, styles.multilineInput]} 
-                            placeholder="Detailed description of the package..."
+                            placeholder={t('placeholderDescPackage')}
                             placeholderTextColor="#888"
                             multiline
                             numberOfLines={4}
@@ -321,7 +314,7 @@ export default function AgencyUploadEntertainmentScreen() {
                                 onPress={handleReset}
                                 disabled={loading}
                             >
-                                <Text style={styles.resetButtonText}>Reset</Text>
+                                <Text style={styles.resetButtonText}>{t('reset')}</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -332,7 +325,7 @@ export default function AgencyUploadEntertainmentScreen() {
                                 {loading ? (
                                     <ActivityIndicator color="#FFFFFF" />
                                 ) : (
-                                    <Text style={styles.saveButtonText}>Save</Text>
+                                    <Text style={styles.saveButtonText}>{t('save')}</Text>
                                 )}
                             </TouchableOpacity>
                         </View>

@@ -18,11 +18,16 @@ import {
 } from 'react-native-chart-kit';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getAllOrders } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 const screenWidth = Dimensions.get('window').width - 40;
 
 export default function AdminAnalyticsScreen() {
     const router = useRouter();
+    // 2. Destructure Hook
+    const { t } = useLanguage();
+
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -74,6 +79,9 @@ export default function AdminAnalyticsScreen() {
         const labels = Object.keys(map).slice(-7);
         const values = labels.map(l => map[l]);
 
+        // Fix for empty data causing chart crash
+        if (values.length === 0) return { labels: ["No Data"], values: [0] };
+
         return { labels, values };
     }, [orders]);
 
@@ -115,13 +123,16 @@ export default function AdminAnalyticsScreen() {
         const labels = Object.keys(map).slice(-7);
         const values = labels.map(l => map[l]);
 
+        // Fix for empty data
+        if (values.length === 0) return { labels: ["No Data"], values: [0] };
+
         return { labels, values };
     }, [orders]);
 
     if (loading) {
         return (
             <SafeAreaView style={styles.center}>
-                <ActivityIndicator size="large" />
+                <ActivityIndicator size="large" color="#648DDB" />
             </SafeAreaView>
         );
     }
@@ -131,9 +142,9 @@ export default function AdminAnalyticsScreen() {
             {/* Header */}
             <View style={styles.headerBar}>
                 <TouchableOpacity onPress={() => router.back()}>
-                    <Ionicons name="arrow-back" size={28} />
+                    <Ionicons name="arrow-back" size={28} color="#333" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Analytics Dashboard</Text>
+                <Text style={styles.headerTitle}>{t('analyticsDashboard')}</Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -141,29 +152,29 @@ export default function AdminAnalyticsScreen() {
                 {/* Overview */}
                 <View style={styles.row}>
                     <LinearGradient colors={['#333', '#555']} style={styles.card}>
-                        <Text style={styles.cardLabel}>Total Revenue</Text>
+                        <Text style={styles.cardLabel}>{t('totalRevenue')}</Text>
                         <Text style={styles.cardValue}>RM {stats.revenue}</Text>
                     </LinearGradient>
 
                     <View style={styles.lightCard}>
-                        <Text style={styles.lightLabel}>Orders</Text>
+                        <Text style={styles.lightLabel}>{t('ordersLabel')}</Text>
                         <Text style={styles.lightValue}>{stats.orders}</Text>
                     </View>
                 </View>
 
                 <View style={styles.row}>
                     <View style={styles.lightCard}>
-                        <Text style={styles.lightLabel}>Agencies</Text>
+                        <Text style={styles.lightLabel}>{t('agenciesCount')}</Text>
                         <Text style={styles.lightValue}>{stats.agencies}</Text>
                     </View>
                     <View style={styles.lightCard}>
-                        <Text style={styles.lightLabel}>Customers</Text>
+                        <Text style={styles.lightLabel}>{t('customers')}</Text>
                         <Text style={styles.lightValue}>{stats.customers}</Text>
                     </View>
                 </View>
 
                 {/* Revenue Trend */}
-                <Text style={styles.sectionTitle}>Revenue Trend</Text>
+                <Text style={styles.sectionTitle}>{t('revenueTrend')}</Text>
                 <LineChart
                     data={{
                         labels: revenueTrend.labels,
@@ -177,7 +188,7 @@ export default function AdminAnalyticsScreen() {
                 />
 
                 {/* Orders by Agency */}
-                <Text style={styles.sectionTitle}>Orders by Agency</Text>
+                <Text style={styles.sectionTitle}>{t('ordersByAgency')}</Text>
                 <PieChart
                     data={agencyChart}
                     width={screenWidth}
@@ -190,7 +201,7 @@ export default function AdminAnalyticsScreen() {
                 />
 
                 {/* Orders per Day */}
-                <Text style={styles.sectionTitle}>Orders per Day</Text>
+                <Text style={styles.sectionTitle}>{t('ordersPerDay')}</Text>
                 <BarChart
                     data={{
                         labels: ordersByDate.labels,
@@ -229,7 +240,7 @@ const styles = StyleSheet.create({
         padding: 20,
     },
 
-    headerTitle: { fontSize: 18, fontWeight: 'bold' },
+    headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
 
     content: { paddingHorizontal: 20, paddingBottom: 40 },
 
@@ -254,11 +265,12 @@ const styles = StyleSheet.create({
     },
 
     lightLabel: { fontSize: 13, color: '#777' },
-    lightValue: { fontSize: 24, fontWeight: 'bold' },
+    lightValue: { fontSize: 24, fontWeight: 'bold', color: '#333' },
 
     sectionTitle: {
         fontSize: 16,
         fontWeight: 'bold',
+        color: '#333',
         marginVertical: 15,
     },
 

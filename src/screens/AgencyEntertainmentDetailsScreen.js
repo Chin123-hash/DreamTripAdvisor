@@ -1,5 +1,3 @@
-// src/screens/AgencyEntertainmentDetailsScreen.js
-
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -21,12 +19,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 import { getEntertainmentById } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 const { width } = Dimensions.get('window');
 
 const AgencyEntertainmentDetailsScreen = () => {
     const router = useRouter();
     const { id } = useLocalSearchParams();
+    // 2. Destructure Hook
+    const { t } = useLanguage();
 
     const [item, setItem] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -50,20 +52,22 @@ const AgencyEntertainmentDetailsScreen = () => {
     const openNavigationApp = () => {
         if (item?.locationURL) {
             Linking.openURL(item.locationURL).catch(() => {
-                Alert.alert('Error', 'Could not open map application.');
+                // Reusing error key from Food Details if available, or fallback
+                Alert.alert(t('alertErrorTitle'), t('errorMapApp')); 
             });
         } else {
-            Alert.alert('No Location', 'No location link provided.');
+            Alert.alert(t('noLocationTitle'), t('noLocationMsg'));
         }
     };
+
     const getLocalizedMapUrl = (url) => {
         if (!url) return null;
         const separator = url.includes('?') ? '&' : '?';
         return `${url}${separator}hl=en`; 
     };
+
     // =================================================================
     // 🧹 AGGRESSIVE CLEANING SCRIPT 🧹
-    // Removes Google Search Bars, Bottom Cards, and Headers
     // =================================================================
     const mobileCleanScript = `
       (function() {
@@ -107,9 +111,9 @@ const AgencyEntertainmentDetailsScreen = () => {
     if (!item) {
         return (
             <View style={styles.loaderContainer}>
-                <Text style={styles.errorText}>Entertainment details not found.</Text>
+                <Text style={styles.errorText}>{t('entNotFound')}</Text>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
-                    <Text style={{ color: '#A58383' }}>Go Back</Text>
+                    <Text style={{ color: '#A58383' }}>{t('goBack')}</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -142,12 +146,12 @@ const AgencyEntertainmentDetailsScreen = () => {
                         </View>
 
                         <View style={styles.infoCard}>
-                            <Text style={styles.cardLabel}>Activity Details</Text>
+                            <Text style={styles.cardLabel}>{t('activityDetails')}</Text>
 
                             <View style={styles.dataRow}>
                                 <Ionicons name="bus-outline" size={20} color="#666" />
                                 <View style={styles.dataTextGroup}>
-                                    <Text style={styles.dataTitle}>Suggested Transport</Text>
+                                    <Text style={styles.dataTitle}>{t('suggestedTransport')}</Text>
                                     <Text style={styles.dataValue}>
                                         {item.suggestedTransport} (RM {item.transportCost?.toFixed(2)})
                                     </Text>
@@ -157,12 +161,13 @@ const AgencyEntertainmentDetailsScreen = () => {
                             <View style={styles.divider} />
 
                             {/* --- MAP SECTION --- */}
-                            <Text style={[styles.dataTitle, { marginBottom: 10 }]}>Location Preview</Text>
+                            <Text style={[styles.dataTitle, { marginBottom: 10 }]}>{t('locationPreview')}</Text>
 
                             <View style={styles.mapContainer}>
                                 {item.locationURL ? (
                                     <WebView
-                                        source={{ uri: getLocalizedMapUrl(item.locationURL) }}                                        style={styles.mapWebView}
+                                        source={{ uri: getLocalizedMapUrl(item.locationURL) }}                                
+                                        style={styles.mapWebView}
                                         nestedScrollEnabled={true}
                                         showsUserLocation={false}
                                         // Hardware acceleration for Android
@@ -175,10 +180,12 @@ const AgencyEntertainmentDetailsScreen = () => {
                                         originWhitelist={['*']}
                                         javaScriptEnabled={true}
                                         domStorageEnabled={true}
+                                        setSupportMultipleWindows={false}
                                         startInLoadingState={true}
                                         renderLoading={() => (
                                             <View style={styles.loadingOverlay}>
                                                 <ActivityIndicator color="#648DDB" />
+                                                {/* Reusing existing loading text key if created previously, or hardcode fallback */}
                                                 <Text style={styles.loadingText}>Loading Map...</Text>
                                             </View>
                                         )}
@@ -197,13 +204,13 @@ const AgencyEntertainmentDetailsScreen = () => {
                                 ) : (
                                     <View style={styles.noMapContainer}>
                                         <Ionicons name="map-outline" size={30} color="#ccc" />
-                                        <Text style={styles.noMapText}>No location map available</Text>
+                                        <Text style={styles.noMapText}>{t('noMap')}</Text>
                                     </View>
                                 )}
 
                                 <TouchableOpacity style={styles.navigateFab} onPress={openNavigationApp}>
                                     <Ionicons name="navigate" size={20} color="#FFF" />
-                                    <Text style={styles.navigateFabText}>Go</Text>
+                                    <Text style={styles.navigateFabText}>{t('go')}</Text>
                                 </TouchableOpacity>
                             </View>
                             {/* ------------------------ */}
@@ -211,14 +218,14 @@ const AgencyEntertainmentDetailsScreen = () => {
                             <View style={styles.divider} />
 
                             <View style={styles.descriptionSection}>
-                                <Text style={styles.descriptionLabel}>About this activity</Text>
+                                <Text style={styles.descriptionLabel}>{t('aboutActivity')}</Text>
                                 <Text style={styles.descriptionText}>
-                                    {item.description || 'No additional details provided.'}
+                                    {item.description || t('noDetails')}
                                 </Text>
                             </View>
 
                             <View style={styles.footerRow}>
-                                <Text style={styles.totalLabel}>Estimated Total Cost</Text>
+                                <Text style={styles.totalLabel}>{t('estTotalCost')}</Text>
                                 <Text style={styles.totalAmount}>RM {item.estimatedTotalExpenses?.toFixed(2)}</Text>
                             </View>
                         </View>
@@ -246,10 +253,10 @@ const styles = StyleSheet.create({
     dataValue: { fontSize: 15, color: '#444' },
     divider: { height: 1, backgroundColor: '#EEE', marginVertical: 15 },
     
-    // Map Styles - UPDATED HEIGHT
+    // Map Styles
     mapContainer: {
         width: '100%',
-        height: 450, // Height fixed to match request
+        height: 450, 
         borderRadius: 12,
         overflow: 'hidden',
         marginBottom: 10,
@@ -288,9 +295,11 @@ const styles = StyleSheet.create({
     descriptionLabel: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
     descriptionText: { fontSize: 14, color: '#555', lineHeight: 22 },
     footerRow: { marginTop: 20, alignItems: 'flex-end' },
+    totalLabel: { fontSize: 12, color: '#888', textTransform: 'uppercase' },
     totalAmount: { fontSize: 22, fontWeight: 'bold', color: '#E35D5D' },
     errorText: { fontSize: 16, color: '#666' },
-    backLink: { marginTop: 15 }
+    backLink: { marginTop: 15 },
+    cardLabel: { fontSize: 18, fontWeight: 'bold', marginBottom: 20, color: '#333' },
 });
 
 export default AgencyEntertainmentDetailsScreen;

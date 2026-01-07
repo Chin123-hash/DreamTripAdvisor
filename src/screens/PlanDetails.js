@@ -1,5 +1,3 @@
-// src/screens/PlanDetailsScreen.js
-
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -21,11 +19,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Service imports
 import {
-    addPlanToCart, // <--- Ensure this is imported
+    addPlanToCart,
     getAgencies,
     getCurrentUserData,
     getPlanDetails
 } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 const { width } = Dimensions.get('window');
 
@@ -39,6 +39,8 @@ const parsePrice = (priceVal) => {
 export default function PlanDetailsScreen() {
     const router = useRouter();
     const params = useLocalSearchParams(); 
+    // 2. Destructure Hook
+    const { t } = useLanguage();
     
     // Handle cases where param might be 'id' or 'planId'
     const planId = params.id || params.planId; 
@@ -72,7 +74,7 @@ export default function PlanDetailsScreen() {
             if (planId) {
                 await loadPlanData(planId);
             } else {
-                Alert.alert("Error", "No plan selected.");
+                Alert.alert(t('alertErrorTitle'), t('alertNoPlanSelected'));
             }
 
             await fetchAgencies();
@@ -96,13 +98,13 @@ export default function PlanDetailsScreen() {
         }
     };
 
-    // --- LOAD DATA (FIXED FOR PIE CHART) ---
+    // --- LOAD DATA ---
     const loadPlanData = async (id) => {
         try {
             const planData = await getPlanDetails(id);
             
             if (planData) {
-                setPlanName(planData.title || planData.planName || "Trip Plan");
+                setPlanName(planData.title || planData.planName || t('tripDetails'));
 
                 let itemsToUse = [];
 
@@ -120,30 +122,30 @@ export default function PlanDetailsScreen() {
                     const basePrice = parsePrice(planData.price);
 
                     if (ticket > 0) {
-                        itemsToUse.push({ title: 'Ticket / Entry Fee', type: 'Entertainment', price: ticket });
+                        itemsToUse.push({ title: t('ticketEntry'), type: 'Entertainment', price: ticket });
                     }
                     if (transport > 0) {
-                        itemsToUse.push({ title: 'Transport Fee', type: 'Transport', price: transport });
+                        itemsToUse.push({ title: t('transportFee'), type: 'Transport', price: transport });
                     }
                     
                     // If neither ticket nor transport found, but there is a base price, use that
                     if (itemsToUse.length === 0 && basePrice > 0) {
-                        itemsToUse.push({ title: 'Package Fee', type: 'Entertainment', price: basePrice });
+                        itemsToUse.push({ title: t('packageFee'), type: 'Entertainment', price: basePrice });
                     }
                 }
                 // 3. Last Resort
                 else {
-                    itemsToUse = [{ title: 'Estimated Cost', type: 'Entertainment', price: 300 }];
+                    itemsToUse = [{ title: t('estimatedCost'), type: 'Entertainment', price: 300 }];
                 }
 
                 setRawItems(itemsToUse);
                 generateSchedule(itemsToUse);
             } else {
-                Alert.alert("Error", "Plan not found.");
+                Alert.alert(t('alertErrorTitle'), t('alertPlanNotFound'));
             }
         } catch (error) {
             console.log("Error loading plan:", error);
-            Alert.alert("Error", "Could not load plan details");
+            Alert.alert(t('alertErrorTitle'), t('alertLoadFail'));
         }
     };
 
@@ -170,16 +172,16 @@ export default function PlanDetailsScreen() {
         for (let hour = 9; hour <= 18; hour++) {
             let item = null;
             if (hour === 13) {
-                item = food.length > 0 ? food.shift() : { title: 'Lunch Break', type: 'Food', price: 0, isPlaceholder: true };
+                item = food.length > 0 ? food.shift() : { title: t('lunchBreak'), type: 'Food', price: 0, isPlaceholder: true };
                 entCount = 0; 
             } else {
                 if (entCount < 2) {
                     if (entertainment.length > 0) { item = entertainment.shift(); entCount++; } 
-                    else { item = { title: 'Free & Easy', type: 'Entertainment', price: 0, isPlaceholder: true }; }
+                    else { item = { title: t('freeEasy'), type: 'Entertainment', price: 0, isPlaceholder: true }; }
                 } else {
                     if (food.length > 0) { item = food.shift(); } 
                     else if (entertainment.length > 0) { item = entertainment.shift(); } 
-                    else { item = { title: 'Rest Time', type: 'Entertainment', price: 0, isPlaceholder: true }; }
+                    else { item = { title: t('restTime'), type: 'Entertainment', price: 0, isPlaceholder: true }; }
                     entCount = 0; 
                 }
             }
@@ -187,7 +189,7 @@ export default function PlanDetailsScreen() {
                 time: fmtTime(hour), 
                 ...item, 
                 price: item.price || 0, 
-                title: item.title || "Activity" 
+                title: item.title || t('activity') 
             });
         }
         setSchedule(generated);
@@ -196,12 +198,12 @@ export default function PlanDetailsScreen() {
     // --- ADD TO CART LOGIC ---
     const handleAddToCart = async () => {
         if (!userData || !userData.uid) {
-            Alert.alert("Error", "You must be logged in to add items to cart.");
+            Alert.alert(t('alertErrorTitle'), t('alertLoginCart'));
             return;
         }
 
         if (!selectedAgency) {
-            Alert.alert("Required", "Please select a Travel Agency.");
+            Alert.alert(t('alertRequiredTitle'), t('alertSelectAgency'));
             return;
         }
 
@@ -212,23 +214,23 @@ export default function PlanDetailsScreen() {
                 originalPlanId: planId,
                 planName: planName,
                 pax: parseInt(pax) || 1,
-                startDate: fromDate, // Firestore stores dates well
+                startDate: fromDate, 
                 endDate: toDate,
                 agencyId: selectedAgency.id,
                 agencyName: selectedAgency.name,
                 totalPrice: totalExpense,
-                items: rawItems, // Clean items (only ticket/transport)
+                items: rawItems, 
                 schedule: schedule
             };
 
             await addPlanToCart(userData.uid, finalPlanData);
             
-            Alert.alert("Success", "Plan added to your cart!", [
+            Alert.alert(t('alertSuccessTitle'), t('alertCartSuccess'), [
                 { text: "OK", onPress: () => router.back() } 
             ]);
         } catch (error) {
             console.error("Add to cart failed:", error);
-            Alert.alert("Error", "Failed to add plan to cart.");
+            Alert.alert(t('alertErrorTitle'), t('alertCartFail'));
         } finally {
             setLoading(false);
         }
@@ -265,15 +267,15 @@ export default function PlanDetailsScreen() {
 
                     <View style={styles.chartOverlay}>
                         <Text style={styles.chartTotalText}>RM {(grandTotal === 1 ? 0 : grandTotal).toFixed(0)}</Text>
-                        <Text style={styles.chartTotalLabel}>Total</Text>
+                        <Text style={styles.chartTotalLabel}>{t('total')}</Text>
                     </View>
                 </View>
 
                 <View style={styles.legendContainer}>
-                    {foodPct > 0 && <LegendItem color="#81C784" label="Food" />}
-                    {entPct > 0 && <LegendItem color="#FF8A65" label="Entertainment" />}
-                    {hotelPct > 0 && <LegendItem color="#64B5F6" label="Hotel" />}
-                    {transPct > 0 && <LegendItem color="#FFD54F" label="Transport" />}
+                    {foodPct > 0 && <LegendItem color="#81C784" label={t('legendFood')} />}
+                    {entPct > 0 && <LegendItem color="#FF8A65" label={t('legendEnt')} />}
+                    {hotelPct > 0 && <LegendItem color="#64B5F6" label={t('legendHotel')} />}
+                    {transPct > 0 && <LegendItem color="#FFD54F" label={t('legendTransport')} />}
                 </View>
             </View>
         );
@@ -307,10 +309,7 @@ export default function PlanDetailsScreen() {
                 
                 {/* HEADER */}
                 <View style={styles.header}>
-                    {/* <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                        <Ionicons name="arrow-back" size={24} color="#333" />
-                    </TouchableOpacity> */}
-                    <Text style={styles.headerTitle}>{planName || "Trip Details"}</Text>
+                    <Text style={styles.headerTitle}>{planName || t('tripDetails')}</Text>
                     <View style={{width: 24}} /> 
                 </View>
 
@@ -330,32 +329,32 @@ export default function PlanDetailsScreen() {
                             </View>
                         </View>
                     ))}
-                    {schedule.length === 0 && <Text style={{fontStyle:'italic', color:'#999'}}>No schedule available.</Text>}
+                    {schedule.length === 0 && <Text style={{fontStyle:'italic', color:'#999'}}>{t('noSchedule')}</Text>}
                 </View>
 
                 {/* CONFIGURATION FORM */}
                 <View style={styles.formSection}>
                     <View style={styles.bellHeader}>
                         <Ionicons name="settings-outline" size={24} color="#555" />
-                        <Text style={{marginLeft: 10, color: '#555', fontWeight:'bold'}}>Customize your Trip</Text>
+                        <Text style={{marginLeft: 10, color: '#555', fontWeight:'bold'}}>{t('customizeTrip')}</Text>
                     </View>
 
                     <View style={styles.formRow}>
-                        <Text style={styles.label}>From:</Text>
+                        <Text style={styles.label}>{t('from')}</Text>
                         <TouchableOpacity onPress={() => openDatePicker('from')} style={styles.dateInput}>
                             <Text>{fromDate.toLocaleDateString()}</Text>
                         </TouchableOpacity>
                     </View>
 
                     <View style={styles.formRow}>
-                        <Text style={styles.label}>To:</Text>
+                        <Text style={styles.label}>{t('to')}</Text>
                         <TouchableOpacity onPress={() => openDatePicker('to')} style={styles.dateInput}>
                             <Text>{toDate.toLocaleDateString()}</Text>
                         </TouchableOpacity>
                     </View>
 
                     <View style={styles.formRow}>
-                        <Text style={styles.label}>No of Pax:</Text>
+                        <Text style={styles.label}>{t('noOfPax')}</Text>
                         <TextInput 
                             style={styles.paxInput} 
                             value={pax} 
@@ -364,30 +363,30 @@ export default function PlanDetailsScreen() {
                         />
                     </View>
 
-                    <Text style={[styles.label, {marginTop: 10, width:'100%'}]}>Travel Agency:</Text>
+                    <Text style={[styles.label, {marginTop: 10, width:'100%'}]}>{t('travelAgencyLabel')}</Text>
                     <TouchableOpacity 
                         style={styles.dropdown}
                         onPress={() => setShowAgencyModal(true)}
                     >
                         <Text style={styles.dropdownText}>
-                            {selectedAgency ? selectedAgency.name : "Select Agency..."}
+                            {selectedAgency ? selectedAgency.name : t('selectAgencyPlaceholder')}
                         </Text>
                         <Ionicons name="chevron-down" size={20} color="#333" />
                     </TouchableOpacity>
 
                     <View style={styles.totalRow}>
-                        <Text style={styles.totalLabel}>Total Expenses</Text>
+                        <Text style={styles.totalLabel}>{t('totalExpenses')}</Text>
                         <Text style={styles.totalValue}>RM {totalExpense.toFixed(2)}</Text>
                     </View>
                 </View>
 
-                <Text style={styles.handwrittenTitle}>Estimated Expenses</Text>
+                <Text style={styles.handwrittenTitle}>{t('estimatedExpenses')}</Text>
                 {renderPieChart()}
 
                 {/* ADD TO CART BUTTON */}
                 <TouchableOpacity style={styles.addToCartBtn} onPress={handleAddToCart}>
                     <Ionicons name="cart" size={24} color="#FFF" style={{marginRight: 10}} />
-                    <Text style={styles.addToCartText}>Add to Cart</Text>
+                    <Text style={styles.addToCartText}>{t('addToCart')}</Text>
                 </TouchableOpacity>
 
                 <View style={{height: 40}} />
@@ -397,7 +396,7 @@ export default function PlanDetailsScreen() {
             <Modal visible={showAgencyModal} transparent={true} animationType="slide">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
-                        <Text style={styles.modalTitle}>Select Agency</Text>
+                        <Text style={styles.modalTitle}>{t('selectAgencyTitle')}</Text>
                         <ScrollView>
                             {agencyList.map((agency) => (
                                 <TouchableOpacity 
@@ -412,10 +411,10 @@ export default function PlanDetailsScreen() {
                                     {selectedAgency?.id === agency.id && <Ionicons name="checkmark" size={20} color="green" />}
                                 </TouchableOpacity>
                             ))}
-                            {agencyList.length === 0 && <Text style={{padding:20, textAlign:'center'}}>No agencies found.</Text>}
+                            {agencyList.length === 0 && <Text style={{padding:20, textAlign:'center'}}>{t('noAgencies')}</Text>}
                         </ScrollView>
                         <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowAgencyModal(false)}>
-                            <Text style={{color:'#FFF'}}>Close</Text>
+                            <Text style={{color:'#FFF'}}>{t('close')}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>

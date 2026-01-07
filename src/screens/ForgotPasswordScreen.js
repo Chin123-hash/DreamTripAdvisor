@@ -12,8 +12,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { app } from '../../firebaseConfig';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 export default function ForgotPasswordScreen() {
+  // 2. Destructure Hook
+  const { t } = useLanguage();
+
   // State to toggle between "Enter Email" and "Check Email" screens
   const [isEmailSent, setIsEmailSent] = useState(false);
   const [email, setEmail] = useState('');
@@ -35,7 +40,7 @@ export default function ForgotPasswordScreen() {
       // Instead of an alert, we switch the screen UI to "Check Email"
       setIsEmailSent(true); 
     } catch (error) {
-      alert("Error: " + error.message);
+      alert(t('errorPrefix') + error.message);
     } finally {
       setLoading(false);
     }
@@ -46,22 +51,20 @@ export default function ForgotPasswordScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.contentContainer}>
-          <Text style={styles.title}>Check your email</Text>
+          <Text style={styles.title}>{t('checkEmailTitle')}</Text>
           <Text style={styles.subtitle}>
-            We sent a reset link to <Text style={{fontWeight: 'bold', color: '#000'}}>{email}</Text>
-            {'\n'}Click the link in that email to reset your password. You can check with your spam
-            if you not found the link in your inbox.
+            {t('checkEmailSub1')} <Text style={{fontWeight: 'bold', color: '#000'}}>{email}</Text>
+            {t('checkEmailSub2')}
           </Text>
 
-          {/* Replaced the 5 boxes with a helpful image or spacer */}
           <View style={{ height: 50 }} /> 
 
           <TouchableOpacity style={styles.resendLink} onPress={handleReset}>
-            <Text style={styles.linkText}>Haven't got the email yet? Resend email</Text>
+            <Text style={styles.linkText}>{t('resendEmail')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.resetButton} onPress={() => router.back()}>
-            <Text style={styles.resetButtonText}>Back to Log In</Text>
+            <Text style={styles.resetButtonText}>{t('backToLogin')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -74,12 +77,12 @@ export default function ForgotPasswordScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <View style={styles.contentContainer}>
           
-          <Text style={styles.title}>Forgot password</Text>
+          <Text style={styles.title}>{t('forgotPassTitle')}</Text>
           <Text style={styles.subtitle}>
-            Please enter your email to reset the password
+            {t('forgotPassSub')}
           </Text>
 
-          <Text style={styles.label}>Your Email</Text>
+          <Text style={styles.label}>{t('email')}</Text>
           <TextInput
             style={styles.inputField}
             placeholder="contact@dscode.com"
@@ -95,7 +98,7 @@ export default function ForgotPasswordScreen() {
             disabled={!isValid || loading}
           >
             <Text style={styles.resetButtonText}>
-              {loading ? "Sending..." : "Reset Password"}
+              {loading ? t('sending') : t('resetPassBtn')}
             </Text>
           </TouchableOpacity>
 

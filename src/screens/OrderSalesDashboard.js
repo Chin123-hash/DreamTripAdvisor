@@ -15,22 +15,28 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // CHANGED: Import getUserProfile
 import { getAgencyOrders, getUserProfile } from '../services/AuthService';
-
-const FILTER_OPTIONS = [
-    { label: 'All', value: 'all' },
-    { label: 'Last 3 Days', value: 3 },
-    { label: 'Last Week', value: 7 },
-    { label: 'Last Month', value: 30 },
-    { label: 'Last 6 Months', value: 180 },
-];
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 export default function AgencyOrdersScreen() {
     const router = useRouter();
+    // 2. Destructure Hook
+    const { t } = useLanguage();
+
     const [orders, setOrders] = useState([]);
     const [stats, setStats] = useState({ revenue: 0, bookings: 0, customers: 0 });
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false); 
     const [selectedFilter, setSelectedFilter] = useState('all');
+
+    // --- Dynamic Filters based on Language ---
+    const FILTER_OPTIONS = [
+        { label: t('all'), value: 'all' },
+        { label: t('last3Days'), value: 3 },
+        { label: t('lastWeek'), value: 7 },
+        { label: t('lastMonth'), value: 30 },
+        { label: t('last6Months'), value: 180 },
+    ];
 
     const loadData = async () => {
         try {
@@ -55,7 +61,7 @@ export default function AgencyOrdersScreen() {
                 return {
                     ...order,
                     // Prefer profile data, fallback to order data, fallback to defaults
-                    customerName: profile?.fullName || profile?.username || order.customerName || 'Guest',
+                    customerName: profile?.fullName || profile?.username || order.customerName || t('guest'),
                     customerEmail: profile?.email || order.customerEmail || 'No Email',
                     customerPhone: profile?.phone || order.customerPhone || 'No Phone'
                 };
@@ -116,7 +122,6 @@ export default function AgencyOrdersScreen() {
         loadData();
     };
 
-    // ... (FilterBar and SummarySection components remain unchanged) ...
     const FilterBar = () => (
         <View style={styles.filterWrapper}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
@@ -138,23 +143,23 @@ export default function AgencyOrdersScreen() {
     const SummarySection = () => (
         <View style={styles.summaryContainer}>
             <LinearGradient colors={['#648DDB', '#5A8AE4']} style={styles.mainStatCard}>
-                <Text style={styles.statLabel}>Total Revenue</Text>
+                <Text style={styles.statLabel}>{t('totalRevenue')}</Text>
                 <Text style={styles.statValue}>RM {stats.revenue}</Text>
                 <Ionicons name="wallet-outline" size={40} color="rgba(255,255,255,0.3)" style={styles.statIcon} />
             </LinearGradient>
 
             <View style={styles.row}>
                 <View style={[styles.miniStatCard, { backgroundColor: '#F4FFF2', borderColor: '#E1E1E1', borderWidth: 1 }]}>
-                    <Text style={styles.miniLabel}>Bookings</Text>
+                    <Text style={styles.miniLabel}>{t('bookings')}</Text>
                     <Text style={styles.miniValue}>{stats.bookings}</Text>
                 </View>
                 <View style={[styles.miniStatCard, { backgroundColor: '#F4FFF2', borderColor: '#E1E1E1', borderWidth: 1 }]}>
-                    <Text style={styles.miniLabel}>Customers</Text>
+                    <Text style={styles.miniLabel}>{t('customers')}</Text>
                     <Text style={styles.miniValue}>{stats.customers}</Text>
                 </View>
             </View>
 
-            <Text style={styles.sectionTitle}>Recent Transactions</Text>
+            <Text style={styles.sectionTitle}>{t('recentTrans')}</Text>
             <FilterBar />
         </View>
     );
@@ -176,10 +181,10 @@ export default function AgencyOrdersScreen() {
                     <Text style={styles.avatarText}>{item.customerName?.charAt(0) || 'C'}</Text>
                 </View>
                 <View style={styles.headerInfo}>
-                    <Text style={styles.customerName}>{item.customerName || 'Customer'}</Text>
+                    <Text style={styles.customerName}>{item.customerName || t('guest')}</Text>
                     {/* Added Email for better context since we fetched it */}
                     <Text style={{fontSize: 10, color: '#999'}}>{item.customerEmail}</Text> 
-                    <Text style={styles.planName}>{item.items?.[0]?.title || 'Package Fee'}</Text>
+                    <Text style={styles.planName}>{item.items?.[0]?.title || t('packageFee')}</Text>
                 </View>
                 <View style={styles.amountContainer}>
                     <Text style={styles.amountText}>+RM {parseFloat(item.totalAmount || 0).toFixed(2)}</Text>
@@ -201,7 +206,7 @@ export default function AgencyOrdersScreen() {
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={28} color="#333" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Order & Sales</Text>
+                <Text style={styles.headerTitle}>{t('orderSales')}</Text>
                 <View style={{ width: 33 }} />
             </View>
 
@@ -220,7 +225,7 @@ export default function AgencyOrdersScreen() {
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Ionicons name="receipt-outline" size={50} color="#CCC" />
-                            <Text style={styles.emptyText}>No sales data for this period.</Text>
+                            <Text style={styles.emptyText}>{t('noSalesData')}</Text>
                         </View>
                     }
                 />

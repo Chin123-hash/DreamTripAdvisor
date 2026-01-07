@@ -1,5 +1,3 @@
-// src/screens/EntertainmentDetailsScreen.js
-
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -23,12 +21,16 @@ import {
 import { WebView } from 'react-native-webview';
 
 import { addItemToPlan, createNewPlan, getEntertainmentById, getUserPlans } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 const { width, height } = Dimensions.get('window');
 
 const EntertainmentDetailsScreen = () => {
     const router = useRouter();
     const { id } = useLocalSearchParams();
+    // 2. Destructure Hook
+    const { t } = useLanguage();
     
     // Data State
     const [data, setData] = useState(null);
@@ -101,35 +103,30 @@ const EntertainmentDetailsScreen = () => {
     const openNavigationApp = () => {
         const url = data?.locationURL;
         if (!url) {
-            Alert.alert('No Location', 'No location link provided.');
+            Alert.alert(t('alertNoLocation'), t('alertNoLocationMsg'));
             return;
         }
 
         // 1. Try to extract coordinates from our specific format
-        // Input: ...?q=3.123,101.456
         let latLng = null;
         if (url.includes('q=')) {
             const match = url.match(/[?&]q=([^&]+)/);
             if (match && match[1]) {
-                latLng = match[1]; // "3.123,101.456"
+                latLng = match[1]; 
             }
         }
 
         // 2. Construct Platform-Specific Deep Link
-        // These schemes FORCE the OS to open a Map App, not a Browser.
-        let targetUrl = url; // Default fallback
+        let targetUrl = url; 
 
         if (latLng) {
             const label = encodeURIComponent(data.title || 'Destination');
             if (Platform.OS === 'ios') {
-                // iOS Apple Maps Scheme
                 targetUrl = `maps:0,0?q=${label}@${latLng}`;
             } else {
-                // Android Geo Scheme (Universal)
                 targetUrl = `geo:0,0?q=${latLng}(${label})`;
             }
         } else {
-            // Fallback: Search by Title if coordinates parsing fails
             const query = encodeURIComponent(data.title || '');
             if (Platform.OS === 'ios') {
                 targetUrl = `maps:0,0?q=${query}`;
@@ -144,14 +141,13 @@ const EntertainmentDetailsScreen = () => {
                 if (supported) {
                     Linking.openURL(targetUrl);
                 } else {
-                    // If the specific app scheme fails (e.g. Simulator), open the web link
                     console.log("Deep link not supported, opening web URL");
                     Linking.openURL(url);
                 }
             })
             .catch((err) => {
                 console.error("Map Error:", err);
-                Linking.openURL(url); // Final Safety Net
+                Linking.openURL(url);
             });
     };
 
@@ -163,7 +159,7 @@ const EntertainmentDetailsScreen = () => {
             const userPlans = await getUserPlans();
             setPlans(userPlans);
         } catch (error) {
-            Alert.alert("Error", "Could not fetch your plans.");
+            Alert.alert(t('alertErrorTitle'), t('alertFetchPlanFail'));
         } finally {
             setLoadingPlans(false);
         }
@@ -171,14 +167,14 @@ const EntertainmentDetailsScreen = () => {
 
     const handleCreatePlan = async () => {
         if (!newPlanName.trim()) {
-            Alert.alert("Required", "Please enter a trip name.");
+            Alert.alert(t('alertRequiredTitle'), t('alertTripNameReq'));
             return;
         }
         try {
             const newPlanId = await createNewPlan(newPlanName);
             await handleSelectItem({ id: newPlanId, planName: newPlanName });
         } catch (error) {
-            Alert.alert("Error", "Failed to create plan.");
+            Alert.alert(t('alertErrorTitle'), t('alertCreateFail'));
         }
     };
 
@@ -199,9 +195,10 @@ const EntertainmentDetailsScreen = () => {
             setNewPlanName('');
             setIsCreatingPlan(false);
             
-            Alert.alert("Success", `Added to ${plan.planName}!`);
+            // Dynamic Success Message: "Added to [PlanName]!"
+            Alert.alert(t('alertSuccessTitle'), `${t('alertAddedTo')} ${plan.planName}!`);
         } catch (error) {
-            Alert.alert("Error", "Could not add to plan.");
+            Alert.alert(t('alertErrorTitle'), t('alertAddToPlanFail'));
         }
     };
 
@@ -236,31 +233,31 @@ const EntertainmentDetailsScreen = () => {
                         <Text style={styles.title}>{data.title}</Text>
                         <View style={styles.ratingRow}>
                             <Ionicons name="star" size={18} color="#FFD700" />
-                            <Text style={styles.ratingText}>{rating} (Peer Rating)</Text>
+                            <Text style={styles.ratingText}>{rating} ({t('peerRating')})</Text>
                         </View>
                     </View>
                     
                     <View style={styles.divider} />
                     
-                    <Text style={styles.sectionTitle}>About</Text>
+                    <Text style={styles.sectionTitle}>{t('about')}</Text>
                     <Text style={styles.descriptionText}>{data.description}</Text>
 
                     <View style={styles.divider} />
 
-                    <Text style={styles.sectionTitle}>Cost Breakdown</Text>
+                    <Text style={styles.sectionTitle}>{t('costBreakdown')}</Text>
                     <View style={styles.costRow}>
-                        <Text style={styles.costLabel}>Ticket</Text>
+                        <Text style={styles.costLabel}>{t('ticket')}</Text>
                         <Text style={styles.costValue}>RM {ticketPrice.toFixed(2)}</Text>
                     </View>
                     <View style={styles.costRow}>
-                        <Text style={styles.costLabel}>Transport</Text>
+                        <Text style={styles.costLabel}>{t('transport')}</Text>
                         <Text style={styles.costValue}>RM {transportPrice.toFixed(2)}</Text>
                     </View>
 
                     <View style={styles.divider} />
 
                     {/* === MAP SECTION === */}
-                    <Text style={styles.sectionTitle}>Location Preview</Text>
+                    <Text style={styles.sectionTitle}>{t('locationPreview')}</Text>
                     <View style={styles.mapContainer}>
                         {previewUrl ? (
                             <WebView
@@ -289,13 +286,13 @@ const EntertainmentDetailsScreen = () => {
                         ) : (
                             <View style={styles.noMapContainer}>
                                 <Ionicons name="map-outline" size={30} color="#ccc" />
-                                <Text style={styles.noMapText}>No location map available</Text>
+                                <Text style={styles.noMapText}>{t('noMap')}</Text>
                             </View>
                         )}
 
                         <TouchableOpacity style={styles.navigateFab} onPress={openNavigationApp}>
                             <Ionicons name="navigate" size={20} color="#FFF" />
-                            <Text style={styles.navigateFabText}>Go</Text>
+                            <Text style={styles.navigateFabText}>{t('go')}</Text>
                         </TouchableOpacity>
                     </View>
                     {/* ================== */}
@@ -306,11 +303,11 @@ const EntertainmentDetailsScreen = () => {
 
             <View style={styles.bottomBar}>
                 <View>
-                    <Text style={styles.totalLabel}>Total Expenses</Text>
+                    <Text style={styles.totalLabel}>{t('totalExpenses')}</Text>
                     <Text style={styles.totalPrice}>RM {totalExpenses}</Text>
                 </View>
                 <TouchableOpacity style={styles.addButton} onPress={handleAddToPlanClick}>
-                    <Text style={styles.addButtonText}>Add to Plan</Text>
+                    <Text style={styles.addButtonText}>{t('addToPlan')}</Text>
                 </TouchableOpacity>
             </View>
 
@@ -324,7 +321,7 @@ const EntertainmentDetailsScreen = () => {
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>
-                                {isCreatingPlan ? "New Trip Name" : "Select a Trip"}
+                                {isCreatingPlan ? t('newTripName') : t('selectTrip')}
                             </Text>
                             <TouchableOpacity onPress={() => { setModalVisible(false); setIsCreatingPlan(false); }}>
                                 <Ionicons name="close" size={24} color="#999" />
@@ -343,31 +340,37 @@ const EntertainmentDetailsScreen = () => {
                                                     <View style={styles.planIcon}><Ionicons name="map" size={20} color="#5A8AE4" /></View>
                                                     <View>
                                                         <Text style={styles.planName}>{item.planName}</Text>
-                                                        <Text style={styles.planSub}>{item.items?.length || 0} items</Text>
+                                                        <Text style={styles.planSub}>{item.items?.length || 0} {t('itemsCount')}</Text>
                                                     </View>
                                                     <Ionicons name="add-circle-outline" size={24} color="#5A8AE4" style={{marginLeft: 'auto'}}/>
                                                 </TouchableOpacity>
                                             )}
-                                            ListEmptyComponent={<Text style={{textAlign:'center', color:'#999', margin: 20}}>No active plans.</Text>}
+                                            ListEmptyComponent={<Text style={{textAlign:'center', color:'#999', margin: 20}}>{t('noActivePlans')}</Text>}
                                         />
                                     </View>
                                 )}
                                 <TouchableOpacity style={styles.createPlanBtn} onPress={() => setIsCreatingPlan(true)}>
                                     <Ionicons name="add" size={20} color="#FFF" />
-                                    <Text style={styles.createPlanText}>Create New Plan</Text>
+                                    <Text style={styles.createPlanText}>{t('createNewPlan')}</Text>
                                 </TouchableOpacity>
                             </>
                         )}
 
                         {isCreatingPlan && (
                             <View style={{width: '100%'}}>
-                                <TextInput style={styles.input} placeholder="e.g. Penang Food Hunt" value={newPlanName} onChangeText={setNewPlanName} autoFocus />
+                                <TextInput 
+                                    style={styles.input} 
+                                    placeholder={t('placeholderPlanName')} 
+                                    value={newPlanName} 
+                                    onChangeText={setNewPlanName} 
+                                    autoFocus 
+                                />
                                 <View style={styles.modalActionRow}>
                                     <TouchableOpacity style={[styles.modalBtn, {backgroundColor: '#f0f0f0'}]} onPress={() => setIsCreatingPlan(false)}>
-                                        <Text style={{color:'#666'}}>Back</Text>
+                                        <Text style={{color:'#666'}}>{t('back')}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity style={[styles.modalBtn, {backgroundColor: '#5A8AE4'}]} onPress={handleCreatePlan}>
-                                        <Text style={{color:'#FFF', fontWeight: 'bold'}}>Create & Add</Text>
+                                        <Text style={{color:'#FFF', fontWeight: 'bold'}}>{t('createAndAdd')}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -438,8 +441,44 @@ const styles = StyleSheet.create({
     bottomBar: { position: 'absolute', bottom: 0, width: '100%', height: 120, backgroundColor: '#FFF', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 30, paddingBottom: 20, borderTopWidth: 1, borderColor: '#F0F0F0', elevation: 20 },
     totalLabel: { fontSize: 14, color: '#888', textTransform: 'uppercase' },
     totalPrice: { fontSize: 28, fontWeight: '800', color: '#5A8AE4' },
-    addButton: { backgroundColor: '#5A8AE4', paddingVertical: 18, paddingHorizontal: 32, borderRadius: 20, elevation: 5 },
-    addButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
+    // --- UPDATED BUTTON STYLES ---
+   
+    totalLabel: { 
+        fontSize: 14, 
+        color: '#888', 
+        textTransform: 'uppercase', 
+        maxWidth: '90%'
+    },
+    totalPrice: { 
+        fontSize: 28, 
+        fontWeight: '800', 
+        color: '#5A8AE4',
+        // Prevent price from overlapping button if screen is small
+    },
+    
+    // --- FIXED DYNAMIC BUTTON ---
+    addButton: { 
+        backgroundColor: '#5A8AE4', 
+        // 1. Maintain original height feel
+        paddingVertical: 18, 
+        
+        // 2. Allow dynamic expansion but keep it tight enough for Malay
+        paddingHorizontal: 20, 
+        
+        // 3. FORCE a minimum width so English "Add to Plan" doesn't look tiny
+        minWidth: 160, 
+        
+        borderRadius: 20, 
+        elevation: 5,
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+    addButtonText: { 
+        color: '#FFF', 
+        fontSize: 17, // Good balance between 16 and 18
+        fontWeight: 'bold',
+        textAlign: 'center'
+    },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
     modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 25, minHeight: 300 },

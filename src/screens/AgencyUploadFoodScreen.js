@@ -1,5 +1,3 @@
-// src/screens/AgencyUploadFoodScreen.js
-
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,6 +22,8 @@ import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplet
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { addFood } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 LogBox.ignoreLogs(['VirtualizedLists should never be nested']);
 
@@ -41,6 +41,8 @@ export default function AgencyUploadFoodScreen() {
     const auth = getAuth();
     const currentUser = auth.currentUser;
     const locationRef = useRef(); 
+    // 2. Destructure Hook
+    const { t } = useLanguage();
 
     const [foodId] = useState(generateFoodId());
     const [foodName, setFoodName] = useState('');
@@ -80,12 +82,12 @@ export default function AgencyUploadFoodScreen() {
 
     const handleSave = async () => {
         if (!currentUser) {
-            Alert.alert("Error", "You must be logged in.");
+            Alert.alert(t('alertErrorTitle'), t('alertLoginUpload'));
             return;
         }
 
         if (!foodName || !priceRange || !cuisineType || !location || !imageUri) {
-            Alert.alert("Missing Info", "Please fill in all fields and upload a picture.");
+            Alert.alert(t('alertErrorTitle'), t('alertFillAllFood'));
             return;
         }
 
@@ -105,11 +107,11 @@ export default function AgencyUploadFoodScreen() {
         setLoading(true);
         try {
             await addFood(foodData, imageUri);
-            Alert.alert("Success", "Food Item Uploaded!");
+            Alert.alert(t('alertSuccessTitle'), t('alertFoodUploaded'));
             handleReset(); 
         } catch (error) {
             console.error("Upload Error:", error);
-            Alert.alert("Upload Failed", error.message || "Error occurred.");
+            Alert.alert(t('alertUploadFailed'), error.message || t('alertUnknownError'));
         } finally {
             setLoading(false);
         }
@@ -121,7 +123,7 @@ export default function AgencyUploadFoodScreen() {
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={28} color="#333" /> 
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Upload Food</Text>
+                <Text style={styles.headerTitle}>{t('uploadFoodTitle')}</Text>
                 <View style={{ width: 33 }} />
             </View>
 
@@ -136,7 +138,7 @@ export default function AgencyUploadFoodScreen() {
                 >
                     
                     <Text style={styles.idText}>
-                        Food ID: <Text style={{ fontWeight: '600' }}>{foodId}</Text>
+                        {t('foodId')} <Text style={{ fontWeight: '600' }}>{foodId}</Text>
                     </Text>
 
                     <View style={styles.imageContainer}>
@@ -162,7 +164,7 @@ export default function AgencyUploadFoodScreen() {
                             >
                                 <Ionicons name="cloud-upload-outline" size={20} color="#FFF" />
                                 <Text style={styles.changePictureText}>
-                                    {imageUri ? "Change Picture" : "Upload Picture"}
+                                    {imageUri ? t('changePic') : t('uploadPic')}
                                 </Text>
                             </LinearGradient>
                         </TouchableOpacity>
@@ -170,10 +172,10 @@ export default function AgencyUploadFoodScreen() {
 
                     <View style={styles.formContainer}>
                         
-                        <Text style={styles.label}>Food Name</Text>
+                        <Text style={styles.label}>{t('foodName')}</Text>
                         <TextInput 
                             style={styles.inputField} 
-                            placeholder="e.g. Taiyaki"
+                            placeholder={t('placeholderFoodName')}
                             placeholderTextColor="#888"
                             value={foodName} 
                             onChangeText={setFoodName} 
@@ -181,10 +183,10 @@ export default function AgencyUploadFoodScreen() {
                         
                         <View style={styles.row}>
                             <View style={styles.col}>
-                                <Text style={styles.label}>Price Range (RM)</Text>
+                                <Text style={styles.label}>{t('priceRangeRM')}</Text>
                                 <TextInput 
                                     style={styles.inputField} 
-                                    placeholder="10.00" 
+                                    placeholder={t('placeholderPriceRange')}
                                     placeholderTextColor="#888"
                                     keyboardType="numeric"
                                     value={priceRange} 
@@ -192,10 +194,10 @@ export default function AgencyUploadFoodScreen() {
                                 />
                             </View>
                             <View style={styles.col}>
-                                <Text style={styles.label}>Cuisine Type</Text>
+                                <Text style={styles.label}>{t('cuisineType')}</Text>
                                 <TextInput 
                                     style={styles.inputField} 
-                                    placeholder="Japanese cuisine" 
+                                    placeholder={t('placeholderCuisine')}
                                     placeholderTextColor="#888"
                                     value={cuisineType} 
                                     onChangeText={setCuisineType} 
@@ -203,7 +205,7 @@ export default function AgencyUploadFoodScreen() {
                             </View>
                         </View>
 
-                        <Text style={styles.label}>Location Search</Text>
+                        <Text style={styles.label}>{t('locationSearch')}</Text>
                         <View style={{ zIndex: 9999, marginBottom: 15 }}>
                             <GooglePlacesAutocomplete
                                 ref={locationRef}
@@ -212,9 +214,8 @@ export default function AgencyUploadFoodScreen() {
                                     onChangeText: (text) => { console.log(text); },
                                     autoCorrect: false,
                                 }}
-                                placeholder="Search Restaurant Location..."
+                                placeholder={t('placeholderRestSearch')}
                                 fetchDetails={true}
-                                // --- [FIX START] ---
                                 onPress={(data, details = null) => {
                                     setLocation(data.description);
                                     
@@ -234,7 +235,6 @@ export default function AgencyUploadFoodScreen() {
                                         setLocationUrl(details.url);
                                     }
                                 }}
-                                // --- [FIX END] ---
                                 query={{
                                     key: GOOGLE_PLACES_API_KEY,
                                     language: 'en',
@@ -254,7 +254,7 @@ export default function AgencyUploadFoodScreen() {
                                 onPress={handleReset}
                                 disabled={loading}
                             >
-                                <Text style={styles.resetButtonText}>Reset</Text>
+                                <Text style={styles.resetButtonText}>{t('reset')}</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -265,7 +265,7 @@ export default function AgencyUploadFoodScreen() {
                                 {loading ? (
                                     <ActivityIndicator color="#FFFFFF" />
                                 ) : (
-                                    <Text style={styles.saveButtonText}>Save</Text>
+                                    <Text style={styles.saveButtonText}>{t('save')}</Text>
                                 )}
                             </TouchableOpacity>
                         </View>
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
     headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
     
-    scrollContainer: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 100 }, 
+    scrollContainer: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 100 },
     
     idText: { fontSize: 12, color: '#888', textAlign: 'center', marginBottom: 10, marginRight: 5 },
 
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
         borderRadius: 8, paddingHorizontal: 12, backgroundColor: '#FFFFFF',
         fontSize: 15, marginBottom: 15, color: '#333',
     },
-    
+
     searchInput: {
         height: 45,
         borderWidth: 1,
@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
         elevation: 3, 
         zIndex: 9999, 
     },
-
+    
     row: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
     col: { width: '48%' },
 

@@ -1,5 +1,3 @@
-// src/screens/CustomerMainPage.js
-
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
@@ -23,11 +21,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Service
 import { getCurrentUserData, getEntertainmentList, getFoodList, getPlanList, logoutUser } from '../services/AuthService';
+// 1. Import Hook
+import { useLanguage } from '../context/LanguageContext';
 
 const { width } = Dimensions.get('window');
 
 export default function CustomerMainPage() {
   const router = useRouter();
+  // 2. Destructure Hook
+  const { t } = useLanguage();
   
   // --- STATE ---
   const [entertainmentList, setEntertainmentList] = useState([]);
@@ -116,7 +118,7 @@ export default function CustomerMainPage() {
           closeSidebar();
           router.replace('/'); 
       } catch (error) {
-          Alert.alert("Error", "Failed to log out");
+          Alert.alert(t('alertErrorTitle'), t('alertLogoutFail'));
       }
   };
 
@@ -149,6 +151,7 @@ export default function CustomerMainPage() {
           <TouchableOpacity onPress={openSidebar}>
              <Ionicons name="menu" size={30} color="#333" />
           </TouchableOpacity>
+          {/* APP NAME IS UNTRANSLATED */}
           <Text style={styles.appTitle}>Dream Trip Advisor</Text>
           <View style={{width: 30}} />
         </View>
@@ -161,10 +164,10 @@ export default function CustomerMainPage() {
               style={styles.profilePic} 
             />
             <View>
-                <Text style={styles.welcomeLabel}>Hi,</Text>
-                <Text style={styles.welcomeText}>
-                    {userData?.fullName ? userData.fullName.split(' ')[0] : 'Traveller'}
-                </Text>
+              <Text style={styles.welcomeLabel}>{t('hi')}</Text>
+              <Text style={styles.welcomeText}>
+                  {userData?.fullName ? userData.fullName.split(' ')[0] : t('traveller')}
+              </Text>
             </View>
           </View>
 
@@ -179,7 +182,7 @@ export default function CustomerMainPage() {
         </View>
 
         {/* ENTERTAINMENT LIST */}
-        <Text style={styles.sectionTitle}>Recommended Entertainment</Text>
+        <Text style={styles.sectionTitle}>{t('sectionEnt')}</Text>
         {loading ? (
           <ActivityIndicator size="small" color="#648DDB" style={{marginLeft: 20, alignSelf:'flex-start'}} />
         ) : (
@@ -190,12 +193,12 @@ export default function CustomerMainPage() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.horizontalList}
-            ListEmptyComponent={<Text style={styles.emptyText}>No entertainment found.</Text>}
+            ListEmptyComponent={<Text style={styles.emptyText}>{t('emptyEnt')}</Text>}
           />
         )}
 
         {/* FOOD LIST */}
-        <Text style={styles.sectionTitle}>Food you should try</Text>
+        <Text style={styles.sectionTitle}>{t('sectionFood')}</Text>
               {loading ? (
                   <ActivityIndicator size="small" color="#648DDB" style={{ marginLeft: 20, alignSelf: 'flex-start' }} />
               ) : (
@@ -206,18 +209,18 @@ export default function CustomerMainPage() {
                           horizontal
                           showsHorizontalScrollIndicator={false}
                           contentContainerStyle={styles.horizontalList}
-                          ListEmptyComponent={<Text style={styles.emptyText}>No food spots found.</Text>}
+                          ListEmptyComponent={<Text style={styles.emptyText}>{t('emptyFood')}</Text>}
                       />
               )}
 
         {/* PLAN LIST */}
         <View style={styles.divider} />
-        <Text style={styles.sectionTitle}>Recommended Plan</Text>
+        <Text style={styles.sectionTitle}>{t('sectionPlan')}</Text>
         
         {loading ? (
              <ActivityIndicator size="small" color="#648DDB" style={{ marginLeft: 20, alignSelf: 'flex-start' }} />
         ) : planList.length === 0 ? (
-             <Text style={styles.emptyText}>No plans available at the moment.</Text>
+             <Text style={styles.emptyText}>{t('emptyPlan')}</Text>
         ) : (
             planList.map((plan) => (
             <TouchableOpacity 
@@ -233,14 +236,14 @@ export default function CustomerMainPage() {
                     <Text style={styles.planTitle}>{plan.title}</Text>
                     <Text style={styles.planDesc} numberOfLines={2}>{plan.desc}</Text>
                     <View style={styles.ratingRow}>
-                    <Text style={styles.ratingLabel}>Rating</Text>
+                    <Text style={styles.ratingLabel}>{t('rating')}</Text>
                     <View style={{flexDirection:'row', marginLeft: 5}}>
                         {[...Array(plan.rating > 5 ? 5 : plan.rating)].map((_, i) => (
                            <Ionicons key={i} name="star" size={14} color="#FFD700" />
                         ))}
                     </View>
                     </View>
-                    <Text style={styles.priceText}>Estimated: {plan.price}</Text>
+                    <Text style={styles.priceText}>{t('estimated')} {plan.price}</Text>
                 </View>
                 </View>
             </TouchableOpacity>
@@ -251,13 +254,12 @@ export default function CustomerMainPage() {
         <View style={{height: 100}} /> 
       </ScrollView>
 
-      {/* --- FLOATING CHATBOT BUTTON (Moved outside ScrollView) --- */}
+      {/* --- FLOATING CHATBOT BUTTON --- */}
       <TouchableOpacity 
         style={styles.floatingButton}
         onPress={() => router.push('/chatbot')}
         activeOpacity={0.8}
       >
-        {/* Used filled icon for better visibility and white color for contrast */}
         <Ionicons name="chatbubble-ellipses" size={28} color="#FFFFFF" />
       </TouchableOpacity>
 
@@ -282,7 +284,7 @@ export default function CustomerMainPage() {
                               style={styles.sidebarProfilePic} 
                           />
                       </TouchableOpacity>
-                      <Text style={styles.sidebarName}>{userData?.fullName || "Traveller"}</Text>
+                      <Text style={styles.sidebarName}>{userData?.fullName || t('traveller')}</Text>
                       <Text style={styles.sidebarEmail}>{userData?.email || "No Email"}</Text>
                   </View>
 
@@ -290,36 +292,36 @@ export default function CustomerMainPage() {
                   <View style={styles.menuContainer}>
                       <TouchableOpacity style={styles.menuItem} onPress={() => { closeSidebar(); router.push('/profile'); }}>
                           <Ionicons name="person-outline" size={24} color="#333" />
-                          <Text style={styles.menuText}>My Profile</Text>
+                          <Text style={styles.menuText}>{t('myProfile')}</Text>
                       </TouchableOpacity>
                       
                       <TouchableOpacity style={styles.menuItem} onPress={() => { closeSidebar(); router.push('/history'); }}>
                           <Ionicons name="receipt-outline" size={24} color="#333" />
-                          <Text style={styles.menuText}>Orders</Text>
+                          <Text style={styles.menuText}>{t('menuOrders')}</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity style={styles.menuItem} onPress={() => closeSidebar()}>
                           <Ionicons name="heart-outline" size={24} color="#333" />
-                          <Text style={styles.menuText}>Favourites</Text>
+                          <Text style={styles.menuText}>{t('menuFav')}</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity style={styles.menuItem} onPress={() => { closeSidebar(); router.push('/settings'); }}>
                           <Ionicons name="settings-outline" size={24} color="#333" />
-                          <Text style={styles.menuText}>Settings</Text>
+                          <Text style={styles.menuText}>{t('menuSettings')}</Text>
                       </TouchableOpacity>
                       
                       <View style={styles.menuDivider} />
                       
-                      <TouchableOpacity style={styles.menuItem} onPress={() => alert("Support coming soon")}>
+                      <TouchableOpacity style={styles.menuItem} onPress={() => alert(t('alertSupport'))}>
                           <Ionicons name="help-circle-outline" size={24} color="#333" />
-                          <Text style={styles.menuText}>Help & Support</Text>
+                          <Text style={styles.menuText}>{t('menuHelp')}</Text>
                       </TouchableOpacity>
                   </View>
 
                   {/* LOGOUT */}
                   <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
                       <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
-                      <Text style={styles.logoutText}>Log Out</Text>
+                      <Text style={styles.logoutText}>{t('logout')}</Text>
                   </TouchableOpacity>
               </Animated.View>
           </View>
@@ -364,25 +366,23 @@ const styles = StyleSheet.create({
   ratingLabel: { fontSize: 10, color: '#888', marginRight: 5 },
   priceText: { fontSize: 12, fontWeight: 'bold', marginTop: 4, textAlign: 'right', color: '#333' },
 
-  // --- FLOATING BUTTON STYLE (NEW) ---
+  // --- FLOATING BUTTON STYLE ---
   floatingButton: {
-    position: 'absolute', // Locks it to the screen
-    bottom: 30,           // Distance from the bottom
-    right: 20,            // Distance from the right
-    width: 60,            // Button width
-    height: 60,           // Button height
-    borderRadius: 30,     // Makes it circular (half of width)
-    backgroundColor: '#648DDB', // Matches your App's blue theme
+    position: 'absolute', 
+    bottom: 30,           
+    right: 20,            
+    width: 60,            
+    height: 60,           
+    borderRadius: 30,     
+    backgroundColor: '#648DDB', 
     justifyContent: 'center',
     alignItems: 'center',
-    // Shadow for iOS
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 4.65,
-    // Shadow for Android
     elevation: 8,
-    zIndex: 999, // Ensures it sits on top of everything
+    zIndex: 999,
   },
 
   // Sidebar Styles

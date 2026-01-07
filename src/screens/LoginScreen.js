@@ -1,8 +1,8 @@
-import { Ionicons } from '@expo/vector-icons'; // Added for the Eye Icon
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Alert, // Added Alert for better popups
+  Alert,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -14,50 +14,46 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { loginUser } from '../services/AuthService';
+// 1. Import the hook
+import { useLanguage } from '../context/LanguageContext';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
-  // 1. New State for UI enhancements
   const [isPasswordVisible, setPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // 2. Get the translation function
+  const { t } = useLanguage(); 
 
   const handleLogin = async () => {
     // Basic Validation
     if (!email || !password) {
+      // Note: You can also wrap Alert strings with t() if you add them to your dictionary
       Alert.alert("Missing Info", "Please enter both email and password.");
       return;
     }
 
-    setLoading(true); // Start loading spinner/text
+    setLoading(true); 
 
     try {
-      // 1. Call the service
       const result = await loginUser(email, password);
   
-      // 2. Check Role & Navigate
       if (result.role === 'admin') {
          router.replace('/admin-main');
-        
       } else if (result.role === 'agency' && result.status === 'approved') {
-        router.replace('/agency-main'); }
-
-        else if (result.role === 'agency' && result.status === 'pending' ) { 
-        Alert.alert("Welcome Agency", "Please Wait for Your Account Application be Approved"); }
-
-        else if (result.role === 'agency' && result.status === 'rejected' ) { 
+        router.replace('/agency-main'); 
+      } else if (result.role === 'agency' && result.status === 'pending' ) { 
+        Alert.alert("Welcome Agency", "Please Wait for Your Account Application be Approved"); 
+      } else if (result.role === 'agency' && result.status === 'rejected' ) { 
         Alert.alert("Sorry Agency", "Your Account Application have been Rejected");
       } else if (result.role === 'traveller'){
-        router.replace('/customer-main'); // Traveller
-        //Alert.alert("Welcome Traveller", "Login Successful!");
+        router.replace('/customer-main'); 
       }
     } catch (error) {
-      
-      // 3. Friendly Error Handling
       let errorMessage = "Something went wrong. Please try again.";
 
-      // Translate Firebase technical codes to human text
       switch (error.code) {
         case 'auth/user-not-found':
         case 'auth/invalid-email':
@@ -76,7 +72,7 @@ export default function LoginScreen() {
 
       Alert.alert("Login Failed", errorMessage);
     } finally {
-      setLoading(false); // Stop loading regardless of success/failure
+      setLoading(false); 
     }
   };
 
@@ -87,47 +83,52 @@ export default function LoginScreen() {
         style={styles.keyboardView}
       >
         
-        {/* 1. TOP APP BAR (Tab Switcher) */}
+        {/* TOP APP BAR (Tab Switcher) */}
         <View style={styles.tabContainer}>
           <View style={styles.activeTabBorder}>
-            <Text style={styles.activeTabText}>Log in</Text>
+            {/* Translated: "Log in" */}
+            <Text style={styles.activeTabText}>{t('login')}</Text>
           </View>
           <TouchableOpacity 
             style={styles.inactiveTab} 
             onPress={() => router.push('/register')}
           >
-            <Text style={styles.inactiveTabText}>Sign up</Text>
+            {/* Translated: "Sign up" */}
+            <Text style={styles.inactiveTabText}>{t('signup')}</Text>
           </TouchableOpacity>
         </View>
 
-        {/* 2. HEADER SECTION */}
+        {/* HEADER SECTION */}
         <View style={styles.headerContainer}>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Sign in to continue your Dream Trip</Text>
+          {/* Translated: "Welcome Back" */}
+          <Text style={styles.title}>{t('welcome')}</Text>
+          {/* Translated: "Sign in to continue..." */}
+          <Text style={styles.subtitle}>{t('welcomeSub')}</Text>
         </View>
 
-        {/* 3. INPUT SECTION */}
+        {/* INPUT SECTION */}
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>Your Email</Text>
+          {/* Translated: "Your Email" */}
+          <Text style={styles.label}>{t('email')}</Text>
           <TextInput
             style={styles.inputField}
-            placeholder="Enter your email"
+            placeholder="Enter your email" // You can add {t('enterEmail')} here if you add it to dictionary
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
           />
 
-          <Text style={styles.label}>Password</Text>
+          {/* Translated: "Password" */}
+          <Text style={styles.label}>{t('password')}</Text>
           
-          {/* ENHANCED PASSWORD FIELD WITH ICON */}
           <View style={styles.passwordContainer}>
             <TextInput
-              style={styles.passwordInput} // Changed style to fit inside container
-              placeholder="Enter your password"
+              style={styles.passwordInput} 
+              placeholder="Enter your password" // You can add {t('enterPassword')} here
               value={password}
               onChangeText={setPassword}
-              secureTextEntry={!isPasswordVisible} // Toggles true/false
+              secureTextEntry={!isPasswordVisible} 
             />
             <TouchableOpacity 
               onPress={() => setPasswordVisible(!isPasswordVisible)}
@@ -142,33 +143,33 @@ export default function LoginScreen() {
           </View>
           
           <TouchableOpacity onPress={() => router.push('/forgot-password')}>
-            <Text style={styles.forgotPassword}>Forgot password?</Text>
+            {/* Translated: "Forgot password?" */}
+            <Text style={styles.forgotPassword}>{t('forgotPass')}</Text>
           </TouchableOpacity>
         </View>
 
-        {/* 4. BUTTON SECTION */}
+        {/* BUTTON SECTION */}
         <TouchableOpacity 
           style={styles.loginButton} 
           onPress={handleLogin}
-          disabled={loading} // Prevent double clicking
+          disabled={loading} 
         >
           <Text style={styles.loginButtonText}>
-            {loading ? "Checking..." : "Log In"}
+            {/* Translated Button Text */}
+            {loading ? "Checking..." : t('loginBtn')}
           </Text>
         </TouchableOpacity>
 
-        {/* 5. FOOTER */}
+        {/* FOOTER */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
+          {/* Translated: "Don't have an account?" */}
+          <Text style={styles.footerText}>{t('noAccount')} </Text>
           <TouchableOpacity onPress={() => router.push('/register')}>
-            <Text style={styles.signupText}>Sign up</Text>
+            {/* Translated: "Sign up" */}
+            <Text style={styles.signupText}>{t('signup')}</Text>
           </TouchableOpacity>
         </View>
         
-        {/* <TouchableOpacity style={styles.adminLink} onPress={() => alert("Feature coming in Sprint 5")}>
-           <Text style={styles.adminText}>Sign in as Admin</Text>
-        </TouchableOpacity> */}
-
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
