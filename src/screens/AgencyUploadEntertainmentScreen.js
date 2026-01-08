@@ -276,7 +276,8 @@ export default function AgencyUploadEntertainmentScreen() {
                                     setLocation(data.description);
                                     if (details?.geometry?.location) {
                                         const { lat, lng } = details.geometry.location;
-                                        const cleanUrl = `http://googleusercontent.com/maps.google.com/maps?q=${lat},${lng}`;
+                                        const cleanUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+                                        
                                         setLocationUrl(cleanUrl);
                                         console.log("Saved Clean URL:", cleanUrl);
                                     } 
