@@ -18,9 +18,8 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { createOrder, deleteItemFromPlan, deletePlan, getAgencies, getCartPlanDetails } from '../services/AuthService';
-// 1. Import Hook
 import { useLanguage } from '../context/LanguageContext';
+import { createOrder, deleteItemFromPlan, deletePlan, getAgencies, getCartPlanDetails } from '../services/AuthService';
 
 const { width } = Dimensions.get('window');
 
@@ -29,7 +28,6 @@ export default function PlanDetailsScreen() {
     const params = useLocalSearchParams(); 
     const { planId } = params;
     const auth = getAuth(); 
-    // 2. Destructure Hook
     const { t } = useLanguage();
     
     // --- STATE ---
@@ -66,8 +64,11 @@ export default function PlanDetailsScreen() {
     // --- 1. FETCH DATA ---
     useEffect(() => {
         const init = async () => {
-            if (planId) await loadPlanData(planId);
-            await fetchAgencies();
+            const agencies = await fetchAgencies();
+            
+            if (planId) {
+                await loadPlanData(planId, agencies); 
+            }
             
             if (auth.currentUser) {
                 setCustomerEmail(auth.currentUser.email);
@@ -86,22 +87,16 @@ export default function PlanDetailsScreen() {
     const fetchAgencies = async () => {
         try {
             const agencies = await getAgencies();
-            
-            // [FIXED] Filter to show only 'approved' agencies
             const approvedAgencies = agencies.filter(agency => agency.status === 'approved');
-            
             setAgencyList(approvedAgencies);
-            
-            // Set the first approved agency as default if available
-            if (approvedAgencies.length > 0) {
-                setSelectedAgency(approvedAgencies[0]);
-            }
+            return approvedAgencies; 
         } catch (err) {
             console.log("Error fetching agencies:", err);
+            return [];
         }
     };
 
-    const loadPlanData = async (id) => {
+    const loadPlanData = async (id, currentAgencyList) => {
         try {
             const planData = await getCartPlanDetails(id);
             if (planData && planData.items) {
@@ -109,6 +104,21 @@ export default function PlanDetailsScreen() {
                 setRawItems(planData.items);
                 generateSchedule(planData.items);
                 calculateTotal(planData.items);
+
+                if (planData.agencyId) {
+                    const foundAgency = currentAgencyList.find(a => a.id === planData.agencyId);
+                    
+                    if (foundAgency) {
+                        setSelectedAgency(foundAgency);
+                    } else {
+                        setSelectedAgency({
+                            id: planData.agencyId,
+                            name: planData.agencyName || "Unknown Agency"
+                        });
+                    }
+                } else if (currentAgencyList.length > 0) {
+                    setSelectedAgency(currentAgencyList[0]);
+                }
             }
         } catch (error) {
             console.log("Error loading plan", error);
@@ -124,7 +134,6 @@ export default function PlanDetailsScreen() {
 
     // --- SUBMIT ORDER LOGIC ---
     const handleConfirmOrder = async () => {
-        // Validation
         if (!selectedAgency) {
             Alert.alert(t('missingAgencyTitle'), t('alertSelectAgency'));
             return;
@@ -136,7 +145,7 @@ export default function PlanDetailsScreen() {
             [
                 { text: t('cancel'), style: "cancel" },
                 { 
-                    text: t('confirmOrder'), // Or just "Confirm" if you prefer short
+                    text: t('confirmOrder'), 
                     onPress: async () => {
                         try {
                             setSubmitting(true);
@@ -154,10 +163,7 @@ export default function PlanDetailsScreen() {
                                 items: rawItems 
                             };
 
-                            // 1. Create the Order
                             await createOrder(orderPayload);
-
-                            // 2. DELETE FROM CART
                             await deletePlan(planId); 
 
                             Alert.alert(t('alertSuccessTitle'), t('orderPlacedSuccess'), [
@@ -186,8 +192,7 @@ export default function PlanDetailsScreen() {
                     try {
                         setLoading(true);
                         await deleteItemFromPlan(planId, cartId);
-                        // Reload data to reflect changes
-                        await loadPlanData(planId); 
+                        await loadPlanData(planId, agencyList); 
                     } catch (error) {
                         Alert.alert(t('alertErrorTitle'), t('itemRemoveFail'));
                     } finally {
@@ -200,7 +205,6 @@ export default function PlanDetailsScreen() {
 
     // --- SCHEDULE LOGIC ---
     const generateSchedule = (items) => {
-        // Create separate queues for items
         let entertainment = items.filter(i => i.type && i.type.toLowerCase() === 'entertainment');
         let food = items.filter(i => i.type && i.type.toLowerCase() === 'food');
         
@@ -215,7 +219,6 @@ export default function PlanDetailsScreen() {
         for (let hour = 9; hour <= 18; hour++) {
             let item = null;
 
-            // --- 1. HANDLE LUNCH BREAK (1:00 PM) ---
             if (hour === 13) {
                 const itemsLeft = entertainment.length + food.length;
                 if (itemsLeft > 5) {
@@ -226,7 +229,6 @@ export default function PlanDetailsScreen() {
                 }
                 entCount = 0; 
             } 
-            // --- 2. HANDLE NORMAL SLOTS ---
             else {
                 const preferEnt = entCount < 2;
 
@@ -309,7 +311,6 @@ export default function PlanDetailsScreen() {
                     {entPct > 0 && <View style={[styles.slice, { backgroundColor: '#FF8A65', width: `${entPct}%` }]} />}
                     {hotelPct > 0 && <View style={[styles.slice, { backgroundColor: '#64B5F6', width: `${hotelPct}%` }]} />}
                     {transPct > 0 && <View style={[styles.slice, { backgroundColor: '#FFD54F', width: `${transPct}%` }]} />}
-                    
                     {grandTotal === 1 && <View style={[styles.slice, { backgroundColor: '#EEE', width: '100%' }]} />}
 
                     <View style={styles.chartOverlay}>
@@ -390,13 +391,11 @@ export default function PlanDetailsScreen() {
                                 )}
                                 {index < schedule.length - 1 && <View style={styles.dottedLine} />}
                             </View>
-                            {/* Content Column */}
                             <View style={styles.contentCol}>
                                 <Text style={styles.contentTitle}>{item.title}</Text>
                                 <Text style={styles.contentDesc}>{item.isPlaceholder ? item.type : `RM ${item.price}`}</Text>
                             </View>
 
-                            {/* EDITING CONTROLS */}
                             {isEditing && (
                                 <View style={styles.reorderCol}>
                                     {!item.isPlaceholder && (
@@ -483,7 +482,6 @@ export default function PlanDetailsScreen() {
                 <Text style={styles.handwrittenTitle}>{t('estimatedExpenses')}</Text>
                 {renderPieChart()}
 
-                {/* CONFIRM BUTTON */}
                 {!isEditing && (
                     <TouchableOpacity 
                         style={[styles.confirmBtn, submitting && { opacity: 0.7 }]} 
@@ -536,6 +534,8 @@ export default function PlanDetailsScreen() {
                     mode="date"
                     display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                     onChange={onDateChange}
+                    // 🔥 3. RESTRICT DATE PICKER 🔥
+                    minimumDate={pickerMode === 'from' ? new Date() : fromDate}
                 />
             )}
         </SafeAreaView>

@@ -61,6 +61,8 @@ export const registerTraveller = async (email, password, userData) => {
 };
 
 // --- FUNCTION 2: Register an Agency (With Logo) ---
+// Inside services/AuthService.js
+
 export const registerAgency = async (email, password, agencyData, logoUri) => {
     try {
         // 1. Create Auth Account
@@ -73,16 +75,25 @@ export const registerAgency = async (email, password, agencyData, logoUri) => {
             logoUrl = await uploadLogo(logoUri, user.uid);
         }
 
-        // 3. Save Data to Firestore with default status 'pending'
+        // 3. Save Data to Firestore
         await setDoc(doc(db, "users", user.uid), {
+            uid: user.uid,
             email: email,
             role: 'agency',
+            status: 'pending',
+            logoUrl: logoUrl,
+            createdAt: new Date().toISOString(),
+
+            // --- Agency Specific Data ---
             agencyName: agencyData.agencyName,
             licenseNo: agencyData.licenseNo,
             companyUrl: agencyData.companyUrl,
-            logoUrl: logoUrl,      // We save the link, not the file!
-            status: 'pending',     // <-- Default status
-            createdAt: new Date().toISOString()
+
+            // --- 🔥 SAVE THE MISSING DATA HERE ---
+            fullName: agencyData.fullName, // Name of the person in charge
+            username: agencyData.username,
+            phone: agencyData.phone,       // Contact number
+            dob: agencyData.dob            // Date of birth
         });
 
         return user;

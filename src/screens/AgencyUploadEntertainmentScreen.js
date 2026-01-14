@@ -3,7 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { getAuth } from 'firebase/auth';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react'; // Added useEffect
 import {
     ActivityIndicator,
     Alert,
@@ -21,9 +21,8 @@ import {
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { addEntertainment } from '../services/AuthService';
-// 1. Import Hook
 import { useLanguage } from '../context/LanguageContext';
+import { addEntertainment } from '../services/AuthService';
 
 LogBox.ignoreLogs(['VirtualizedLists should never be nested']);
 
@@ -41,7 +40,6 @@ export default function AgencyUploadEntertainmentScreen() {
     const auth = getAuth();
     const currentUser = auth.currentUser;
     const locationRef = useRef();
-    // 2. Destructure Hook
     const { t } = useLanguage();
 
     const [entertainmentId] = useState(generateEntertainmentId());
@@ -61,12 +59,18 @@ export default function AgencyUploadEntertainmentScreen() {
     const [imageUri, setImageUri] = useState(null);
     const [loading, setLoading] = useState(false);
 
-    // Calculations
-    const tPrice = parseFloat(ticketPrice) || 0;
-    const trPrice = parseFloat(transportPrice) || 0;
-    const currentSum = tPrice + trPrice;
-    
-    const totalPlaceholder = currentSum > 0 ? currentSum.toString() : "0.00";
+    // 🔥 AUTO-CALCULATION LOGIC 🔥
+    useEffect(() => {
+        const tPrice = parseFloat(ticketPrice) || 0;
+        const trPrice = parseFloat(transportPrice) || 0;
+        const total = tPrice + trPrice;
+
+        if (total > 0) {
+            setTotalExpenses(total.toString());
+        } else {
+            setTotalExpenses('');
+        }
+    }, [ticketPrice, transportPrice]);
 
     const handleReset = () => {
         setTitle('');
@@ -113,18 +117,15 @@ export default function AgencyUploadEntertainmentScreen() {
             return;
         }
         
-        // Use user input for total, or auto-calculated sum if empty
-        const finalTotal = totalExpenses ? totalExpenses : (currentSum > 0 ? currentSum.toString() : '0');
-
         const finalDescription = `${description}\n\nLocation: ${location}`;
 
         const entertainmentData = {
             title: title,
             description: finalDescription, 
             suggestedTransport: transportType || 'N/A', 
-            transportCost: transportPrice || '0', 
-            estimatedTotalExpenses: finalTotal, 
-            ticketPrice: ticketPrice, 
+            transportCost: parseFloat(transportPrice) || 0, 
+            estimatedTotalExpenses: parseFloat(totalExpenses) || 0, 
+            ticketPrice: parseFloat(ticketPrice) || 0, 
             locationURL: locationUrl, 
             rating: 5, 
             referenceId: entertainmentId,
@@ -189,10 +190,10 @@ export default function AgencyUploadEntertainmentScreen() {
                                 end={{ x: 1, y: 0 }}   
                                 style={styles.gradientButton} 
                             >
-                            <Ionicons name="cloud-upload-outline" size={20} color="#FFF" />
-                            <Text style={styles.changePictureText}>
-                                {imageUri ? t('changePic') : t('uploadPic')}
-                            </Text>
+                                <Ionicons name="cloud-upload-outline" size={20} color="#FFF" />
+                                <Text style={styles.changePictureText}>
+                                    {imageUri ? t('changePic') : t('uploadPic')}
+                                </Text>
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
@@ -244,19 +245,15 @@ export default function AgencyUploadEntertainmentScreen() {
                                 />
                             </View>
                              <View style={styles.col}>
+                                {/* --- Estimated Total (Read-Only) --- */}
                                 <Text style={styles.label}>{t('estTotalRM')}</Text>
                                 <TextInput 
-                                    style={styles.inputField} 
-                                    placeholder={totalPlaceholder}
+                                    // Grey background to indicate disabled state
+                                    style={[styles.inputField, { backgroundColor: '#E0E0E0', color: '#555' }]} 
+                                    placeholder="0.00"
                                     placeholderTextColor="#888"
-                                    keyboardType="numeric"
                                     value={totalExpenses} 
-                                    onChangeText={setTotalExpenses} 
-                                    onFocus={() => {
-                                        if (!totalExpenses && currentSum > 0) {
-                                            setTotalExpenses(currentSum.toString());
-                                        }
-                                    }}
+                                    editable={false} // <--- MADE READ ONLY
                                 />
                             </View>
                         </View>
@@ -277,7 +274,6 @@ export default function AgencyUploadEntertainmentScreen() {
                                     if (details?.geometry?.location) {
                                         const { lat, lng } = details.geometry.location;
                                         const cleanUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-                                        
                                         setLocationUrl(cleanUrl);
                                         console.log("Saved Clean URL:", cleanUrl);
                                     } 

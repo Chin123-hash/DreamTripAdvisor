@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { getAuth } from 'firebase/auth';
 import React, { useEffect, useState } from 'react';
 import {
@@ -20,391 +20,648 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useRouter } from 'expo-router';
-import { addPlan, fetchEntertainmentList, fetchFoodList } from '../services/AuthService';
-// 1. Import Hook
+// Services & Context
 import { useLanguage } from '../context/LanguageContext';
-
-const generateDaysOptions = () => {
-    const options = [];
-    for (let i = 2; i <= 15; i++) {
-        options.push(`${i}D${i - 1}N`);
-    }
-    return options;
-};
+import { addPlan, fetchEntertainmentList, fetchFoodList } from '../services/AuthService';
 
 const generatePlanId = () => {
     const timestamp = new Date().getTime().toString().slice(-10);
     return `P${timestamp}`;
 };
 
-// --- FIX: Added 'default' keyword here ---
+// Helper to generate options
+const generateDaysOptions = () => {
+    const options = [];
+    for (let i = 2; i <= 15; i++) {
+        options.push(`${i} Days ${i - 1} Nights`);
+    }
+    return options;
+};
+
+// Helper to get number of days from string "3 Days 2 Nights"
+const parseDays = (dayString) => {
+    if (!dayString) return 1;
+    const match = dayString.match(/(\d+)\s*Days?/);
+    return match ? parseInt(match[1]) : 1;
+};
+
 export default function AgencyUploadPlanScreen() {
     const auth = getAuth();
     const currentUser = auth.currentUser;
     const router = useRouter();
-    // 2. Destructure Hook
     const { t } = useLanguage();
 
-    // --- State Variables ---
+    // --- STATE ---
     const [planId] = useState(generatePlanId());
-    
-    // Form Inputs
-    const [planName, setPlanName] = useState('');
-    const [days, setDays] = useState(''); 
-    const [pax, setPax] = useState('');
-    const [cost, setCost] = useState('');
-    const [imageUri, setImageUri] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [uploading, setUploading] = useState(false);
 
-    // Dropdown Data
+    // Basic Info
+    const [planName, setPlanName] = useState('');
+    const [planDescription, setPlanDescription] = useState('');
+    const [pax, setPax] = useState('2');
+    const [days, setDays] = useState('1 Day'); // Default
+    const [imageUri, setImageUri] = useState(null);
+    
+    // Data Lists
     const [entList, setEntList] = useState([]);
     const [foodList, setFoodList] = useState([]);
-    
-    // Selections
-    const [selectedEnt, setSelectedEnt] = useState(null); 
-    const [selectedFood, setSelectedFood] = useState(null); 
 
-    // Modals Visibility
-    const [showDaysModal, setShowDaysModal] = useState(false);
-    const [showEntModal, setShowEntModal] = useState(false);
-    const [showFoodModal, setShowFoodModal] = useState(false);
+    // --- MULTI-DAY SCHEDULE STATE ---
+    // schedule is now an Array of Arrays: [ [Day1Slots], [Day2Slots], ... ]
+    const [schedule, setSchedule] = useState([[]]); 
+    const [currentDayIndex, setCurrentDayIndex] = useState(0); // 0 = Day 1
+    const [totalExpense, setTotalExpense] = useState(0);
 
-    // --- 1. Load Data from AuthService ---
+    // Modals
+    const [activeSlotIndex, setActiveSlotIndex] = useState(null);
+    const [showDurationModal, setShowDurationModal] = useState(false); 
+    const [showTypeModal, setShowTypeModal] = useState(false); 
+    const [showItemModal, setShowItemModal] = useState(false);
+    const [currentList, setCurrentList] = useState([]); 
+    const [selectedType, setSelectedType] = useState(''); 
+
+    // --- INITIALIZATION ---
     useEffect(() => {
-        const loadDropdownData = async () => {
-            try {
-                const entData = await fetchEntertainmentList();
-                const formattedEnts = entData.map(item => ({
-                    id: item.value,
-                    title: item.label
-                }));
-                setEntList(formattedEnts);
-
-                const foodData = await fetchFoodList();
-                const formattedFoods = foodData.map(item => ({
-                    id: item.value,
-                    title: item.label
-                }));
-                setFoodList(formattedFoods);
-
-            } catch (error) {
-                console.error("Error loading dropdowns:", error);
-                Alert.alert(t('alertErrorTitle'), t('alertLoadFail'));
-            }
+        const init = async () => {
+            setLoading(true);
+            await loadDropdowns();
+            // Initialize Day 1
+            const initialDay = generateDailySlots();
+            setSchedule([initialDay]);
+            setLoading(false);
         };
-
-        loadDropdownData();
+        init();
     }, []);
 
-    // --- 2. Image Picker ---
+    // --- LOGIC 1: Handle Duration Change ---
+    // Automatically add/remove pages when "days" string changes
+    useEffect(() => {
+        if (!days) return;
+        const numDays = parseDays(days);
+        
+        setSchedule(prevSchedule => {
+            const newSchedule = [...prevSchedule];
+            const currentCount = newSchedule.length;
+
+            if (numDays > currentCount) {
+                // Add new days (pages)
+                for (let i = currentCount; i < numDays; i++) {
+                    newSchedule.push(generateDailySlots());
+                }
+            } else if (numDays < currentCount) {
+                // Remove extra days
+                newSchedule.splice(numDays);
+                // If we were viewing a deleted day, go back to last available day
+                if (currentDayIndex >= numDays) {
+                    setCurrentDayIndex(numDays - 1);
+                }
+            }
+            return newSchedule;
+        });
+    }, [days]);
+
+    // Recalculate total whenever schedule or pax changes
+    useEffect(() => {
+        calculateTotal();
+    }, [schedule, pax]);
+
+    // Helper: Generate one day's empty slots
+    const generateDailySlots = () => {
+        let generated = [];
+        const fmtTime = (hour) => {
+            const period = hour >= 12 ? 'p.m.' : 'a.m.';
+            const h = hour > 12 ? hour - 12 : hour;
+            return `${h.toFixed(2)} ${period}`;
+        };
+
+        for (let hour = 9; hour <= 18; hour++) {
+            generated.push({
+                time: fmtTime(hour),
+                title: t('freeEasy'), 
+                type: 'placeholder',
+                price: 0,
+                itemId: null,
+                isPlaceholder: true
+            });
+        }
+        return generated;
+    };
+
+    // 2. Load Data for Dropdowns
+    const loadDropdowns = async () => {
+        try {
+            const entData = await fetchEntertainmentList();
+            const formattedEnts = entData.map(item => ({
+                id: item.value,
+                title: item.label,
+                price: item.price ? parseFloat(item.price) : 50,
+                type: 'Entertainment'
+            }));
+            setEntList(formattedEnts);
+
+            const foodData = await fetchFoodList();
+            const formattedFoods = foodData.map(item => ({
+                id: item.value,
+                title: item.label,
+                price: item.price ? parseFloat(item.price) : 25,
+                type: 'Food'
+            }));
+            setFoodList(formattedFoods);
+        } catch (error) {
+            console.error("Error loading lists", error);
+        }
+    };
+
+    // 3. Logic: Calculate Total (Iterate ALL days)
+    const calculateTotal = () => {
+        const paxNum = parseInt(pax) || 1;
+        let sum = 0;
+        
+        // Loop through every day array
+        schedule.forEach(daySlots => {
+            daySlots.forEach(item => {
+                sum += (item.price || 0);
+            });
+        });
+
+        setTotalExpense(sum * paxNum);
+    };
+
+    // --- INTERACTION HANDLERS ---
+
+    const handleSlotClick = (index) => {
+        setActiveSlotIndex(index);
+        setShowTypeModal(true); 
+    };
+
+    const handleTypeSelect = (type) => {
+        setSelectedType(type);
+        setShowTypeModal(false);
+        
+        if (type === 'Food') setCurrentList(foodList);
+        else if (type === 'Entertainment') setCurrentList(entList);
+        else if (type === 'Clear') {
+            updateScheduleSlot(activeSlotIndex, { 
+                title: t('freeEasy'), 
+                type: 'placeholder', 
+                price: 0, 
+                itemId: null, 
+                isPlaceholder: true 
+            });
+            return;
+        }
+
+        setTimeout(() => setShowItemModal(true), 200); 
+    };
+
+    const handleItemSelect = (item) => {
+        updateScheduleSlot(activeSlotIndex, {
+            title: item.title,
+            type: selectedType,
+            price: item.price,
+            itemId: item.id,
+            isPlaceholder: false
+        });
+        setShowItemModal(false);
+    };
+
+    // Update specific slot in CURRENT day
+    const updateScheduleSlot = (slotIndex, newData) => {
+        setSchedule(prevSchedule => {
+            const newSchedule = [...prevSchedule]; // Copy outer array
+            const currentDaySlots = [...newSchedule[currentDayIndex]]; // Copy inner array (current day)
+            
+            currentDaySlots[slotIndex] = { ...currentDaySlots[slotIndex], ...newData }; // Update slot
+            
+            newSchedule[currentDayIndex] = currentDaySlots; // Put back
+            return newSchedule;
+        });
+    };
+
+    // --- IMAGE & SAVE ---
+
     const pickImage = async () => {
         let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images, 
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true, aspect: [4, 3], quality: 1,
         });
         if (!result.canceled) setImageUri(result.assets[0].uri);
     };
 
-    // --- 3. Reset Form ---
-    const handleReset = () => {
-        setPlanName('');
-        setDays('');
-        setPax('');
-        setCost('');
-        setSelectedEnt(null);
-        setSelectedFood(null);
-        setImageUri(null);
-    };
+    const handleSavePlan = async () => {
+        if (!currentUser) return Alert.alert("Error", t('alertLoginUpload'));
+        if (!planName || !days || !imageUri) return Alert.alert("Missing Info", t('alertFillAllPlan'));
 
-    // --- 4. Save Logic (Uses addPlan from AuthService) ---
-    const handleSave = async () => {
-        if (!currentUser) return Alert.alert(t('alertErrorTitle'), t('alertLoginUpload'));
-
-        if (!planName || !days || !pax || !cost || !imageUri) {
-            return Alert.alert(t('alertErrorTitle'), t('alertFillAllPlan'));
-        }
-
-        if (!selectedEnt && !selectedFood) {
-            return Alert.alert(t('alertRequiredTitle'), t('alertSelectOne'));
-        }
-
-        setLoading(true);
+        setUploading(true);
         try {
-            const finalPrice = `RM ${cost}`;
+            // Flatten the 2D schedule into a 1D list for Firebase
+            // Add a "day" property to each item: "Day 1", "Day 2"
+            let flatItems = [];
+            
+            schedule.forEach((daySlots, index) => {
+                const dayNumber = index + 1;
+                // Filter out placeholders
+                const actualDayItems = daySlots.filter(item => !item.isPlaceholder).map(item => ({
+                    title: item.title,
+                    type: item.type,
+                    price: item.price,
+                    itemId: item.itemId,
+                    time: item.time,
+                    day: `Day ${dayNumber}` // Important for reading back later
+                }));
+                flatItems = [...flatItems, ...actualDayItems];
+            });
+
             const planData = {
                 title: planName,
-                days: days,
+                description: planDescription,
+                days: days, 
                 pax: pax,
-                price: finalPrice,
+                price: `RM ${totalExpense.toFixed(2)}`,
                 agencyId: currentUser.uid,
                 referenceId: planId,
-                
-                entertainmentId: selectedEnt ? selectedEnt.id : null,
-                entertainmentName: selectedEnt ? selectedEnt.title : 'None',
-                
-                foodId: selectedFood ? selectedFood.id : null,
-                foodName: selectedFood ? selectedFood.title : 'None',
-                
-                rating: 5 // Default rating
+                items: flatItems, // Save the flattened list
+                rating: 5,
+                createdAt: new Date().toISOString()
             };
 
             await addPlan(planData, imageUri);
-            
-            Alert.alert(t('alertSuccessTitle'), t('alertPlanUploaded'));
-            handleReset();
+            Alert.alert("Success", t('alertPlanUploaded'));
+            router.back();
         } catch (error) {
-            Alert.alert(t('alertUploadFailed'), error.message || t('alertUnknownError'));
+            Alert.alert("Error", error.message);
         } finally {
-            setLoading(false);
+            setUploading(false);
         }
     };
 
-    // --- 5. Selection Modal (No Icons) ---
-    const SelectionModal = ({ visible, onClose, data, onSelect, title }) => (
-        <Modal visible={visible} transparent animationType="fade">
-            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
-                <View style={styles.modalContent}>
-                    <Text style={styles.modalTitle}>{title}</Text>
-                    {data.length === 0 ? (
-                        <Text style={styles.emptyText}>{t('noItemsFound')}</Text>
-                    ) : (
-                        <FlatList
-                            data={data}
-                            keyExtractor={(item, index) => item.id || index.toString()}
-                            renderItem={({ item }) => {
-                                let displayText = "";
-                                if (typeof item === 'string') {
-                                    displayText = item;
-                                } else if (item && item.title) {
-                                    displayText = item.title;
-                                } else {
-                                    displayText = t('unnamedItem');
-                                }
+    // --- COMPONENTS ---
 
-                                return (
-                                    <TouchableOpacity 
-                                        style={styles.optionItem}
-                                        onPress={() => { onSelect(item); onClose(); }}
-                                    >
-                                        <Text style={styles.optionText}>{displayText}</Text>
-                                    </TouchableOpacity>
-                                );
-                            }}
-                        />
-                    )}
+    const SelectionModal = ({ visible, title, data, onClose, onSelect }) => (
+        <Modal visible={visible} transparent animationType="slide">
+            <View style={styles.modalOverlay}>
+                <View style={[styles.modalContent, { maxHeight: '60%' }]}>
+                    <Text style={styles.modalTitle}>{title}</Text>
+                    <FlatList
+                        data={data}
+                        keyExtractor={(item, index) => index.toString()}
+                        renderItem={({ item }) => (
+                            <TouchableOpacity 
+                                style={styles.modalOption} 
+                                onPress={() => { onSelect(item); onClose(); }}
+                            >
+                                <Text style={styles.modalOptionText}>{item}</Text>
+                                <Ionicons name="chevron-forward" size={20} color="#CCC" />
+                            </TouchableOpacity>
+                        )}
+                    />
                     <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
                         <Text style={styles.closeBtnText}>{t('close')}</Text>
                     </TouchableOpacity>
                 </View>
-            </TouchableOpacity>
+            </View>
         </Modal>
     );
 
-    const isBasicFilled = planName && days && pax && cost && imageUri;
-    const isSelectionValid = selectedEnt || selectedFood;
-    const canSave = isBasicFilled && isSelectionValid;
+    const renderPieChart = () => {
+        const paxNum = parseInt(pax) || 1;
+        
+        // Flatten schedule for calculation
+        const allItems = schedule.flat();
+
+        const getSum = (type) => allItems
+            .filter(i => i.type?.toLowerCase() === type.toLowerCase())
+            .reduce((a, b) => a + (b.price || 0), 0) * paxNum;
+
+        const foodTotal = getSum('food');
+        const entTotal = getSum('entertainment');
+        const grandTotal = foodTotal + entTotal || 1;
+
+        const foodPct = (foodTotal / grandTotal) * 100;
+        const entPct = (entTotal / grandTotal) * 100;
+
+        return (
+            <View style={styles.chartContainer}>
+                <View style={styles.pieCircle}>
+                    {foodPct > 0 && <View style={[styles.slice, { backgroundColor: '#81C784', width: `${foodPct}%` }]} />}
+                    {entPct > 0 && <View style={[styles.slice, { backgroundColor: '#FF8A65', width: `${entPct}%` }]} />}
+                    {grandTotal === 1 && <View style={[styles.slice, { backgroundColor: '#EEE', width: '100%' }]} />}
+                    <View style={styles.chartOverlay}>
+                        <Text style={styles.chartTotalText}>RM {(grandTotal === 1 ? 0 : grandTotal).toFixed(0)}</Text>
+                        <Text style={styles.chartTotalLabel}>{t('total')}</Text>
+                    </View>
+                </View>
+                <View style={styles.legendContainer}>
+                    <LegendItem color="#81C784" label={t('legendFood')} />
+                    <LegendItem color="#FF8A65" label={t('legendEnt')} />
+                </View>
+            </View>
+        );
+    };
+
+    const LegendItem = ({ color, label }) => (
+        <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: color }]} />
+            <Text style={styles.legendText}>{label}</Text>
+        </View>
+    );
+
+    if (loading) return <ActivityIndicator style={{ flex: 1 }} size="large" color="#648DDB" />;
 
     return (
-        
-        <SafeAreaView style={styles.container}>
-            {/* Header */}
-            <View style={styles.headerBar}>
-                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                    <Ionicons name="arrow-back" size={28} color="#333" /> 
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>{t('uploadPlanTitle')}</Text>
-                <View style={{ width: 33 }} />
-            </View>
+        <View style={styles.container}>
+            <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right', 'bottom']}>
+                {/* HEADER */}
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                        <Ionicons name="arrow-back" size={28} color="#333" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>{t('uploadPlanTitle')}</Text>
+                    <View style={{ width: 28 }} />
+                </View>
 
-            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-                <ScrollView contentContainerStyle={styles.scrollContainer}>
-                    
-                    <Text style={styles.idText}>
-                        {t('planId')} <Text style={{ fontWeight: '600' }}>{planId}</Text>
-                    </Text>
-
-                    {/* Image Upload Area */}
-                    <View style={styles.imageContainer}>
-                        <View style={styles.imageBox}>
+                <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+                    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                        
+                        {/* 1. IMAGE UPLOAD */}
+                        <TouchableOpacity style={styles.imageContainer} onPress={pickImage}>
                             {imageUri ? (
                                 <Image source={{ uri: imageUri }} style={styles.uploadedImage} />
                             ) : (
                                 <View style={styles.uploadPlaceholder}>
-                                    <Ionicons name="image-outline" size={50} color="#CCCCCC" />
+                                    <Ionicons name="camera-outline" size={40} color="#648DDB" />
+                                    <Text style={styles.uploadText}>{t('uploadPic')}</Text>
                                 </View>
                             )}
-                        </View>
-                        <TouchableOpacity style={styles.changePictureButtonContainer} onPress={pickImage} disabled={loading}>
-                            <LinearGradient colors={['#4CD964', '#28A745']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradientButton}>
-                                <Ionicons name="cloud-upload-outline" size={20} color="#FFF" />
-                                <Text style={styles.changePictureText}>{imageUri ? t('changePic') : t('uploadPic')}</Text>
-                            </LinearGradient>
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Form Fields */}
-                    <View style={styles.formContainer}>
-                        
-                        <Text style={styles.label}>{t('planName')}</Text>
-                        <TextInput 
-                            style={styles.inputField} 
-                            placeholder={t('placeholderPlanNameTrip')}
-                            placeholderTextColor="#888"
-                            value={planName} 
-                            onChangeText={setPlanName} 
-                        />
-                        
-                        <View style={styles.row}>
-                            <View style={styles.col}>
-                                <Text style={styles.label}>{t('suggestedDays')}</Text>
-                                <TouchableOpacity 
-                                    style={styles.dropdownField} 
-                                    onPress={() => setShowDaysModal(true)}
-                                >
-                                    <Text style={[styles.dropdownText, !days && {color:'#888'}]}>
-                                        {days || t('selectDuration')}
-                                    </Text>
-                                    <Ionicons name="chevron-down" size={20} color="#888" />
-                                </TouchableOpacity>
+                            <View style={styles.editBadge}>
+                                <Ionicons name="pencil" size={12} color="#FFF" />
                             </View>
-                            <View style={styles.col}>
-                                <Text style={styles.label}>{t('suggestedPax')}</Text>
+                        </TouchableOpacity>
+
+                        {/* 2. BASIC INFO FORM */}
+                        <View style={styles.formSection}>
+                            <Text style={styles.sectionHeader}>{t('tripInfo')}</Text>
+                            
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>{t('planName')}</Text>
                                 <TextInput 
-                                    style={styles.inputField} 
-                                    placeholder={t('placeholderPax')}
-                                    placeholderTextColor="#888"
-                                    keyboardType="numeric"
-                                    value={pax} 
-                                    onChangeText={setPax} 
+                                    style={styles.input} 
+                                    placeholder={t('placeholderPlanNameTrip')} 
+                                    value={planName} 
+                                    onChangeText={setPlanName} 
                                 />
                             </View>
+
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>Description</Text>
+                                <TextInput 
+                                    style={[styles.input, styles.textArea]} 
+                                    placeholder="Enter a short description..." 
+                                    value={planDescription} 
+                                    onChangeText={setPlanDescription} 
+                                    multiline={true}
+                                    numberOfLines={3}
+                                />
+                            </View>
+
+                            <View style={styles.row}>
+                                <View style={[styles.halfInput, { flex: 1, marginRight: 10 }]}>
+                                    <Text style={styles.label}>{t('selectDuration')}</Text>
+                                    <TouchableOpacity 
+                                        onPress={() => setShowDurationModal(true)} 
+                                        style={styles.dropdownBtn}
+                                    >
+                                        <Text style={{color: days ? '#333' : '#999'}}>
+                                            {days || "Select Days"}
+                                        </Text>
+                                        <Ionicons name="chevron-down" size={18} color="#666" />
+                                    </TouchableOpacity>
+                                </View>
+
+                                <View style={[styles.halfInput, { width: 100 }]}>
+                                    <Text style={styles.label}>{t('noOfPax')}</Text>
+                                    <TextInput 
+                                        style={[styles.input, {textAlign: 'center'}]} 
+                                        value={pax} 
+                                        onChangeText={setPax} 
+                                        keyboardType="numeric" 
+                                    />
+                                </View>
+                            </View>
                         </View>
 
-                        <Text style={styles.label}>{t('legendEnt')}</Text>
+                        {/* 3. MULTI-DAY INTERACTIVE TIMELINE */}
+                        <Text style={styles.handwrittenTitle}>Build Your Schedule</Text>
+                        
+                        {/* Day Switcher Bar */}
+                        <View style={styles.daySwitcher}>
+                            <TouchableOpacity 
+                                onPress={() => setCurrentDayIndex(prev => Math.max(0, prev - 1))}
+                                disabled={currentDayIndex === 0}
+                                style={{ opacity: currentDayIndex === 0 ? 0.3 : 1 }}
+                            >
+                                <Ionicons name="chevron-back-circle" size={30} color="#648DDB" />
+                            </TouchableOpacity>
+                            
+                            <Text style={styles.dayTitle}>Day {currentDayIndex + 1} / {schedule.length}</Text>
+                            
+                            <TouchableOpacity 
+                                onPress={() => setCurrentDayIndex(prev => Math.min(schedule.length - 1, prev + 1))}
+                                disabled={currentDayIndex === schedule.length - 1}
+                                style={{ opacity: currentDayIndex === schedule.length - 1 ? 0.3 : 1 }}
+                            >
+                                <Ionicons name="chevron-forward-circle" size={30} color="#648DDB" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={styles.hintText}>Tap a slot to add activity for Day {currentDayIndex + 1}</Text>
+                        
+                        <View style={styles.timelineCard}>
+                            {/* Render ONLY slots for the CURRENT day */}
+                            {schedule[currentDayIndex]?.map((item, index) => (
+                                <TouchableOpacity 
+                                    key={index} 
+                                    style={styles.timelineRow} 
+                                    onPress={() => handleSlotClick(index)}
+                                >
+                                    <View style={styles.timeCol}>
+                                        <Text style={styles.timeText}>{item.time}</Text>
+                                        {index < schedule[currentDayIndex].length - 1 && <View style={styles.dottedLine} />}
+                                    </View>
+                                    <View style={styles.contentCol}>
+                                        <Text style={[styles.contentTitle, item.isPlaceholder && styles.placeholderTitle]}>
+                                            {item.title}
+                                        </Text>
+                                        <Text style={styles.contentDesc}>
+                                            {item.isPlaceholder ? "Tap to add activity" : `${item.type} • RM ${item.price.toFixed(2)}`}
+                                        </Text>
+                                    </View>
+                                    <Ionicons name="add-circle-outline" size={24} color="#648DDB" />
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {/* 4. TOTAL & CHART */}
+                        <View style={styles.summaryCard}>
+                            <View style={styles.totalRow}>
+                                <Text style={styles.totalLabel}>{t('totalExpenses')}</Text>
+                                <Text style={styles.totalValue}>RM {totalExpense.toFixed(2)}</Text>
+                            </View>
+                            {renderPieChart()}
+                        </View>
+
+                        {/* 5. SAVE BUTTON */}
                         <TouchableOpacity 
-                            style={styles.dropdownField} 
-                            onPress={() => setShowEntModal(true)}
+                            style={[styles.saveBtn, uploading && styles.disabledBtn]} 
+                            onPress={handleSavePlan} 
+                            disabled={uploading}
                         >
-                            <Text style={[styles.dropdownText, !selectedEnt && {color:'#888'}]}>
-                                {selectedEnt ? selectedEnt.title : t('selectEnt')}
-                            </Text>
-                            <Ionicons name="chevron-down" size={20} color="#888" />
+                            {uploading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnText}>{t('save')}</Text>}
                         </TouchableOpacity>
 
-                        <Text style={styles.label}>{t('legendFood')}</Text>
-                        <TouchableOpacity 
-                            style={[styles.dropdownField, {marginBottom: 20}]} 
-                            onPress={() => setShowFoodModal(true)}
-                        >
-                            <Text style={[styles.dropdownText, !selectedFood && {color:'#888'}]}>
-                                {selectedFood ? selectedFood.title : t('selectFood')}
-                            </Text>
-                            <Ionicons name="chevron-down" size={20} color="#888" />
-                        </TouchableOpacity>
+                        <View style={{height: 40}} />
+                    </ScrollView>
+                </KeyboardAvoidingView>
 
-                        <Text style={styles.label}>{t('estimatedCostPlan')}</Text>
-                        <View style={styles.currencyContainer}></View>
-                            <Text style={styles.currencyPrefix}>RM</Text>
-                            <TextInput 
-                                style={styles.inputField} 
-                                placeholder="299.00" 
-                                placeholderTextColor="#888"
-                                keyboardType="numeric"
-                                value={cost} 
-                                onChangeText={(text) => {
-                                    const cleanText = text.replace(/[^0-9.]/g, '');
-                                    setCost(cleanText);
-                                }} 
-                        />
+                {/* MODAL 1: SELECT DURATION */}
+                <SelectionModal 
+                    visible={showDurationModal}
+                    title={t('selectDuration')}
+                    data={generateDaysOptions()}
+                    onClose={() => setShowDurationModal(false)}
+                    onSelect={setDays}
+                />
+
+                {/* MODAL 2: SELECT TYPE */}
+                <Modal visible={showTypeModal} transparent animationType="fade">
+                    <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowTypeModal(false)}>
+                        <View style={styles.modalContent}>
+                            <Text style={styles.modalTitle}>Select Activity Type</Text>
+                            <TouchableOpacity style={styles.modalOption} onPress={() => handleTypeSelect('Food')}>
+                                <Ionicons name="restaurant" size={24} color="#81C784" />
+                                <Text style={styles.modalOptionText}>Add Food</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.modalOption} onPress={() => handleTypeSelect('Entertainment')}>
+                                <Ionicons name="ticket" size={24} color="#FF8A65" />
+                                <Text style={styles.modalOptionText}>Add Entertainment</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.modalOption, {borderBottomWidth:0}]} onPress={() => handleTypeSelect('Clear')}>
+                                <Ionicons name="trash-outline" size={24} color="#CCC" />
+                                <Text style={styles.modalOptionText}>Clear Slot</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </TouchableOpacity>
+                </Modal>
+
+                {/* MODAL 3: SELECT ITEM */}
+                <Modal visible={showItemModal} transparent animationType="slide">
+                    <View style={styles.modalOverlay}>
+                        <View style={[styles.modalContent, { height: '60%' }]}>
+                            <Text style={styles.modalTitle}>Select {selectedType}</Text>
+                            <FlatList 
+                                data={currentList}
+                                keyExtractor={item => item.id}
+                                renderItem={({ item }) => (
+                                    <TouchableOpacity style={styles.itemOption} onPress={() => handleItemSelect(item)}>
+                                        <View>
+                                            <Text style={styles.itemOptionTitle}>{item.title}</Text>
+                                            <Text style={styles.itemOptionPrice}>RM {item.price.toFixed(2)}</Text>
+                                        </View>
+                                        <Ionicons name="add" size={20} color="#648DDB" />
+                                    </TouchableOpacity>
+                                )}
+                            />
+                            <TouchableOpacity style={styles.closeBtn} onPress={() => setShowItemModal(false)}>
+                                <Text style={styles.closeBtnText}>{t('close')}</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
+                </Modal>
 
-                    {/* Buttons */}
-                    <View style={styles.buttonRow}>
-                        <TouchableOpacity style={styles.resetButton} onPress={handleReset} disabled={loading}>
-                            <Text style={styles.resetButtonText}>{t('reset')}</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[styles.saveButton, (!canSave) && {opacity: 0.5, backgroundColor: '#999'}]}
-                            onPress={handleSave}
-                            disabled={loading || !canSave}
-                        >
-                            {loading ? (
-                                <ActivityIndicator color="#FFFFFF" />
-                            ) : (
-                                <Text style={styles.saveButtonText}>{t('save')}</Text>
-                            )}
-                        </TouchableOpacity>
-                    </View>
-                </ScrollView>
-            </KeyboardAvoidingView>
-
-            {/* Modals */}
-            <SelectionModal 
-                visible={showDaysModal} title={t('selectDuration')}
-                data={generateDaysOptions()} onClose={() => setShowDaysModal(false)}
-                onSelect={(item) => setDays(item)}
-            />
-
-            <SelectionModal 
-                visible={showEntModal} title={t('selectEnt')}
-                data={entList} onClose={() => setShowEntModal(false)}
-                onSelect={(item) => setSelectedEnt(item)}
-            />
-
-            <SelectionModal 
-                visible={showFoodModal} title={t('selectFood')}
-                data={foodList} onClose={() => setShowFoodModal(false)}
-                onSelect={(item) => setSelectedFood(item)}
-            />
-
-        </SafeAreaView>
+            </SafeAreaView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFFFFF' },
-    headerBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 10, backgroundColor: '#FFFFFF' },
-    backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
-    headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-    scrollContainer: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 40 },
+    container: { flex: 1, backgroundColor: '#F8F9FA' },
+    scrollContent: { padding: 20 },
     
-    idText: { fontSize: 12, color: '#888', textAlign: 'center', marginBottom: 20 },
+    // Header
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, backgroundColor: '#FFF' },
+    headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
 
-    imageContainer: { alignItems: 'center', marginBottom: 25 },
-    imageBox: { width: 150, height: 150, borderRadius: 15, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E1E1E1', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginBottom: 10 },
-    uploadedImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-    uploadPlaceholder: { justifyContent: 'center', alignItems: 'center' },
-    changePictureButtonContainer: { borderRadius: 25, overflow: 'hidden', marginTop: 10, shadowColor: "#28A745", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 8 },
-    gradientButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 25 },
-    changePictureText: { marginLeft: 8, fontSize: 14, color: '#FFFFFF', fontWeight: 'bold' },
+    // Image Upload
+    imageContainer: { width: '100%', height: 180, borderRadius: 16, backgroundColor: '#EFEFEF', justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: '#DDD', borderStyle: 'dashed' },
+    uploadedImage: { width: '100%', height: '100%', borderRadius: 16 },
+    uploadPlaceholder: { alignItems: 'center' },
+    uploadText: { color: '#648DDB', marginTop: 5, fontWeight: '600' },
+    editBadge: { position: 'absolute', bottom: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.6)', padding: 6, borderRadius: 12 },
 
     // Form
-    formContainer: { backgroundColor: '#F4FFF2', borderRadius: 15, padding: 20, marginBottom: 30, elevation: 2 },
-    label: { fontSize: 14, color: '#333', marginBottom: 6, fontWeight: '600' },
-    inputField: { width: '100%', height: 45, borderWidth: 1, borderColor: '#E1E1E1', borderRadius: 8, paddingHorizontal: 12, backgroundColor: '#FFFFFF', fontSize: 15, marginBottom: 15, color: '#333' },
+    formSection: { backgroundColor: '#FFF', borderRadius: 16, padding: 15, marginBottom: 20, elevation: 1 },
+    sectionHeader: { fontSize: 16, fontWeight: 'bold', marginBottom: 15, color: '#444' },
+    inputGroup: { marginBottom: 15 },
+    label: { fontSize: 13, fontWeight: '600', color: '#666', marginBottom: 5 },
+    input: { backgroundColor: '#F9F9F9', borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 8, padding: 10, color: '#333' },
     
-    // Dropdown Style
-    dropdownField: { width: '100%', height: 45, borderWidth: 1, borderColor: '#E1E1E1', borderRadius: 8, paddingHorizontal: 12, backgroundColor: '#FFFFFF', marginBottom: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    dropdownText: { fontSize: 15, color: '#333' },
+    textArea: { height: 80, textAlignVertical: 'top', paddingTop: 10 },
 
-    row: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
-    col: { width: '48%' },
+    row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
+    halfInput: { },
+    dropdownBtn: { backgroundColor: '#F9F9F9', borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 8, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 
-    buttonRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginTop: 10 },
-    resetButton: { flex: 1, backgroundColor: '#EBEBEB', paddingVertical: 12, borderRadius: 8, marginRight: 10, alignItems: 'center' },
-    resetButtonText: { color: '#666', fontSize: 16, fontWeight: '600' },
-    saveButton: { flex: 1, backgroundColor: '#648DDB', paddingVertical: 12, borderRadius: 8, marginLeft: 10, alignItems: 'center' },
-    saveButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
+    // Timeline & Day Switcher
+    handwrittenTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 5 },
+    
+    daySwitcher: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, backgroundColor: '#FFF', borderRadius: 12, padding: 10, elevation: 1 },
+    dayTitle: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+
+    hintText: { fontSize: 12, color: '#888', marginBottom: 15, fontStyle: 'italic' },
+    timelineCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, marginBottom: 25, elevation: 2 },
+    timelineRow: { flexDirection: 'row', marginBottom: 20, alignItems: 'flex-start' },
+    timeCol: { width: 75, alignItems: 'center' },
+    timeText: { fontSize: 13, fontWeight: 'bold', color: '#648DDB' },
+    dottedLine: { position: 'absolute', top: 20, bottom: -30, width: 1, backgroundColor: '#CCC', borderStyle: 'dotted', borderWidth: 1, borderColor: '#CCC' },
+    contentCol: { flex: 1, marginLeft: 15, paddingBottom: 5 },
+    contentTitle: { fontSize: 15, fontWeight: '600', color: '#333' },
+    placeholderTitle: { color: '#999', fontStyle: 'italic' },
+    contentDesc: { fontSize: 12, color: '#666', marginTop: 2 },
+
+    // Summary & Chart
+    summaryCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, marginBottom: 20, alignItems: 'center' },
+    totalRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 20, borderBottomWidth: 1, borderBottomColor: '#EEE', paddingBottom: 10 },
+    totalLabel: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+    totalValue: { fontSize: 18, fontWeight: 'bold', color: '#648DDB' },
+    
+    chartContainer: { alignItems: 'center', marginBottom: 10 },
+    pieCircle: { width: 140, height: 140, borderRadius: 70, overflow: 'hidden', flexDirection: 'row', position: 'relative', marginBottom: 15 },
+    slice: { height: '100%' },
+    chartOverlay: { position: 'absolute', top: 30, left: 30, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.9)', justifyContent: 'center', alignItems: 'center' },
+    chartTotalText: { fontWeight: 'bold', fontSize: 12, color: '#333' },
+    chartTotalLabel: { fontSize: 10, color: '#666' },
+    legendContainer: { flexDirection: 'row', gap: 15 },
+    legendItem: { flexDirection: 'row', alignItems: 'center' },
+    legendDot: { width: 10, height: 10, borderRadius: 5, marginRight: 5 },
+    legendText: { fontSize: 12, color: '#555' },
+
+    // Save Button
+    saveBtn: { backgroundColor: '#648DDB', paddingVertical: 15, borderRadius: 12, alignItems: 'center', elevation: 3 },
+    disabledBtn: { backgroundColor: '#A0C0F0' },
+    saveBtnText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
 
     // Modal Styles
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-    modalContent: { backgroundColor: '#FFF', borderRadius: 15, padding: 20, maxHeight: '80%' },
+    modalContent: { backgroundColor: '#FFF', borderRadius: 15, padding: 20 },
     modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center' },
-    optionItem: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#EEE', flexDirection: 'row', alignItems: 'center' },
-    optionText: { fontSize: 16, color: '#333' },
-    emptyText: { textAlign: 'center', color: '#999', marginVertical: 20 },
-    closeBtn: { marginTop: 20, alignItems: 'center', padding: 10 },
-    closeBtnText: { color: '#648DDB', fontWeight: 'bold', fontSize: 16 }
+    modalOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#EEE' },
+    modalOptionText: { fontSize: 16, marginLeft: 15, color: '#333' },
+    
+    itemOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+    itemOptionTitle: { fontSize: 16, color: '#333', fontWeight: '500' },
+    itemOptionPrice: { fontSize: 14, color: '#666' },
+    
+    closeBtn: { marginTop: 15, alignItems: 'center', padding: 10 },
+    closeBtnText: { color: '#648DDB', fontWeight: 'bold' }
 });

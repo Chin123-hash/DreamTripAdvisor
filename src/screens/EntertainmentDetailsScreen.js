@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -25,6 +25,7 @@ import {
     addItemToPlan,
     checkFavoriteStatus,
     createNewPlan,
+    getCurrentUserData,
     getEntertainmentById,
     getUserPlans,
     toggleFavorite
@@ -46,18 +47,55 @@ const EntertainmentDetailsScreen = () => {
     const [newPlanName, setNewPlanName] = useState('');
     const [isFavorite, setIsFavorite] = useState(false);
 
-    useEffect(() => {
-        const fetchDetails = async () => {
-            if (id) {
-                const result = await getEntertainmentById(id);
-                setData(result);
-                const status = await checkFavoriteStatus(id);
-                setIsFavorite(status);
-            }
-            setLoading(false);
-        };
-        fetchDetails();
-    }, [id]);
+    // --- Role States ---
+    const [isTraveller, setIsTraveller] = useState(false);
+    const [isAgency, setIsAgency] = useState(false);
+
+    // --- 1. Use Focus Effect for Data Refresh (Handles updates from Edit) ---
+    useFocusEffect(
+        useCallback(() => {
+            let isActive = true;
+
+            const fetchDetails = async () => {
+                try {
+                    // Check User Role
+                    const user = await getCurrentUserData();
+                    if (isActive) {
+                        setIsTraveller(user?.role === 'traveller');
+                        setIsAgency(user?.role === 'agency');
+                    }
+
+                    if (id) {
+                        const result = await getEntertainmentById(id);
+                        const status = await checkFavoriteStatus(id);
+                        
+                        if (isActive) {
+                            setData(result);
+                            setIsFavorite(status);
+                            setLoading(false);
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error fetching details:", error);
+                    if (isActive) setLoading(false);
+                }
+            };
+
+            fetchDetails();
+
+            return () => {
+                isActive = false;
+            };
+        }, [id])
+    );
+
+    // --- 2. Edit Handler ---
+    const handleEdit = () => {
+        router.push({
+            pathname: '/agency-edit-entertainment', // Ensure this matches your file structure
+            params: { id: data.id }
+        });
+    };
 
     const handleToggleFavorite = async () => {
         if (!data) return;
@@ -176,7 +214,7 @@ const EntertainmentDetailsScreen = () => {
             const itemToSave = {
                 id: data.id,
                 title: data.title,
-                price: totalExpenses, 
+                price: parseFloat(data.estimatedTotalExpenses) || parseFloat(data.price) || 0, 
                 imageUrl: data.imageUrl,
                 type: 'entertainment', 
                 locationURL: data.locationURL || "" 
@@ -205,13 +243,13 @@ const EntertainmentDetailsScreen = () => {
 
     return (
         <View style={styles.container}>
-            {/* === CHANGED: Moved Button to Header === */}
             <Stack.Screen 
                 options={{ 
                     headerTransparent: true, 
                     headerTitle: "", 
                     headerTintColor: "#FFF",
-                    headerRight: () => (
+                    // Show Heart only for Travellers
+                    headerRight: () => isTraveller ? (
                         <TouchableOpacity 
                             style={styles.favButtonHeader} 
                             onPress={handleToggleFavorite}
@@ -222,7 +260,7 @@ const EntertainmentDetailsScreen = () => {
                                 color={isFavorite ? "#FF3B30" : "#FFF"} 
                             />
                         </TouchableOpacity>
-                    )
+                    ) : null
                 }} 
             />
             <StatusBar barStyle="light-content" />
@@ -234,11 +272,21 @@ const EntertainmentDetailsScreen = () => {
             <View style={styles.sheetContainer}>
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                     <View style={styles.headerSection}>
-                        <Text style={styles.title}>{data.title}</Text>
-                        <View style={styles.ratingRow}>
-                            <Ionicons name="star" size={18} color="#FFD700" />
-                            <Text style={styles.ratingText}>{rating} ({t('peerRating')})</Text>
+                        <View style={{flex: 1, marginRight: 10}}>
+                            <Text style={styles.title}>{data.title}</Text>
                         </View>
+                        
+                        {/* --- 3. Edit Button for Agencies --- */}
+                        {isAgency && (
+                            <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
+                                <Ionicons name="create-outline" size={26} color="#333" />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    <View style={styles.ratingRow}>
+                        <Ionicons name="star" size={18} color="#FFD700" />
+                        <Text style={styles.ratingText}>{rating} ({t('peerRating')})</Text>
                     </View>
                     
                     <View style={styles.divider} />
@@ -257,6 +305,9 @@ const EntertainmentDetailsScreen = () => {
                         <Text style={styles.costLabel}>{t('transport')}</Text>
                         <Text style={styles.costValue}>RM {transportPrice.toFixed(2)}</Text>
                     </View>
+                    <Text style={styles.noteText}>
+                        * Transport fee estimated assuming departure from the same state (e.g. Penang).
+                    </Text>
 
                     <View style={styles.divider} />
 
@@ -289,12 +340,15 @@ const EntertainmentDetailsScreen = () => {
 
             <View style={styles.bottomBar}>
                 <View>
-                    <Text style={styles.totalLabel}>{t('totalExpenses')}</Text>
+                    <Text style={styles.totalLabel}>{t('estimatedTotal')}</Text>
                     <Text style={styles.totalPrice}>RM {totalExpenses}</Text>
                 </View>
-                <TouchableOpacity style={styles.addButton} onPress={handleAddToPlanClick}>
-                    <Text style={styles.addButtonText}>{t('addToPlan')}</Text>
-                </TouchableOpacity>
+                {/* Show Add Button only for Travellers */}
+                {isTraveller && (
+                    <TouchableOpacity style={styles.addButton} onPress={handleAddToPlanClick}>
+                        <Text style={styles.addButtonText}>{t('addToPlan')}</Text>
+                    </TouchableOpacity>
+                )}
             </View>
 
              <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
@@ -355,7 +409,6 @@ const styles = StyleSheet.create({
     imageContainer: { height: height * 0.5, width: '100%', position: 'absolute', top: 0 },
     heroImage: { width: '100%', height: '100%', resizeMode: 'cover' },
     
-    // === CHANGED: Header Button Style ===
     favButtonHeader: {
         backgroundColor: 'rgba(0,0,0,0.3)',
         borderRadius: 20,
@@ -367,9 +420,23 @@ const styles = StyleSheet.create({
 
     sheetContainer: { flex: 1, marginTop: height * 0.35, backgroundColor: '#FFF', borderTopLeftRadius: 35, borderTopRightRadius: 35, elevation: 10 },
     scrollContent: { paddingHorizontal: 25, paddingTop: 35 },
-    headerSection: { marginBottom: 20 },
-    title: { fontSize: 28, fontWeight: 'bold', marginBottom: 8 },
-    ratingRow: { flexDirection: 'row', alignItems: 'center' },
+    
+    headerSection: { 
+        flexDirection: 'row', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        marginBottom: 5 
+    },
+    title: { fontSize: 28, fontWeight: 'bold', flexShrink: 1 },
+    
+    // Edit Button Style
+    editButton: {
+        padding: 5,
+        backgroundColor: '#F2F2F2',
+        borderRadius: 20,
+    },
+
+    ratingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
     ratingText: { marginLeft: 5, fontSize: 15, color: '#666' },
     divider: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 20 },
     sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 12 },
@@ -377,6 +444,9 @@ const styles = StyleSheet.create({
     costRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
     costLabel: { fontSize: 17, color: '#333' },
     costValue: { fontSize: 17, fontWeight: 'bold' },
+    
+    noteText: { fontSize: 12, color: '#999', fontStyle: 'italic', marginTop: 5 },
+
     mapContainer: { width: '100%', height: 450, borderRadius: 20, overflow: 'hidden', marginBottom: 10, position: 'relative', backgroundColor: '#f9f9f9', borderWidth: 1, borderColor: '#EEE' },
     mapWebView: { flex: 1, backgroundColor: 'transparent', opacity: 0.99 },
     navigateFab: { position: 'absolute', bottom: 10, right: 10, backgroundColor: '#5A8AE4', flexDirection: 'row', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, alignItems: 'center', elevation: 5, zIndex: 999 },

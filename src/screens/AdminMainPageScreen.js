@@ -223,12 +223,7 @@ export default function AdminMainPageScreen() {
                                 <Text style={styles.menuText}>{t('systemSettings')}</Text>
                             </TouchableOpacity>
                             
-                            <View style={styles.menuDivider} />
                             
-                            <TouchableOpacity style={styles.menuItem} onPress={() => alert(t('alertSupport'))}>
-                                <Ionicons name="help-circle-outline" size={24} color="#333" />
-                                <Text style={styles.menuText}>{t('menuHelp')}</Text>
-                            </TouchableOpacity>
                         </View>
 
                         {/* LOGOUT */}

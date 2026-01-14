@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react'; // Removed useEffect as we don't need to load data on mount anymore
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -15,22 +17,8 @@ import {
 import Markdown from 'react-native-markdown-display';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// ✅ UPDATE 1: Import the new dynamic fetcher (Make sure the path matches where you saved TravelDataService.js)
 import { getDynamicTravelData } from '../services/FirebaseService';
 import { sendMessageToGemini } from '../services/GeminiService';
-
-// Optional: Debugging tool to check models
-export const listAvailableModels = async () => {
-  const apiKey = 'AIzaSyAkT5iDirGlGpMoN8FHGtPG5c-Tlx87Xc0'; 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
-    console.log("--- AVAILABLE GEMINI MODELS ---", data);
-  } catch (error) {
-    console.error("Error fetching models:", error);
-  }
-};
 
 export default function ChatbotScreen() {
   const router = useRouter();
@@ -41,9 +29,6 @@ export default function ChatbotScreen() {
   ]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  // ❌ REMOVED: tripContext state & useEffect. 
-  // We don't want to store stale data or load everything at the start.
 
   // 2. PREPARE HISTORY FOR API
   const getHistoryForGemini = () => {
@@ -55,28 +40,23 @@ export default function ChatbotScreen() {
       }));
   };
 
-  // 3. HANDLE SEND (The Big Update)
+  // 3. HANDLE SEND
   const handleSend = async () => {
     if (!inputText.trim()) return;
 
-    // A. UI Updates immediately
-    const userMessageText = inputText; // Capture text before clearing
+    const userMessageText = inputText; 
     const userMessage = { id: Date.now().toString(), text: userMessageText, role: 'user' };
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
     setLoading(true);
 
     try {
-      // B. ✅ STEP 1: Dynamically fetch ONLY relevant data based on this specific question
-      // This prevents the "Token Limit" crash by only grabbing what's needed.
       console.log("Fetching context for:", userMessageText);
       const relevantContext = await getDynamicTravelData(userMessageText);
       
-      // C. ✅ STEP 2: Send history + new context to Gemini
       const history = getHistoryForGemini();
       const responseText = await sendMessageToGemini(userMessageText, history, relevantContext);
 
-      // D. Add Bot Message
       const botMessage = { id: (Date.now() + 1).toString(), text: responseText, role: 'model' };
       setMessages(prev => [...prev, botMessage]);
       
@@ -89,22 +69,46 @@ export default function ChatbotScreen() {
     }
   };
 
-  // 4. RENDER BUBBLES
+  // 4. COPY FUNCTION
+  const handleCopy = async (text) => {
+    await Clipboard.setStringAsync(text);
+    Alert.alert("Copied", "Message copied to clipboard!");
+  };
+
+  // 5. RENDER BUBBLES
   const renderMessage = ({ item }) => {
     const isUser = item.role === 'user';
     const messageContent = String(item.text || ''); 
 
     return (
-      <View style={[
-        styles.messageBubble, 
-        isUser ? styles.userBubble : styles.botBubble
-      ]}>
+      <TouchableOpacity 
+        onLongPress={() => handleCopy(messageContent)}
+        delayLongPress={500}
+        activeOpacity={0.9}
+        style={[
+          styles.messageBubble, 
+          isUser ? styles.userBubble : styles.botBubble
+        ]}
+      >
         <Markdown 
           style={isUser ? markdownStylesUser : markdownStylesBot}
         >
           {messageContent}
         </Markdown>
-      </View>
+
+        {/* COPY ICON */}
+        <TouchableOpacity 
+            onPress={() => handleCopy(messageContent)} 
+            style={styles.copyButton}
+            hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+        >
+            <Ionicons 
+                name="copy-outline" 
+                size={16} 
+                color={isUser ? "rgba(255,255,255,0.8)" : "#AAA"} 
+            />
+        </TouchableOpacity>
+      </TouchableOpacity>
     );
   };
 
@@ -162,7 +166,7 @@ export default function ChatbotScreen() {
   );
 }
 
-// --- STYLES (Unchanged) ---
+// --- STYLES ---
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
@@ -197,6 +201,13 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 4,
     borderWidth: 1,
     borderColor: '#EEE',
+  },
+  
+  // New Style for the Copy Icon
+  copyButton: {
+    alignSelf: 'flex-end',
+    marginTop: 6,
+    padding: 2,
   },
   
   inputContainer: {
@@ -257,12 +268,12 @@ const markdownStylesUser = {
     color: '#FFF',
     padding: 0,
     marginTop: 0,
-    marginBottom: 0,
+    marginBottom: 0, 
   },
   paragraph: {
     marginTop: 0,
     marginBottom: 0,
-    flexWrap: 'wrap',
+    flexWrap: 'wrap', 
   },
   table: { borderWidth: 1, borderColor: '#FFF', marginTop: 5 },
   tr: { borderBottomWidth: 1, borderColor: '#FFF', flexDirection: 'row' },

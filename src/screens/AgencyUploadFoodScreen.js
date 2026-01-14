@@ -3,7 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { getAuth } from 'firebase/auth';
-import React, { useEffect, useRef, useState } from 'react'; // 🔥 1. Added useEffect
+import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -61,14 +61,12 @@ export default function AgencyUploadFoodScreen() {
     const [imageUri, setImageUri] = useState(null);
     const [loading, setLoading] = useState(false);
 
-    // 🔥 2. AUTO-CALCULATION LOGIC 🔥
-    // Whenever priceRange or transportCost changes, this runs automatically.
+    // 🔥 AUTO-CALCULATION LOGIC 🔥
     useEffect(() => {
         const price = parseFloat(priceRange) || 0;
         const transport = parseFloat(transportCost) || 0;
         const total = price + transport;
 
-        // Only update if we have a valid total > 0
         if (total > 0) {
             setEstimatedTotal(total.toString());
         } else {
@@ -111,7 +109,6 @@ export default function AgencyUploadFoodScreen() {
             return;
         }
 
-        // Basic Validation
         if (!foodName || !priceRange || !cuisineType || !locationUrl || !imageUri) {
             Alert.alert(t('alertErrorTitle'), t('alertFillAllFood'));
             return;
@@ -126,7 +123,7 @@ export default function AgencyUploadFoodScreen() {
             
             suggestedTransport: transportType || 'N/A',
             transportCost: parseFloat(transportCost) || 0,
-            estimatedTotalExpenses: parseFloat(estimatedTotal) || 0, // Uses the auto-calculated value
+            estimatedTotalExpenses: parseFloat(estimatedTotal) || 0,
             
             rating: 5, 
             agencyId: currentUser.uid
@@ -217,7 +214,7 @@ export default function AgencyUploadFoodScreen() {
                                     style={styles.inputField} 
                                     placeholder={t('placeholderApproxPrice')}
                                     placeholderTextColor="#888"
-                                    keyboardType="numeric" // Added numeric keyboard for better calc
+                                    keyboardType="numeric"
                                     value={priceRange} 
                                     onChangeText={setPriceRange} 
                                 />
@@ -259,19 +256,18 @@ export default function AgencyUploadFoodScreen() {
                             </View>
                         </View>
 
-                        {/* --- Estimated Total (Auto-Calculated) --- */}
+                        {/* --- Estimated Total (Read-Only) --- */}
                         <Text style={styles.label}>{t('estTotalRM') || "Estimated Total (RM)"}</Text>
                         <TextInput 
-                            style={styles.inputField} // Optional: Grey out slightly
+                            // Gray background to indicate disabled state
+                            style={[styles.inputField, { backgroundColor: '#E0E0E0', color: '#555' }]} 
                             placeholder="e.g. 25"
                             placeholderTextColor="#888"
-                            keyboardType="numeric"
                             value={estimatedTotal} 
-                            onChangeText={setEstimatedTotal} 
-                            editable={true} // Users can still edit if they really want to
+                            editable={false} // <--- MADE READ ONLY
                         />
 
-                        {/* --- LOCATION SEARCH (Fixed URL Logic) --- */}
+                        {/* --- LOCATION SEARCH --- */}
                         <Text style={styles.label}>{t('locationSearch')}</Text>
                         <View style={{ zIndex: 9999, marginBottom: 15 }}>
                             <GooglePlacesAutocomplete
@@ -288,9 +284,7 @@ export default function AgencyUploadFoodScreen() {
                                     
                                     if (details?.geometry?.location) {
                                         const { lat, lng } = details.geometry.location;
-                                        // Standard Google Maps URL
                                         const cleanUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-                                        
                                         setLocationUrl(cleanUrl);
                                         console.log("Saved Clean URL:", cleanUrl);
                                     } 
@@ -311,7 +305,7 @@ export default function AgencyUploadFoodScreen() {
                             />
                         </View>
 
-                        {/* --- NEW FIELD: Description --- */}
+                        {/* --- Description --- */}
                         <Text style={styles.label}>{t('labelDescription') || "Description"}</Text>
                         <TextInput 
                             style={[styles.inputField, styles.multilineInput]} 

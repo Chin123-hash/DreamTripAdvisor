@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -25,6 +25,7 @@ import {
     addItemToPlan,
     checkFavoriteStatus,
     createNewPlan,
+    getCurrentUserData,
     getFoodById,
     getUserPlans,
     toggleFavorite
@@ -45,24 +46,56 @@ const FoodDetailsScreen = () => {
     const [isCreatingPlan, setIsCreatingPlan] = useState(false);
     const [newPlanName, setNewPlanName] = useState('');
     const [isFavorite, setIsFavorite] = useState(false);
+    
+    // --- Role States ---
+    const [isTraveller, setIsTraveller] = useState(false);
+    const [isAgency, setIsAgency] = useState(false);
 
-    useEffect(() => {
-        const fetchDetails = async () => {
-            try {
-                const result = await getFoodById(id); 
-                setData(result);
-                if (id) {
-                    const status = await checkFavoriteStatus(id);
-                    setIsFavorite(status);
+    // --- 1. Use Focus Effect for Data Refresh ---
+    useFocusEffect(
+        useCallback(() => {
+            let isActive = true;
+
+            const fetchDetails = async () => {
+                try {
+                    // Check User Role
+                    const user = await getCurrentUserData();
+                    if (isActive) {
+                        setIsTraveller(user?.role === 'traveller');
+                        setIsAgency(user?.role === 'agency');
+                    }
+
+                    if (id) {
+                        const result = await getFoodById(id); 
+                        const status = await checkFavoriteStatus(id);
+                        
+                        if (isActive) {
+                            setData(result);
+                            setIsFavorite(status);
+                            setLoading(false);
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error fetching food details:", error);
+                    if (isActive) setLoading(false);
                 }
-            } catch (error) {
-                console.error("Error fetching food details:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        if (id) fetchDetails();
-    }, [id]);
+            };
+
+            fetchDetails();
+
+            return () => {
+                isActive = false;
+            };
+        }, [id])
+    );
+
+    // --- 2. Edit Handler ---
+    const handleEdit = () => {
+        router.push({
+            pathname: '/agency-edit-food',
+            params: { id: data.id }
+        });
+    };
 
     const handleToggleFavorite = async () => {
         if (!data) return;
@@ -203,13 +236,12 @@ const FoodDetailsScreen = () => {
 
     return (
         <View style={styles.container}>
-            {/* === CHANGED: Moved Button to Header === */}
             <Stack.Screen 
                 options={{ 
                     headerTransparent: true, 
                     headerTitle: "", 
                     headerTintColor: "#FFF",
-                    headerRight: () => (
+                    headerRight: () => isTraveller ? (
                         <TouchableOpacity 
                             style={styles.favButtonHeader} 
                             onPress={handleToggleFavorite}
@@ -220,7 +252,7 @@ const FoodDetailsScreen = () => {
                                 color={isFavorite ? "#FF3B30" : "#FFF"} 
                             />
                         </TouchableOpacity>
-                    )
+                    ) : null
                 }} 
             />
             <StatusBar barStyle="light-content" />
@@ -231,12 +263,24 @@ const FoodDetailsScreen = () => {
 
             <View style={styles.sheetContainer}>
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    
+                    {/* --- HEADER SECTION --- */}
                     <View style={styles.headerSection}>
-                        <Text style={styles.title}>{data.title}</Text>
-                        <View style={styles.ratingRow}>
-                            <Ionicons name="star" size={18} color="#FFD700" />
-                            <Text style={styles.ratingText}>{rating} ({t('foodieRating')})</Text>
+                        <View style={{flex: 1, marginRight: 10}}>
+                            <Text style={styles.title}>{data.title}</Text>
                         </View>
+                        
+                        {/* --- 3. Edit Button for Agencies --- */}
+                        {isAgency && (
+                            <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
+                                <Ionicons name="create-outline" size={26} color="#333" />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    <View style={styles.ratingRow}>
+                        <Ionicons name="star" size={18} color="#FFD700" />
+                        <Text style={styles.ratingText}>{rating} ({t('foodieRating')})</Text>
                     </View>
 
                     <View style={styles.divider} />
@@ -255,6 +299,10 @@ const FoodDetailsScreen = () => {
                         <Text style={styles.costLabel}>{t('transport')} ({data.suggestedTransport || 'Grab'})</Text>
                         <Text style={styles.costValue}>RM {transportPrice.toFixed(2)}</Text>
                     </View>
+                    {/* Disclaimer Text */}
+                    <Text style={styles.noteText}>
+                        * Transport fee estimated assuming departure from the same state (e.g. Penang).
+                    </Text>
 
                     <View style={styles.divider} />
 
@@ -290,12 +338,14 @@ const FoodDetailsScreen = () => {
                     <Text style={styles.totalLabel}>{t('estimatedTotal')}</Text>
                     <Text style={styles.totalPrice}>RM {estimatedExp.toFixed(2)}</Text>
                 </View>
-                <TouchableOpacity style={[styles.addButton, { backgroundColor: '#FF7C5E' }]} onPress={handleAddToPlanClick}>
-                    <Text style={styles.addButtonText}>{t('addToPlan')}</Text>
-                </TouchableOpacity>
+                {/* Conditional Rendering for Add Button */}
+                {isTraveller && (
+                    <TouchableOpacity style={[styles.addButton, { backgroundColor: '#FF7C5E' }]} onPress={handleAddToPlanClick}>
+                        <Text style={styles.addButtonText}>{t('addToPlan')}</Text>
+                    </TouchableOpacity>
+                )}
             </View>
 
-            {/* MODAL REMAINED SAME */}
             <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
@@ -356,7 +406,6 @@ const styles = StyleSheet.create({
     imageContainer: { height: height * 0.5, width: '100%', position: 'absolute', top: 0 },
     heroImage: { width: '100%', height: '100%', resizeMode: 'cover' },
     
-    // === CHANGED: Header Button Style (No Absolute Position) ===
     favButtonHeader: {
         backgroundColor: 'rgba(0,0,0,0.3)',
         borderRadius: 20,
@@ -368,9 +417,24 @@ const styles = StyleSheet.create({
 
     sheetContainer: { flex: 1, marginTop: height * 0.35, backgroundColor: '#FFF', borderTopLeftRadius: 35, borderTopRightRadius: 35, elevation: 10 },
     scrollContent: { paddingHorizontal: 25, paddingTop: 35 },
-    headerSection: { marginBottom: 20 },
-    title: { fontSize: 28, fontWeight: 'bold', marginBottom: 8 },
-    ratingRow: { flexDirection: 'row', alignItems: 'center' },
+    
+    // Updated Header Section Layout
+    headerSection: { 
+        flexDirection: 'row', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        marginBottom: 5 
+    },
+    title: { fontSize: 28, fontWeight: 'bold', flexShrink: 1 },
+    
+    // Edit Button Style
+    editButton: {
+        padding: 5,
+        backgroundColor: '#F2F2F2',
+        borderRadius: 20,
+    },
+
+    ratingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 }, // Increased margin bottom since it's separated now
     ratingText: { marginLeft: 5, fontSize: 15, color: '#666' },
     divider: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 20 },
     sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 12 },
@@ -378,6 +442,9 @@ const styles = StyleSheet.create({
     costRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
     costLabel: { fontSize: 17, color: '#333' },
     costValue: { fontSize: 17, fontWeight: 'bold' },
+    
+    noteText: { fontSize: 12, color: '#999', fontStyle: 'italic', marginTop: 5 },
+
     mapContainer: { width: '100%', height: 450, borderRadius: 20, overflow: 'hidden', marginBottom: 10, position: 'relative', backgroundColor: '#f9f9f9', borderWidth: 1, borderColor: '#EEE' },
     mapWebView: { flex: 1, backgroundColor: 'transparent', opacity: 0.99 },
     navigateFab: { position: 'absolute', bottom: 10, right: 10, backgroundColor: '#FF7C5E', flexDirection: 'row', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, alignItems: 'center', elevation: 5, zIndex: 999 },

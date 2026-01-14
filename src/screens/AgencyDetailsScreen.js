@@ -19,7 +19,15 @@ import { registerAgency } from '../services/AuthService';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function AgencyDetailsScreen() {
-  const { email, password } = useLocalSearchParams();
+  // 🔥 1. Retrieve all the passed data here
+  const { 
+    email, 
+    password, 
+    fullName, 
+    username, 
+    phone, 
+    dob 
+  } = useLocalSearchParams();
   // 2. Destructure Hook
   const { t } = useLanguage();
 
@@ -82,7 +90,17 @@ export default function AgencyDetailsScreen() {
       await registerAgency(
         email, 
         password, 
-        { agencyName, licenseNo, companyUrl }, 
+        { 
+            // Agency specific data
+            agencyName, 
+            licenseNo, 
+            companyUrl,
+            // 🔥 2. Pass the data from the previous screen
+            fullName,
+            username,
+            phone,
+            dob
+        }, 
         logo 
       );
       alert(t('alertAgencyRegComplete'));

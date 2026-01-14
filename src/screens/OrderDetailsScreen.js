@@ -16,12 +16,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../context/LanguageContext';
 import {
-    getCurrentUserData // 1. Import this to check role
-    ,
-
+    getCurrentUserData,
     getEntertainmentById,
     getFoodById,
     getOrderDetails,
+    getUserProfile,
     submitItemRating
 } from '../services/AuthService';
 
@@ -31,6 +30,7 @@ export default function OrderDetailsScreen() {
     const { t } = useLanguage();
 
     const [order, setOrder] = useState(null);
+    const [agency, setAgency] = useState(null); 
     const [loading, setLoading] = useState(true);
     const [enrichedItems, setEnrichedItems] = useState([]);
     const [loadingLocations, setLoadingLocations] = useState(false);
@@ -41,27 +41,26 @@ export default function OrderDetailsScreen() {
     const [starCount, setStarCount] = useState(0);
     const [ratedItems, setRatedItems] = useState([]); 
     
-    // 2. State to track if user is customer
-    const [isCustomer, setIsCustomer] = useState(false);
+    // User Role State
+    const [userRole, setUserRole] = useState(''); // 'traveller', 'agency', 'admin'
+    const [currentUser, setCurrentUser] = useState(null);
 
     useEffect(() => {
-        checkUserRole(); // Check role on load
+        checkUserRoleAndFetchData();
         loadOrder();
     }, [params.orderId, params.orderData]);
 
-    // 3. Logic to check role
-    const checkUserRole = async () => {
+    const checkUserRoleAndFetchData = async () => {
         try {
             const user = await getCurrentUserData();
-            // Only allow rating if role is explicitly 'customer'
-            if (user && user.role === 'traveller') {
-                setIsCustomer(true);
-            } else {
-                setIsCustomer(false);
+            setCurrentUser(user);
+            
+            // Store the role directly
+            if (user && user.role) {
+                setUserRole(user.role);
             }
         } catch (error) {
             console.log("Error checking user role", error);
-            setIsCustomer(false);
         }
     };
 
@@ -70,23 +69,33 @@ export default function OrderDetailsScreen() {
 
         setLoading(true);
         try {
+            let orderData = null;
+
             if (params.orderData) {
                 const raw = Array.isArray(params.orderData) ? params.orderData[0] : params.orderData;
-                const parsed = JSON.parse(raw);
-                setOrder(parsed);
-                await fetchLocationsForItems(parsed.items);
+                orderData = JSON.parse(raw);
             }
             else if (params.orderId) {
                 const cleanId = Array.isArray(params.orderId) ? params.orderId[0] : params.orderId;
-                const fetchedOrder = await getOrderDetails(cleanId.trim());
-
-                if (fetchedOrder) {
-                    setOrder(fetchedOrder);
-                    await fetchLocationsForItems(fetchedOrder.items);
-                } else {
-                    Alert.alert(t('alertErrorTitle'), "Order ID not found.");
-                }
+                orderData = await getOrderDetails(cleanId.trim());
             }
+
+            if (orderData) {
+                setOrder(orderData);
+                await fetchLocationsForItems(orderData.items);
+
+                if (orderData.agencyId) {
+                    try {
+                        const agencyData = await getUserProfile(orderData.agencyId);
+                        setAgency(agencyData);
+                    } catch (err) {
+                        console.log("Could not fetch agency details");
+                    }
+                }
+            } else {
+                Alert.alert(t('alertErrorTitle'), "Order ID not found.");
+            }
+
         } catch (error) {
             console.error("Error loading order:", error);
             Alert.alert(t('alertErrorTitle'), "Failed to load order details.");
@@ -177,7 +186,6 @@ export default function OrderDetailsScreen() {
         } catch { return '—'; }
     };
 
-    // --- RATING HANDLERS ---
     const openRatingModal = (item) => {
         setSelectedItemForRating(item);
         setStarCount(0);
@@ -204,6 +212,50 @@ export default function OrderDetailsScreen() {
             Alert.alert(t('alertErrorTitle'), "Failed to submit rating. Please try again.");
         }
     };
+
+    // --- HELPER RENDERS ---
+    
+    // 1. Customer Info Section (For Admin OR Agency)
+    const renderCustomerInfo = () => (
+        <View style={styles.section}>
+            <Text style={styles.sectionLabel}>{t('customerInfo')}</Text>
+            <View style={styles.infoCard}>
+                <View style={styles.infoRow}>
+                    <Ionicons name="person-outline" size={18} color="#666" />
+                    <Text style={styles.infoValue}>{order.customerName || "N/A"}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                    <Ionicons name="mail-outline" size={18} color="#666" />
+                    <Text style={styles.infoValue}>{order.customerEmail || "N/A"}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                    <Ionicons name="call-outline" size={18} color="#666" />
+                    <Text style={styles.infoValue}>{order.customerPhone || "N/A"}</Text>
+                </View>
+            </View>
+        </View>
+    );
+
+    // 2. Agency Info Section (For Admin OR Traveller)
+    const renderAgencyInfo = () => (
+        <View style={styles.section}>
+            <Text style={styles.sectionLabel}>{t('travelAgencyLabel') || "Agency Info"}</Text>
+            <View style={styles.infoCard}>
+                <View style={styles.infoRow}>
+                    <Ionicons name="business-outline" size={18} color="#666" />
+                    <Text style={styles.infoValue}>{agency?.agencyName || agency?.fullName || order.agencyName || "Unknown Agency"}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                    <Ionicons name="mail-outline" size={18} color="#666" />
+                    <Text style={styles.infoValue}>{agency?.email || "N/A"}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                    <Ionicons name="call-outline" size={18} color="#666" />
+                    <Text style={styles.infoValue}>{agency?.phone || agency?.contactNumber || "N/A"}</Text>
+                </View>
+            </View>
+        </View>
+    );
 
     if (loading) {
         return (
@@ -261,24 +313,13 @@ export default function OrderDetailsScreen() {
                     )}
                 </TouchableOpacity>
 
-                {/* Customer Info */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>{t('customerInfo')}</Text>
-                    <View style={styles.infoCard}>
-                        <View style={styles.infoRow}>
-                            <Ionicons name="person-outline" size={18} color="#666" />
-                            <Text style={styles.infoValue}>{order.customerName}</Text>
-                        </View>
-                        <View style={styles.infoRow}>
-                            <Ionicons name="mail-outline" size={18} color="#666" />
-                            <Text style={styles.infoValue}>{order.customerEmail}</Text>
-                        </View>
-                        <View style={styles.infoRow}>
-                            <Ionicons name="call-outline" size={18} color="#666" />
-                            <Text style={styles.infoValue}>{order.customerPhone}</Text>
-                        </View>
-                    </View>
-                </View>
+                {/* --- UI LOGIC BASED ON ROLE --- */}
+                
+                {/* 1. Show Customer Info if User is ADMIN or AGENCY */}
+                {(userRole === 'admin' || userRole === 'agency') && renderCustomerInfo()}
+
+                {/* 2. Show Agency Info if User is ADMIN or TRAVELLER */}
+                {(userRole === 'admin' || userRole === 'traveller') && renderAgencyInfo()}
 
                 {/* Trip Details */}
                 <View style={styles.section}>
@@ -324,8 +365,8 @@ export default function OrderDetailsScreen() {
                                     <Text style={styles.itemTitle}>{item.title}</Text>
                                     <Text style={styles.itemType}>{item.type}</Text>
                                     
-                                    {/* 4. CONDITIONAL RENDER: ONLY SHOW IF CUSTOMER */}
-                                    {isCustomer && (
+                                    {/* Rating Button: Only for Travellers */}
+                                    {userRole === 'traveller' && (
                                         <TouchableOpacity 
                                             style={[styles.rateButton, isRated && styles.ratedButton]}
                                             onPress={() => !isRated && openRatingModal(item)}

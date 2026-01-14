@@ -7,12 +7,10 @@ import { db } from '../../firebaseConfig';
 
 /**
  * Scans the user's message to decide which collections are relevant.
- * Returns an object like { includeFoods: true, includePlans: false, ... }
  */
 const detectIntents = (message) => {
   const lowerMsg = message.toLowerCase();
 
-  // Keywords for each category
   const foodKeywords = ["food", "eat", "hungry", "restaurant", "dining", "lunch", "dinner", "breakfast", "cafe", "dish"];
   const entKeywords = ["activity", "fun", "visit", "entertainment", "place", "attraction", "sightseeing", "museum", "park"];
   const planKeywords = ["plan", "trip", "itinerary", "schedule", "package", "travel"];
@@ -21,10 +19,6 @@ const detectIntents = (message) => {
   const hasEnt = entKeywords.some(keyword => lowerMsg.includes(keyword));
   const hasPlan = planKeywords.some(keyword => lowerMsg.includes(keyword));
 
-  // If the user didn't mention specific keywords, we might default to fetching everything 
-  // (or better, fetch a small "highlight" list). 
-  // For now, if nothing matches, we default to TRUE for all to be safe, 
-  // but you can change this to FALSE to save tokens.
   if (!hasFood && !hasEnt && !hasPlan) {
     return { includeFoods: true, includeEntertainment: true, includePlans: true };
   }
@@ -37,39 +31,66 @@ const detectIntents = (message) => {
 };
 
 /**
- * Universal formatter that handles the "Zero Cost" bug and truncates text
+ * Helper to turn "RM 500.00" or 500 into a raw number for calculation
+ */
+const parsePrice = (val) => {
+    if (!val) return 0;
+    if (typeof val === 'number') return val;
+    // Remove non-numeric chars except dot
+    const clean = String(val).replace(/[^0-9.]/g, ''); 
+    return parseFloat(clean) || 0;
+};
+
+/**
+ * Universal formatter that calculates Per Pax price for the AI context
  */
 const formatItem = (doc, type) => {
   const data = doc.data();
-
-  // LOGIC FIX: Handle 0 as a valid price (not false)
-  let priceDisplay = "N/A";
   
-  // Check estimatedTotalExpenses
+  // 1. Extract Pax (Default to 1 if missing)
+  const pax = parseInt(data.pax) || 1;
+
+  // 2. Determine Raw Total Price
+  let rawTotal = 0;
+  
   if (data.estimatedTotalExpenses !== undefined && data.estimatedTotalExpenses !== null) {
-    priceDisplay = `RM ${data.estimatedTotalExpenses}`;
+    rawTotal = parsePrice(data.estimatedTotalExpenses);
   } 
-  // Fallback to ticketPrice
   else if (data.ticketPrice !== undefined && data.ticketPrice !== null) {
-    priceDisplay = `RM ${data.ticketPrice}`;
+    rawTotal = parsePrice(data.ticketPrice);
   }
-  // Fallback to generic price
   else if (data.price !== undefined && data.price !== null) {
-    priceDisplay = `RM ${data.price}`;
+    rawTotal = parsePrice(data.price);
   }
-  // Fallback to priceRange string
+
+  // 3. Create a Descriptive Price String for the AI
+  let priceDisplay = "N/A";
+
+  if (rawTotal > 0) {
+      if (pax > 1) {
+          // Calculate Per Pax
+          const perPax = (rawTotal / pax).toFixed(2);
+          // AI reads this string: "RM 500 (Total for 5 Pax) ~ RM 100/pax"
+          priceDisplay = `RM ${rawTotal.toFixed(2)} (Total for ${pax} Pax) ~ RM ${perPax}/pax`;
+      } else {
+          // Single Pax or Item
+          priceDisplay = `RM ${rawTotal.toFixed(2)}`;
+      }
+  } 
+  // Fallback for text ranges like "RM 10 - RM 20" (common in Food)
   else if (data.priceRange) {
-    priceDisplay = data.priceRange;
+      priceDisplay = data.priceRange;
   }
 
   return {
     id: doc.id,
     title: data.title || data.planName || "Untitled",
-    // PERFORMANCE: Truncate description to 150 chars to save AI memory
+    // Truncate description to save AI token memory
     description: (data.description || data.desc || "").substring(0, 150) + "...", 
-    price: priceDisplay,
+    price: priceDisplay, // <--- AI now sees the full context (Total + Per Pax)
     rating: data.rating || "N/A",
-    type: type
+    type: type,
+    pax: pax // Useful meta-data
   };
 };
 
@@ -85,7 +106,7 @@ export const getDynamicTravelData = async (userMessage) => {
 
     // Only fetch what is needed
     if (intents.includeFoods) {
-      const q = query(collection(db, "foods"), limit(20)); // Limit to top 20 to prevent crashes
+      const q = query(collection(db, "foods"), limit(20)); 
       promises.push(getDocs(q).then(snap => {
         results.foods = snap.docs.map(doc => formatItem(doc, "Food"));
       }));

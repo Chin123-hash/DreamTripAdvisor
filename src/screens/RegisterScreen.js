@@ -14,12 +14,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { registerTraveller } from '../services/AuthService';
-// IMPORT LANGUAGE HOOK
 import { useLanguage } from '../context/LanguageContext';
+import { registerTraveller } from '../services/AuthService';
 
 export default function RegisterScreen() {
-  // USE HOOK
   const { t } = useLanguage();
 
   // 1. Form State
@@ -32,8 +30,13 @@ export default function RegisterScreen() {
   const [phone, setPhone] = useState('');
   const [isPasswordVisible, setPasswordVisible] = useState(false);
 
-  // Date Picker State
-  const [date, setDate] = useState(new Date()); 
+  // --- DATE LOGIC FOR 16+ AGE RESTRICTION ---
+  const today = new Date();
+  // Calculate the latest allowed date (Today - 16 years)
+  const maxDate = new Date(today.getFullYear() - 16, today.getMonth(), today.getDate());
+  
+  // Initialize picker with maxDate (so it opens at a valid year)
+  const [date, setDate] = useState(maxDate); 
   const [showPicker, setShowPicker] = useState(false); 
 
   const onChangeDate = (event, selectedDate) => {
@@ -66,7 +69,6 @@ export default function RegisterScreen() {
     isPhoneValid;
 
   const handlePress = async () => {
-    // Require all fields before proceeding
     if (
       !fullName.trim() ||
       !username.trim() ||
@@ -89,13 +91,18 @@ export default function RegisterScreen() {
     }
 
     if (role === 'agency') {
-      // A. If Agency, pass data to Next Page (Do not save yet)
       router.push({
         pathname: '/agency-details',
-        params: { email: email.trim(), password: password } 
+        params: { 
+            email: email.trim(), 
+            password: password,
+            fullName: fullName.trim(),
+            username: username.trim(),
+            phone: phone.trim(),
+            dob: dob.trim()
+        } 
       });
     } else {
-      // B. If Traveller, Save to Database NOW
       try {
         await registerTraveller(email.trim(), password, {
           fullName: fullName.trim(),
@@ -134,7 +141,6 @@ export default function RegisterScreen() {
           </View>
 
           {/* FORM INPUTS */}
-          
           <Text style={styles.label}>{t('fullName')}</Text>
           <TextInput 
             style={styles.inputField} 
@@ -162,8 +168,6 @@ export default function RegisterScreen() {
           />
 
           <Text style={styles.label}>{t('password')}</Text>
-          
-          {/* ENHANCED PASSWORD FIELD WITH ICON */}
           <View style={styles.passwordContainer}>
             <TextInput
               style={styles.passwordInput}
@@ -184,31 +188,34 @@ export default function RegisterScreen() {
             </TouchableOpacity>
           </View>
 
-        <Text style={styles.label}>{t('dob')}</Text>
-        <TouchableOpacity onPress={() => setShowPicker(true)} style={styles.dateContainer}>
-        {/* Pointer events none makes the TextInput clickable via the parent TouchableOpacity */}
-        <View pointerEvents="none">
-            <TextInput 
-            style={[styles.inputField, {marginBottom: 0}]} 
-            placeholder={t('placeholderDob')} 
-            value={dob} 
-            editable={false} 
-            />
-        </View>
-        <Ionicons name="calendar-outline" size={24} color="#BDBDBD" style={styles.calendarIcon} />
-        </TouchableOpacity>
+          <Text style={styles.label}>{t('dob')}</Text>
+          <TouchableOpacity onPress={() => setShowPicker(true)} style={styles.dateContainer}>
+            <View pointerEvents="none">
+                <TextInput 
+                    style={[styles.inputField, {marginBottom: 0}]} 
+                    placeholder={t('placeholderDob')} 
+                    value={dob} 
+                    editable={false} 
+                />
+            </View>
+            <Ionicons name="calendar-outline" size={24} color="#BDBDBD" style={styles.calendarIcon} />
+          </TouchableOpacity>
+          
+          {/* 🔥 1. Added Age Statement */}
+          <Text style={styles.helperText}>* Must be at least 16 years old</Text>
 
-        {/* The Actual Calendar Component */}
-        {showPicker && (
-        <DateTimePicker
-            testID="dateTimePicker"
-            value={date}
-            mode="date"
-            is24Hour={true}
-            display="default"
-            onChange={onChangeDate}
-        />
-        )}
+          {showPicker && (
+            <DateTimePicker
+              testID="dateTimePicker"
+              value={date}
+              mode="date"
+              is24Hour={true}
+              display="default"
+              onChange={onChangeDate}
+              // 🔥 2. Added Maximum Date Constraint
+              maximumDate={maxDate} 
+            />
+          )}
 
           <Text style={styles.label}>{t('phone')}</Text>
           <TextInput 
@@ -219,11 +226,9 @@ export default function RegisterScreen() {
             keyboardType="phone-pad"
           />
 
-          {/* ROLE SELECTION (Radio Buttons) */}
+          {/* ROLE SELECTION */}
           <Text style={styles.questionLabel}>{t('roleQuestion')}</Text>
-          
           <View style={styles.radioGroup}>
-            {/* Option 1: Traveller */}
             <TouchableOpacity style={styles.radioRow} onPress={() => setRole('traveller')}>
               <View style={[styles.radioOuter, role === 'traveller' && styles.radioSelected]}>
                 {role === 'traveller' && <View style={styles.radioInner} />}
@@ -231,7 +236,6 @@ export default function RegisterScreen() {
               <Text style={styles.radioText}>{t('traveller')}</Text>
             </TouchableOpacity>
 
-            {/* Option 2: Travel Agency */}
             <TouchableOpacity style={styles.radioRow} onPress={() => setRole('agency')}>
               <View style={[styles.radioOuter, role === 'agency' && styles.radioSelected]}>
                 {role === 'agency' && <View style={styles.radioInner} />}
@@ -240,7 +244,6 @@ export default function RegisterScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* DYNAMIC BUTTON */}
           <TouchableOpacity
             style={[styles.mainButton, !isFormValid && styles.mainButtonDisabled]}
             onPress={handlePress}
@@ -274,8 +277,6 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 50, 
   },
-  
-  // === TAB BAR ===
   tabContainer: {
     flexDirection: 'row',
     marginBottom: 30,
@@ -304,14 +305,21 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#BDBDBD',
   },
-
-  // === FORM LABELS & INPUTS ===
   label: {
     fontSize: 14,
     color: '#333',
     marginBottom: 8,
     marginLeft: 4,
     fontWeight: '600',
+  },
+  // 🔥 3. Added Helper Text Style
+  helperText: {
+    fontSize: 12,
+    color: '#FF6B6B', // Light red for attention, or use grey #888
+    marginTop: -10, // Pull closer to the input above
+    marginBottom: 16,
+    marginLeft: 4,
+    fontStyle: 'italic',
   },
   inputField: {
     width: '100%',
@@ -324,8 +332,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginBottom: 16,
   },
-  
-  // === PASSWORD TOGGLE STYLES ===
   passwordContainer: {
     flexDirection: 'row', 
     alignItems: 'center',
@@ -347,8 +353,6 @@ const styles = StyleSheet.create({
   eyeIcon: {
     padding: 4,
   },
-  
-  // === CALENDAR SPECIFIC ===
   dateContainer: {
     position: 'relative',
     marginBottom: 16,
@@ -358,8 +362,6 @@ const styles = StyleSheet.create({
     right: 16,
     top: 13, 
   },
-
-  // === RADIO BUTTONS ===
   questionLabel: {
     fontSize: 14,
     fontWeight: '600',
@@ -400,8 +402,6 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '500',
   },
-
-  // === BUTTON ===
   mainButton: {
     width: '100%',
     height: 56,
@@ -424,8 +424,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-
-  // === FOOTER ===
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
