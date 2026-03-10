@@ -16,6 +16,20 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npx expo start
    ```
 
+    ```bash
+   Sample Testing Customer Account
+   Email: test@gmail.com
+   Password: test123
+
+   Sample Testing Agency Account
+   Email: adam@gmail.com
+   Password:
+
+   Sample Testing Admin Account
+   Email: admin@gmail.com
+   Password: admin123
+   ```
+
 In the output, you'll find options to open the app in a
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)
