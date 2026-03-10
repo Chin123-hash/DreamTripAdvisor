@@ -27,7 +27,7 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 
    Sample Testing Admin Account
    Email: admin@gmail.com
-   Password: admin123
+   Password: admin01
    ```
 
 In the output, you'll find options to open the app in a
