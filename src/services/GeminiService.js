@@ -1,8 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// ⚠️ SECURITY WARNING: In production, do not store keys here. Use Firebase Remote Config.
-const API_KEY = "AIzaSyAkT5iDirGlGpMoN8FHGtPG5c-Tlx87Xc0"; 
-
+const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 export const sendMessageToGemini = async (userMessage, history = [], databaseContext = null) => {

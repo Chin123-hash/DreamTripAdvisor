@@ -5,14 +5,14 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-    apiKey: "AIzaSyAFMhGpNlrox_YKuaIKaI_zwKvanfINk0Y",
-    authDomain: "dream-trip-advisor.firebaseapp.com",
-    databaseURL: "https://dream-trip-advisor-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "dream-trip-advisor",
-    storageBucket: "dream-trip-advisor.firebasestorage.app",
-    messagingSenderId: "344342252128",
-    appId: "1:344342252128:web:4544e3c73f8c4a78e45105",
-    measurementId: "G-N20M9ESJ05"
+    apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    databaseURL: process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL,
+    projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+    measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID  
 };
 
 // Initialize Firebase
